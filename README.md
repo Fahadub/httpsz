@@ -5,6 +5,7 @@
 ## What's New in v2.1
 
 ### Fixed from v2.0
+
 - **REAL OCSP**: Now fetches issuer certificate automatically from AIA extension
 - **Enhanced PQC detection**: Multiple methods with honest reporting of TLS 1.3 limitations
 - **Honest ECH reporting**: Conservative reporting acknowledging Python ssl limitations
@@ -12,6 +13,7 @@
 - **Fixed socket close ordering**: TLS checks complete before socket closure
 
 ### Features
+
 - TLS 1.2/1.3 with strict cipher suites
 - REAL Certificate Transparency via crt.sh API
 - REAL OCSP with automatic issuer fetching (DER, PEM, PKCS#7)
@@ -33,13 +35,15 @@ pip install httpsz
 Or from source:
 
 ```bash
-git clone https://github.com/httpsz/httpsz.git
+git clone https://github.com/Fahadub/httpsz.git
 cd httpsz
 pip install -r requirements.txt
 pip install -e .
 ```
 
 ## Quick Start
+
+### Python API
 
 ```python
 from httpsz import HTTPSZ, SecurityReport
@@ -52,7 +56,7 @@ print(f"Score: {result.security_score}/100")
 print(SecurityReport.to_text(result))
 ```
 
-## CLI Usage
+### Command Line
 
 ```bash
 httpsz https://www.google.com
@@ -64,23 +68,28 @@ httpsz https://example.com --min-tls 1.3
 ## Known Limitations (Honestly Documented)
 
 ### ECH Detection
+
 Python's `ssl` module has limited visibility into TLS extensions. Real ECH detection requires parsing ClientHello/ServerHello for the `encrypted_client_hello` extension (0xfe0d). We report False unless concrete evidence is found.
 
 ### Post-Quantum Cryptography in TLS 1.3
+
 In TLS 1.3, the key exchange algorithm (e.g., X25519Kyber768) is negotiated separately from the cipher suite via `supported_groups`. Python's ssl module does not expose the negotiated group, so PQC may be active but undetectable at this layer. We document this honestly in reports.
 
 ## Real Security Checks
 
 ### Certificate Transparency (CT)
+
 Queries crt.sh API and matches certificate SHA256 fingerprint against public CT logs.
 
 ### OCSP Checking
-1. Extracts OCSP responder URL from certificate's AIA extension
-2. Fetches issuer certificate from CA Issuers URL (supports DER, PEM, PKCS#7)
-3. Builds and sends real OCSP request
-4. Parses and verifies OCSP response
+
+- Extracts OCSP responder URL from certificate's AIA extension
+- Fetches issuer certificate from CA Issuers URL (supports DER, PEM, PKCS#7)
+- Builds and sends real OCSP request
+- Parses and verifies OCSP response
 
 ### Post-Quantum Detection
+
 Detects hybrid post-quantum cipher suites (X25519Kyber768, MLKEM768, etc.) when visible in cipher name.
 
 ## License
