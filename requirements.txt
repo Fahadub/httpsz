@@ -1,0 +1,5 @@
+# Runtime: no external dependencies (uses Python stdlib)
+# Dev dependencies:
+pytest>=7.0.0
+black>=23.0.0
+mypy>=1.0.0

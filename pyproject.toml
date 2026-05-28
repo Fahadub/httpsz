@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "httpsz"
+version = "1.0.0"
+description = "Next-Generation HTTPS Security Scanner"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+
+[project.scripts]
+httpsz = "httpsz.cli:main"
