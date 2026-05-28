@@ -24,6 +24,7 @@ class AnomalyDetector:
 
     def detect(self, hostname, cert_fingerprint, cert_not_before,
                cert_not_after, connection_time, tls_version, cipher):
+        """Detect anomalies in connection."""
         anomalies = []
         try:
             not_before = datetime.strptime(
@@ -70,4 +71,5 @@ class AnomalyDetector:
         return anomalies
 
     def get_history(self, hostname):
+        """Get connection history for a hostname."""
         return self.connection_history.get(hostname, [])
