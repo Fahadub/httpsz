@@ -1,3 +1,5 @@
+"""Unit tests for HTTPSZ scanner."""
+
 import pytest
 from httpsz.scanner import HTTPSZ
 from httpsz.core import CertificateParser, SecureTLSContext
@@ -7,12 +9,14 @@ from httpsz.pqc import PQCDetector
 
 
 def test_scanner_instantiation():
+    """Scanner can be instantiated with default options."""
     scanner = HTTPSZ()
     assert scanner.enable_ech is True
     assert scanner.use_doh is True
 
 
 def test_scanner_custom_options():
+    """Scanner respects custom configuration."""
     scanner = HTTPSZ(
         pinned_certs={"example.com": "abc123"},
         enable_ech=False,
@@ -26,18 +30,21 @@ def test_scanner_custom_options():
 
 
 def test_tls_context_creation():
+    """TLS context enforces TLS 1.3 minimum."""
     import ssl
     ctx = SecureTLSContext(min_tls_version="1.3")
     assert ctx.context.minimum_version == ssl.TLSVersion.TLSv1_3
 
 
 def test_certificate_parser_empty():
+    """Parser handles empty fields gracefully."""
     info = CertificateParser.extract_info({}, b"test")
     assert info.subject == {}
     assert info.fingerprint_sha256
 
 
 def test_doh_resolver_providers():
+    """DoH resolver validates provider names."""
     resolver = DoHResolver(provider="cloudflare")
     assert resolver.provider == "cloudflare"
     with pytest.raises(ValueError):
@@ -45,6 +52,7 @@ def test_doh_resolver_providers():
 
 
 def test_anomaly_detector_slow_connection():
+    """Detector flags slow connections."""
     detector = AnomalyDetector()
     anomalies = detector.detect(
         hostname="example.com",
@@ -59,12 +67,14 @@ def test_anomaly_detector_slow_connection():
 
 
 def test_pqc_detector_classical():
+    """PQC detector identifies classical cipher correctly."""
     detector = PQCDetector()
     status = detector.detect(("TLS_AES_256_GCM_SHA384", "TLSv1.3", 256))
     assert status.quantum_ready is False
 
 
 def test_pqc_detector_hybrid():
+    """PQC detector identifies hybrid cipher correctly."""
     detector = PQCDetector()
     status = detector.detect(("TLS_AES_256_GCM_SHA384_X25519Kyber768", "TLSv1.3", 256))
     assert status.quantum_ready is True
@@ -72,6 +82,7 @@ def test_pqc_detector_hybrid():
 
 
 def test_pqc_tls13_limitation():
+    """PQC detector reports TLS 1.3 limitation honestly."""
     detector = PQCDetector()
     status = detector.detect(
         ("TLS_AES_256_GCM_SHA384", "TLSv1.3", 256),
@@ -82,6 +93,7 @@ def test_pqc_tls13_limitation():
 
 
 def test_grade_calculation():
+    """Grade calculation returns correct letters."""
     scanner = HTTPSZ()
     assert scanner._get_grade(100) == "A+"
     assert scanner._get_grade(92) == "A"
