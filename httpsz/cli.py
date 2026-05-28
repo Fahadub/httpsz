@@ -7,6 +7,7 @@ from httpsz.report import SecurityReport
 
 
 def main():
+    """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="httpsz",
         description="HTTPSZ v2.1 - Real HTTPS Security Scanner",
