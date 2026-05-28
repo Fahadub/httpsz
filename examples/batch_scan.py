@@ -1,7 +1,9 @@
 """Batch scan multiple domains."""
 from httpsz import HTTPSZ
 
+
 def main():
+    """Scan multiple domains and display a summary table."""
     scanner = HTTPSZ(min_tls="1.2")
     domains = ["google.com", "github.com", "cloudflare.com", "mozilla.org"]
 
@@ -20,6 +22,7 @@ def main():
             f"{result.security_score:<8} {ct_status:<10} "
             f"{ocsp_status:<10} {pqc_status:<6}"
         )
+
 
 if __name__ == "__main__":
     main()
