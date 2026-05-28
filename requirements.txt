@@ -1,5 +1,7 @@
-# Runtime: no external dependencies (uses Python stdlib)
-# Dev dependencies:
+# Core dependencies for REAL CT and OCSP checks
+cryptography>=41.0.0
+
+# Development dependencies
 pytest>=7.0.0
 black>=23.0.0
 mypy>=1.0.0

@@ -1,19 +1,24 @@
-# HTTPSZ
+# HTTPSZ v2.1
 
-**Next-Generation HTTPS Security Scanner** with Post-Quantum Cryptography readiness.
+**Real HTTPS Security Scanner** with genuine Certificate Transparency, OCSP, and enhanced Post-Quantum Cryptography detection.
 
-A comprehensive, future-proof security scanner built in pure Python.
+## What's New in v2.1
 
-## Features
+### Fixed from v2.0
+- **REAL OCSP**: Now fetches issuer certificate automatically from AIA extension
+- **Enhanced PQC detection**: Multiple methods with honest reporting of TLS 1.3 limitations
+- **Honest ECH reporting**: Conservative reporting acknowledging Python ssl limitations
+- **Removed unused `requests` dependency**: Only `cryptography` required
+- **Fixed socket close ordering**: TLS checks complete before socket closure
 
-- TLS 1.3 enforcement with strict cipher suites
-- Certificate Transparency (CT) verification
-- OCSP / CRL revocation checking
-- DNS over HTTPS (DoH) resolution
-- Post-Quantum Cryptography readiness
-- Advanced anomaly detection
-- Encrypted Client Hello (ECH) support
+### Features
+- TLS 1.2/1.3 with strict cipher suites
+- REAL Certificate Transparency via crt.sh API
+- REAL OCSP with automatic issuer fetching (DER, PEM, PKCS#7)
+- Post-Quantum Cryptography detection
+- DNS over HTTPS (Cloudflare, Google, Quad9)
 - Certificate pinning
+- Anomaly detection
 - CA reputation analysis
 - Security scoring (0-100, A+ to F)
 - Multiple report formats: JSON, text, HTML
@@ -30,6 +35,7 @@ Or from source:
 ```bash
 git clone https://github.com/httpsz/httpsz.git
 cd httpsz
+pip install -r requirements.txt
 pip install -e .
 ```
 
@@ -38,7 +44,7 @@ pip install -e .
 ```python
 from httpsz import HTTPSZ, SecurityReport
 
-scanner = HTTPSZ(enable_ech=True, use_doh=True)
+scanner = HTTPSZ(enable_ech=True, use_doh=True, min_tls="1.2")
 result = scanner.scan("https://www.google.com")
 
 print(f"Grade: {result.security_grade}")
@@ -52,7 +58,30 @@ print(SecurityReport.to_text(result))
 httpsz https://www.google.com
 httpsz https://www.google.com --format json -o report.json
 httpsz https://api.bank.com --pin api.bank.com=<sha256>
+httpsz https://example.com --min-tls 1.3
 ```
+
+## Known Limitations (Honestly Documented)
+
+### ECH Detection
+Python's `ssl` module has limited visibility into TLS extensions. Real ECH detection requires parsing ClientHello/ServerHello for the `encrypted_client_hello` extension (0xfe0d). We report False unless concrete evidence is found.
+
+### Post-Quantum Cryptography in TLS 1.3
+In TLS 1.3, the key exchange algorithm (e.g., X25519Kyber768) is negotiated separately from the cipher suite via `supported_groups`. Python's ssl module does not expose the negotiated group, so PQC may be active but undetectable at this layer. We document this honestly in reports.
+
+## Real Security Checks
+
+### Certificate Transparency (CT)
+Queries crt.sh API and matches certificate SHA256 fingerprint against public CT logs.
+
+### OCSP Checking
+1. Extracts OCSP responder URL from certificate's AIA extension
+2. Fetches issuer certificate from CA Issuers URL (supports DER, PEM, PKCS#7)
+3. Builds and sends real OCSP request
+4. Parses and verifies OCSP response
+
+### Post-Quantum Detection
+Detects hybrid post-quantum cipher suites (X25519Kyber768, MLKEM768, etc.) when visible in cipher name.
 
 ## License
 

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "httpsz"
-version = "1.0.0"
-description = "Next-Generation HTTPS Security Scanner"
+version = "2.1.0"
+description = "Real HTTPS Security Scanner"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
