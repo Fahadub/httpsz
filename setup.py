@@ -1,3 +1,4 @@
+"""Setup script for HTTPSZ."""
 from setuptools import setup, find_packages
 
 with open("README.md", "r", encoding="utf-8") as fh:
@@ -10,7 +11,7 @@ setup(
     description="Real HTTPS Security Scanner with CT, OCSP, and PQC",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/httpsz/httpsz",
+    url="https://github.com/Fahadub/httpsz",
     packages=find_packages(exclude=["tests", "examples"]),
     classifiers=[
         "Development Status :: 4 - Beta",
