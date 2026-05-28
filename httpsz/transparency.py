@@ -35,11 +35,7 @@ class CTLogVerifier:
         self.timeout = timeout
 
     def verify(self, cert_der, hostname):
-        """
-        REAL CT verification via crt.sh API.
-
-        Returns True if certificate fingerprint is found in CT logs.
-        """
+        """REAL CT verification via crt.sh API."""
         status = CTStatus(
             verified=False,
             logs_checked=0,
@@ -49,7 +45,6 @@ class CTLogVerifier:
         try:
             cert_fingerprint = hashlib.sha256(cert_der).hexdigest().upper()
 
-            # Query crt.sh API - search for certificates for this hostname
             url = f"https://crt.sh/?q=%25.{hostname}&output=json"
 
             req = urllib.request.Request(
@@ -64,11 +59,9 @@ class CTLogVerifier:
                 data = json.loads(response.read().decode("utf-8"))
 
                 status.cert_count = len(data)
-                status.logs_checked = 1  # crt.sh aggregates all logs
+                status.logs_checked = 1
 
-                # Check for exact fingerprint match
                 for cert_entry in data:
-                    # crt.sh returns SHA256 in various formats
                     entry_fp = cert_entry.get("sha256_fingerprint", "")
                     if not entry_fp:
                         entry_fp = cert_entry.get("fingerprint", "")
@@ -81,16 +74,11 @@ class CTLogVerifier:
                         status.found_in.append(f"crt.sh (entry #{entry_id})")
                         break
 
-                # If no exact match but domain has certs in CT
                 if not status.verified and data:
                     status.found_in.append(
                         f"crt.sh ({len(data)} certs for domain, no exact match)"
                     )
 
-        except urllib.error.URLError as e:
-            status.error = f"Network error: {e}"
-        except json.JSONDecodeError as e:
-            status.error = f"JSON parse error: {e}"
         except Exception as e:
             status.error = str(e)
 
