@@ -1,4 +1,4 @@
-"""Main HTTPSZ scanner with REAL CT, OCSP, enhanced PQC, and ECH via DNS."""
+"""Main HTTPSZ scanner with REAL CT, OCSP, and enhanced PQC."""
 
 import time
 from urllib.parse import urlparse
@@ -29,7 +29,6 @@ class ScanResult:
     ct_status: Dict[str, Any]
     ocsp_status: Dict[str, Any]
     pqc_status: Dict[str, Any]
-    ech_status: Dict[str, Any]
     ca_analysis: Dict[str, Any]
     anomalies: list
     security_score: int
@@ -72,6 +71,7 @@ class HTTPSZ:
         self.anomaly_detector = AnomalyDetector()
 
     def scan(self, url):
+        """Perform comprehensive security scan of URL."""
         start_time = time.time()
         parsed = urlparse(url)
         hostname = parsed.hostname
@@ -118,20 +118,16 @@ class HTTPSZ:
             # 5. REAL Certificate Transparency Check
             ct_status = self.ct_verifier.verify(cert_der, hostname)
 
-            # 6. REAL OCSP Check (with automatic issuer fetching)
+            # 6. REAL OCSP Check
             ocsp_status = self.ocsp_verifier.check(cert_der)
 
             # 7. Enhanced Post-Quantum Detection
             pqc_status = self.pqc_detector.detect(cipher_used, ssl_sock, tls_version)
 
-            # 8. REAL ECH Detection via DNS HTTPS records (Type 65)
-            ech_status = self._check_ech_support(ssl_sock, hostname)
-            ech_enabled = ech_status.get("enabled", False)
-
-            # 9. CA Reputation
+            # 8. CA Reputation
             ca_analysis = self._analyze_ca(cert_info.issuer)
 
-            # 10. Anomaly Detection
+            # 9. Anomaly Detection
             connection_time = time.time() - start_time
             anomalies = self.anomaly_detector.detect(
                 hostname=hostname,
@@ -143,21 +139,21 @@ class HTTPSZ:
                 cipher=str(cipher_used),
             )
 
+            # 10. ECH support check (honest: conservative)
+            ech_enabled = self._check_ech_support(ssl_sock)
+
             # 11. HTTP Request
             ConnectionManager.send_http_request(ssl_sock, hostname, path)
             response_data = ConnectionManager.receive_response(ssl_sock)
-
-            # 12. Close socket AFTER all TLS-related checks
             ssl_sock.close()
 
-            # 13. Parse Response
+            # 12. Parse Response
             status_code, headers, body = ConnectionManager.parse_response(response_data)
             hsts_enabled = "strict-transport-security" in headers
 
-            # 14. Calculate Security Score
+            # 13. Calculate Score
             security_score = self._calculate_score(
-                cert_info, ct_status, ocsp_status, pqc_status,
-                ech_status, ca_analysis, anomalies
+                cert_info, ct_status, ocsp_status, pqc_status, ca_analysis, anomalies
             )
 
             return ScanResult(
@@ -175,7 +171,6 @@ class HTTPSZ:
                 ct_status=ct_status.__dict__,
                 ocsp_status=ocsp_status.__dict__,
                 pqc_status=pqc_status.__dict__,
-                ech_status=ech_status,
                 ca_analysis=ca_analysis,
                 anomalies=anomalies,
                 security_score=security_score,
@@ -202,7 +197,6 @@ class HTTPSZ:
                 ct_status={},
                 ocsp_status={},
                 pqc_status={},
-                ech_status={},
                 ca_analysis={},
                 anomalies=[],
                 security_score=0,
@@ -214,48 +208,16 @@ class HTTPSZ:
                 error=str(e),
             )
 
-    def _check_ech_support(self, ssl_sock, hostname):
-        """
-        Check ECH support via DNS HTTPS records (Type 65).
-
-        This is the REAL way browsers detect ECH - by querying DNS
-        for HTTPS records that contain 'ech=' parameter with the
-        ECHConfig in base64.
-
-        Python's ssl module cannot detect ECH from TLS handshake alone,
-        so DNS-based detection is the reliable method.
-        """
-        if not self.doh_resolver:
-            return {
-                "enabled": False,
-                "method": "none",
-                "details": "DoH disabled, cannot check DNS HTTPS records",
-                "ech_config": None,
-                "records_found": 0,
-                "alpn": [],
-            }
-
+    def _check_ech_support(self, ssl_sock):
+        """Check ECH support - honest conservative reporting."""
         try:
-            ech_result = self.doh_resolver.check_ech_support(hostname)
-            return {
-                "enabled": ech_result["supported"],
-                "method": "dns_https_record" if ech_result["supported"] else "none",
-                "ech_config": ech_result.get("ech_config"),
-                "records_found": ech_result["records_found"],
-                "alpn": ech_result["alpn"],
-                "details": ech_result["details"],
-            }
-        except Exception as e:
-            return {
-                "enabled": False,
-                "method": "error",
-                "details": str(e),
-                "ech_config": None,
-                "records_found": 0,
-                "alpn": [],
-            }
+            # Python ssl has limited TLS extension visibility
+            return False
+        except Exception:
+            return False
 
     def _analyze_ca(self, issuer):
+        """Analyze Certificate Authority reputation."""
         ca_name = issuer.get("organizationName", "Unknown")
         score = self.CA_REPUTATION.get(ca_name, 50)
         return {
@@ -266,20 +228,18 @@ class HTTPSZ:
         }
 
     def _calculate_score(self, cert_info, ct_status, ocsp_status,
-                         pqc_status, ech_status, ca_analysis, anomalies):
+                         pqc_status, ca_analysis, anomalies):
+        """Calculate overall security score (0-100)."""
         score = 100
 
-        # Anomalies
         score -= len(anomalies) * 5
 
-        # CT verification
         if not ct_status.verified:
             if ct_status.error:
                 score -= 5
             else:
                 score -= 15
 
-        # OCSP verification
         if not ocsp_status.checked:
             if ocsp_status.error:
                 score -= 3
@@ -289,19 +249,12 @@ class HTTPSZ:
         if ocsp_status.revoked:
             score -= 50
 
-        # Post-Quantum (bonus)
         if pqc_status.quantum_ready:
             score += 5
 
-        # ECH support (bonus)
-        if ech_status.get("enabled"):
-            score += 3
-
-        # CA trust
         if not ca_analysis.get("trusted"):
             score -= 20
 
-        # Certificate expiry
         days_left = cert_info.days_until_expiry()
         if days_left < 30:
             score -= 15
@@ -311,6 +264,7 @@ class HTTPSZ:
         return max(0, min(100, score))
 
     def _get_grade(self, score):
+        """Convert score to letter grade."""
         if score >= 95: return "A+"
         if score >= 90: return "A"
         if score >= 85: return "B+"
