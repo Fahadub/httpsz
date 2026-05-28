@@ -37,7 +37,7 @@ class AnomalyDetector:
 
             if cert_validity > 398:
                 anomalies.append(
-                    f"Certificate validity period too long: {cert_validity} days"
+                    f"Certificate validity too long: {cert_validity} days"
                 )
             if cert_age < 1:
                 anomalies.append(f"Certificate is very new: {cert_age} days old")

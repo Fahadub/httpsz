@@ -9,7 +9,7 @@ from httpsz.report import SecurityReport
 def main():
     parser = argparse.ArgumentParser(
         prog="httpsz",
-        description="Next-Generation HTTPS Security Scanner",
+        description="HTTPSZ v2.1 - Real HTTPS Security Scanner",
     )
     parser.add_argument("url", help="URL to scan")
     parser.add_argument("--format", choices=["text", "json", "html"],
@@ -18,7 +18,9 @@ def main():
     parser.add_argument("--no-doh", action="store_true")
     parser.add_argument("--no-ech", action="store_true")
     parser.add_argument("--pin", action="append", default=[])
-    parser.add_argument("--timeout", type=float, default=10.0)
+    parser.add_argument("--timeout", type=float, default=15.0)
+    parser.add_argument("--min-tls", choices=["1.2", "1.3"], default="1.2",
+                        help="Minimum TLS version (default: 1.2)")
 
     args = parser.parse_args()
 
@@ -33,6 +35,7 @@ def main():
         enable_ech=not args.no_ech,
         use_doh=not args.no_doh,
         timeout=args.timeout,
+        min_tls=args.min_tls,
     )
 
     result = scanner.scan(args.url)

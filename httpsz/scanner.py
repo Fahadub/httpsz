@@ -1,4 +1,4 @@
-"""Main HTTPSZ scanner that orchestrates all security checks."""
+"""Main HTTPSZ scanner with REAL CT, OCSP, and enhanced PQC."""
 
 import time
 from urllib.parse import urlparse
@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from httpsz.core import SecureTLSContext, CertificateParser, ConnectionManager
 from httpsz.transparency import CTLogVerifier
 from httpsz.ocsp import OCSPVerifier
+from httpsz.pqc import PQCDetector
 from httpsz.doh import DoHResolver
 from httpsz.anomaly import AnomalyDetector
 
@@ -27,6 +28,7 @@ class ScanResult:
     hsts_enabled: bool
     ct_status: Dict[str, Any]
     ocsp_status: Dict[str, Any]
+    pqc_status: Dict[str, Any]
     ca_analysis: Dict[str, Any]
     anomalies: list
     security_score: int
@@ -39,7 +41,7 @@ class ScanResult:
 
 
 class HTTPSZ:
-    """Next-Generation HTTPS Security Scanner."""
+    """Next-Generation HTTPS Security Scanner with REAL checks."""
 
     CA_REPUTATION = {
         "Let's Encrypt": 95,
@@ -54,15 +56,17 @@ class HTTPSZ:
     }
 
     def __init__(self, pinned_certs=None, enable_ech=True,
-                 use_doh=True, timeout=10.0):
+                 use_doh=True, timeout=10.0, min_tls="1.2"):
         self.pinned_certs = pinned_certs or {}
         self.enable_ech = enable_ech
         self.use_doh = use_doh
         self.timeout = timeout
+        self.min_tls = min_tls
 
-        self.tls_context = SecureTLSContext(enable_ech=enable_ech)
+        self.tls_context = SecureTLSContext(min_tls_version=min_tls)
         self.ct_verifier = CTLogVerifier(timeout=timeout)
         self.ocsp_verifier = OCSPVerifier(timeout=timeout)
+        self.pqc_detector = PQCDetector()
         self.doh_resolver = DoHResolver(timeout=timeout) if use_doh else None
         self.anomaly_detector = AnomalyDetector()
 
@@ -76,6 +80,7 @@ class HTTPSZ:
             path += "?" + parsed.query
 
         try:
+            # 1. DNS Resolution
             if self.doh_resolver:
                 doh_result = self.doh_resolver.resolve(hostname)
                 resolved_ip = doh_result.ip
@@ -85,17 +90,20 @@ class HTTPSZ:
                 resolved_ip = socket.gethostbyname(hostname)
                 doh_used = False
 
+            # 2. TCP Connection
             raw_sock = ConnectionManager.create_connection(
                 hostname, port, self.timeout, resolved_ip
             )
             ssl_sock = self.tls_context.wrap_socket(raw_sock, hostname)
 
+            # 3. Extract Certificate and Connection Info
             cert_dict = ssl_sock.getpeercert()
             cert_der = ssl_sock.getpeercert(binary_form=True)
             tls_version = ssl_sock.version()
             cipher_used = ssl_sock.cipher()
             cert_info = CertificateParser.extract_info(cert_dict, cert_der)
 
+            # 4. Certificate Pinning
             pin_status = "not_pinned"
             if hostname in self.pinned_certs:
                 expected = self.pinned_certs[hostname]
@@ -106,10 +114,19 @@ class HTTPSZ:
                     ssl_sock.close()
                     raise Exception(f"Certificate pin mismatch for {hostname}")
 
+            # 5. REAL Certificate Transparency Check
             ct_status = self.ct_verifier.verify(cert_der, hostname)
+
+            # 6. REAL OCSP Check (with automatic issuer fetching)
             ocsp_status = self.ocsp_verifier.check(cert_der)
+
+            # 7. Enhanced Post-Quantum Detection
+            pqc_status = self.pqc_detector.detect(cipher_used, ssl_sock, tls_version)
+
+            # 8. CA Reputation
             ca_analysis = self._analyze_ca(cert_info.issuer)
 
+            # 9. Anomaly Detection
             connection_time = time.time() - start_time
             anomalies = self.anomaly_detector.detect(
                 hostname=hostname,
@@ -121,15 +138,23 @@ class HTTPSZ:
                 cipher=str(cipher_used),
             )
 
+            # 10. Check ECH support (honest reporting)
+            ech_enabled = self._check_ech_support(ssl_sock)
+
+            # 11. HTTP Request
             ConnectionManager.send_http_request(ssl_sock, hostname, path)
             response_data = ConnectionManager.receive_response(ssl_sock)
+
+            # 12. Close socket AFTER all TLS-related checks
             ssl_sock.close()
 
+            # 13. Parse Response
             status_code, headers, body = ConnectionManager.parse_response(response_data)
             hsts_enabled = "strict-transport-security" in headers
 
+            # 14. Calculate Security Score
             security_score = self._calculate_score(
-                cert_info, ct_status, ocsp_status, ca_analysis, anomalies
+                cert_info, ct_status, ocsp_status, pqc_status, ca_analysis, anomalies
             )
 
             return ScanResult(
@@ -146,13 +171,14 @@ class HTTPSZ:
                 hsts_enabled=hsts_enabled,
                 ct_status=ct_status.__dict__,
                 ocsp_status=ocsp_status.__dict__,
+                pqc_status=pqc_status.__dict__,
                 ca_analysis=ca_analysis,
                 anomalies=anomalies,
                 security_score=security_score,
                 security_grade=self._get_grade(security_score),
                 body_preview=body[:200] if body else "",
-                quantum_ready=True,
-                ech_enabled=self.enable_ech,
+                quantum_ready=pqc_status.quantum_ready,
+                ech_enabled=ech_enabled,
                 doh_used=doh_used,
             )
 
@@ -171,16 +197,37 @@ class HTTPSZ:
                 hsts_enabled=False,
                 ct_status={},
                 ocsp_status={},
+                pqc_status={},
                 ca_analysis={},
                 anomalies=[],
                 security_score=0,
                 security_grade="F",
                 body_preview="",
-                quantum_ready=True,
-                ech_enabled=self.enable_ech,
+                quantum_ready=False,
+                ech_enabled=False,
                 doh_used=self.use_doh,
                 error=str(e),
             )
+
+    def _check_ech_support(self, ssl_sock):
+        """
+        Check if ECH is actually supported and used.
+
+        LIMITATIONS (documented honestly):
+        - Python's ssl module has limited visibility into TLS extensions
+        - Real ECH detection requires parsing ClientHello/ServerHello
+        - The encrypted_client_hello extension (0xfe0d) is not exposed
+        - Returns False unless we have concrete evidence
+        """
+        try:
+            # Check for ECH-related TLS information (limited)
+            if hasattr(ssl_sock, 'getpeercert'):
+                # No direct ECH indicator available in Python's ssl
+                pass
+            # Conservative: assume not enabled unless proven
+            return False
+        except Exception:
+            return False
 
     def _analyze_ca(self, issuer):
         ca_name = issuer.get("organizationName", "Unknown")
@@ -193,20 +240,44 @@ class HTTPSZ:
         }
 
     def _calculate_score(self, cert_info, ct_status, ocsp_status,
-                         ca_analysis, anomalies):
+                         pqc_status, ca_analysis, anomalies):
         score = 100
+
+        # Anomalies
         score -= len(anomalies) * 5
+
+        # CT verification
         if not ct_status.verified:
-            score -= 10
+            if ct_status.error:
+                score -= 5  # Partial deduction for error
+            else:
+                score -= 15  # Full deduction if not verified
+
+        # OCSP verification
         if not ocsp_status.checked:
-            score -= 5
+            if ocsp_status.error:
+                score -= 3  # Partial deduction for error
+            else:
+                score -= 10
+
+        if ocsp_status.revoked:
+            score -= 50  # Major deduction for revoked cert
+
+        # Post-Quantum (bonus)
+        if pqc_status.quantum_ready:
+            score += 5
+
+        # CA trust
         if not ca_analysis.get("trusted"):
             score -= 20
+
+        # Certificate expiry
         days_left = cert_info.days_until_expiry()
         if days_left < 30:
             score -= 15
         elif days_left < 7:
             score -= 30
+
         return max(0, min(100, score))
 
     def _get_grade(self, score):

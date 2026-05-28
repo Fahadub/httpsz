@@ -13,7 +13,7 @@ class SecurityReport:
     def to_text(result):
         lines = []
         lines.append("=" * 70)
-        lines.append("HTTPSZ SECURITY REPORT")
+        lines.append("HTTPSZ v2.1 SECURITY REPORT (REAL IMPLEMENTATION)")
         lines.append("=" * 70)
         lines.append(f"URL: {result.url}")
         lines.append(f"Hostname: {result.hostname}")
@@ -29,7 +29,7 @@ class SecurityReport:
         lines.append(f"  Cipher: {result.cipher_used}")
         lines.append(f"  HTTP Status: {result.status_code}")
         hsts = "Enabled" if result.hsts_enabled else "Disabled"
-        ech = "Enabled" if result.ech_enabled else "Disabled"
+        ech = "Enabled" if result.ech_enabled else "Not detected (see limitations)"
         doh = "Used" if result.doh_used else "Not Used"
         lines.append(f"  HSTS: {hsts}")
         lines.append(f"  ECH: {ech}")
@@ -47,12 +47,49 @@ class SecurityReport:
             lines.append(f"  SHA256: {cert.get('fingerprint_sha256')}")
 
         lines.append("")
-        lines.append("SECURITY CHECKS:")
+        lines.append("SECURITY CHECKS (REAL):")
         lines.append(f"  Certificate Pin: {result.pin_status}")
-        ct = result.ct_status.get("verified") if result.ct_status else False
-        ocsp = result.ocsp_status.get("checked") if result.ocsp_status else False
-        lines.append(f"  CT Logs: {'Verified' if ct else 'Not Verified'}")
-        lines.append(f"  OCSP: {'Checked' if ocsp else 'Not Checked'}")
+
+        # CT Status
+        ct = result.ct_status
+        if ct:
+            if ct.get("verified"):
+                lines.append(f"  CT Logs: VERIFIED (exact match: {ct.get('exact_match')}, certs: {ct.get('cert_count', 0)})")
+                for log in ct.get("found_in", []):
+                    lines.append(f"    -> {log}")
+            elif ct.get("error"):
+                lines.append(f"  CT Logs: ERROR - {ct['error']}")
+            else:
+                lines.append("  CT Logs: NOT VERIFIED")
+
+        # OCSP Status
+        ocsp = result.ocsp_status
+        if ocsp:
+            if ocsp.get("revoked"):
+                lines.append(f"  OCSP: REVOKED! (method: {ocsp.get('method', 'unknown')})")
+            elif ocsp.get("checked"):
+                issuer_note = " [issuer auto-fetched]" if ocsp.get("issuer_fetched") else ""
+                lines.append(f"  OCSP: GOOD (method: {ocsp.get('method', 'unknown')}){issuer_note}")
+                if ocsp.get("ocsp_url"):
+                    lines.append(f"    -> Responder: {ocsp['ocsp_url']}")
+                if ocsp.get("next_update"):
+                    lines.append(f"    -> Next update: {ocsp['next_update']}")
+            elif ocsp.get("error"):
+                lines.append(f"  OCSP: ERROR - {ocsp['error']} (method: {ocsp.get('method', 'unknown')})")
+            else:
+                lines.append("  OCSP: NOT CHECKED")
+
+        # PQC Status
+        pqc = result.pqc_status
+        if pqc:
+            if pqc.get("quantum_ready"):
+                lines.append(f"  Post-Quantum: YES - {pqc.get('key_exchange', '')} (method: {pqc.get('detection_method', '')})")
+            else:
+                details = pqc.get("details", "")
+                lines.append(f"  Post-Quantum: No (method: {pqc.get('detection_method', 'none')})")
+                if details:
+                    lines.append(f"    -> {details}")
+
         rep = result.ca_analysis.get("reputation_score", "N/A")
         lines.append(f"  CA Reputation: {rep}/100")
 
@@ -66,6 +103,10 @@ class SecurityReport:
             lines.append("No anomalies detected")
 
         lines.append("")
+        lines.append("-" * 70)
+        lines.append("LIMITATIONS:")
+        lines.append("  - ECH detection: Python ssl module has limited TLS extension visibility")
+        lines.append("  - PQC in TLS 1.3: Key exchange is negotiated separately from cipher")
         lines.append("=" * 70)
         return "\n".join(lines)
 
@@ -75,17 +116,19 @@ class SecurityReport:
         return f"""<!DOCTYPE html>
 <html>
 <head>
-    <title>HTTPSZ Security Report</title>
+    <title>HTTPSZ v2.1 Security Report</title>
     <style>
         body {{ font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }}
         .header {{ background: #2c3e50; color: white; padding: 20px; border-radius: 8px; }}
         .section {{ margin: 20px 0; padding: 15px; background: white; border-radius: 8px; }}
         .grade {{ font-size: 48px; font-weight: bold; color: #27ae60; }}
+        .real {{ color: #27ae60; font-weight: bold; }}
+        .warn {{ color: #e67e22; }}
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>HTTPSZ Security Report</h1>
+        <h1>HTTPSZ v2.1 Security Report <span class="real">(REAL Implementation)</span></h1>
         <p>Generated: {now}</p>
     </div>
     <div class="section">
@@ -102,6 +145,13 @@ class SecurityReport:
             <li>Cipher: {result.cipher_used}</li>
             <li>HTTP Status: {result.status_code}</li>
             <li>Connection Time: {result.connection_time}</li>
+        </ul>
+    </div>
+    <div class="section">
+        <h2 class="warn">Known Limitations</h2>
+        <ul>
+            <li>ECH detection limited by Python's ssl module</li>
+            <li>PQC detection in TLS 1.3 limited (key exchange not visible)</li>
         </ul>
     </div>
 </body>

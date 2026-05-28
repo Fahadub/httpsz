@@ -19,6 +19,7 @@ class CertificateInfo:
     fingerprint_sha256: str
     fingerprint_sha384: str
     san: list
+    cert_der: bytes = b""
 
     def is_expired(self) -> bool:
         try:
@@ -36,7 +37,7 @@ class CertificateInfo:
 
 
 class SecureTLSContext:
-    """Strict TLS 1.3 context with strong cipher suites."""
+    """Strict TLS context with strong cipher suites."""
 
     STRICT_CIPHERS = [
         "TLS_AES_256_GCM_SHA384",
@@ -44,21 +45,23 @@ class SecureTLSContext:
         "TLS_AES_128_GCM_SHA256",
         "ECDHE-ECDSA-AES256-GCM-SHA384",
         "ECDHE-RSA-AES256-GCM-SHA384",
+        "ECDHE-ECDSA-CHACHA20-POLY1305",
+        "ECDHE-RSA-CHACHA20-POLY1305",
+        "ECDHE-ECDSA-AES128-GCM-SHA256",
+        "ECDHE-RSA-AES128-GCM-SHA256",
     ]
 
-    def __init__(self, enable_ech: bool = True):
-        self.enable_ech = enable_ech
+    def __init__(self, min_tls_version: str = "1.2"):
+        self.min_tls_version = min_tls_version
         self.context = self._create_context()
 
     def _create_context(self) -> ssl.SSLContext:
         context = ssl.create_default_context()
-        context.minimum_version = ssl.TLSVersion.TLSv1_3
-        context.maximum_version = ssl.TLSVersion.TLSv1_3
 
-        if self.enable_ech and hasattr(ssl, "OP_ECH"):
-            context.options |= ssl.OP_ECH
-
-        context.options |= ssl.OP_CIPHER_SERVER_PREFERENCE
+        if self.min_tls_version == "1.3":
+            context.minimum_version = ssl.TLSVersion.TLSv1_3
+        else:
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
 
         try:
             context.set_ciphers(":".join(self.STRICT_CIPHERS))
@@ -96,6 +99,7 @@ class CertificateParser:
             fingerprint_sha256=hashlib.sha256(cert_der).hexdigest(),
             fingerprint_sha384=hashlib.sha384(cert_der).hexdigest(),
             san=list(cert_dict.get("subjectAltName", [])),
+            cert_der=cert_der,
         )
 
 
@@ -112,7 +116,7 @@ class ConnectionManager:
         request = (
             f"{method} {path} HTTP/1.1\r\n"
             f"Host: {hostname}\r\n"
-            f"User-Agent: HTTPSZ/1.0\r\n"
+            f"User-Agent: HTTPSZ/2.1\r\n"
             f"Accept: */*\r\n"
             f"Connection: close\r\n"
             f"\r\n"
