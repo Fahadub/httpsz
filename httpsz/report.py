@@ -5,15 +5,19 @@ from datetime import datetime
 
 
 class SecurityReport:
+    """Generate security reports in various formats."""
+
     @staticmethod
     def to_json(result, indent=2):
+        """Generate JSON report."""
         return json.dumps(result.__dict__, indent=indent, default=str)
 
     @staticmethod
     def to_text(result):
+        """Generate human-readable text report."""
         lines = []
         lines.append("=" * 70)
-        lines.append("HTTPSZ v2.2 SECURITY REPORT (REAL IMPLEMENTATION)")
+        lines.append("HTTPSZ v2.1 SECURITY REPORT (REAL IMPLEMENTATION)")
         lines.append("=" * 70)
         lines.append(f"URL: {result.url}")
         lines.append(f"Hostname: {result.hostname}")
@@ -29,10 +33,10 @@ class SecurityReport:
         lines.append(f"  Cipher: {result.cipher_used}")
         lines.append(f"  HTTP Status: {result.status_code}")
         hsts = "Enabled" if result.hsts_enabled else "Disabled"
-        ech_display = "Enabled (via DNS)" if result.ech_enabled else "Not detected"
+        ech = "Enabled" if result.ech_enabled else "Not detected (see limitations)"
         doh = "Used" if result.doh_used else "Not Used"
         lines.append(f"  HSTS: {hsts}")
-        lines.append(f"  ECH: {ech_display}")
+        lines.append(f"  ECH: {ech}")
         lines.append(f"  DoH: {doh}")
 
         if result.cert_info:
@@ -50,7 +54,6 @@ class SecurityReport:
         lines.append("SECURITY CHECKS (REAL):")
         lines.append(f"  Certificate Pin: {result.pin_status}")
 
-        # CT Status
         ct = result.ct_status
         if ct:
             if ct.get("verified"):
@@ -62,7 +65,6 @@ class SecurityReport:
             else:
                 lines.append("  CT Logs: NOT VERIFIED")
 
-        # OCSP Status
         ocsp = result.ocsp_status
         if ocsp:
             if ocsp.get("revoked"):
@@ -79,7 +81,6 @@ class SecurityReport:
             else:
                 lines.append("  OCSP: NOT CHECKED")
 
-        # PQC Status
         pqc = result.pqc_status
         if pqc:
             if pqc.get("quantum_ready"):
@@ -89,26 +90,6 @@ class SecurityReport:
                 lines.append(f"  Post-Quantum: No (method: {pqc.get('detection_method', 'none')})")
                 if details:
                     lines.append(f"    -> {details}")
-
-        # ECH Status (NEW in v2.2)
-        ech = result.ech_status
-        if ech:
-            if ech.get("enabled"):
-                records = ech.get("records_found", 0)
-                lines.append(f"  ECH: ENABLED (via DNS HTTPS record, {records} record(s))")
-                if ech.get("ech_config"):
-                    config_preview = ech["ech_config"][:50] + "..."
-                    lines.append(f"    -> Config: {config_preview}")
-                if ech.get("alpn"):
-                    lines.append(f"    -> ALPN: {', '.join(ech['alpn'])}")
-            else:
-                details = ech.get("details", "")
-                records = ech.get("records_found", 0)
-                lines.append(f"  ECH: Not detected ({records} HTTPS record(s) found)")
-                if details:
-                    lines.append(f"    -> {details}")
-        else:
-            lines.append("  ECH: Not checked")
 
         rep = result.ca_analysis.get("reputation_score", "N/A")
         lines.append(f"  CA Reputation: {rep}/100")
@@ -124,43 +105,33 @@ class SecurityReport:
 
         lines.append("")
         lines.append("-" * 70)
-        lines.append("IMPLEMENTATION NOTES:")
-        lines.append("  - CT: Verified via crt.sh API (aggregates all major CT logs)")
-        lines.append("  - OCSP: Real OCSP requests with automatic issuer fetching from AIA")
-        lines.append("  - ECH: Detected via DNS HTTPS records (Type 65) - browser-standard method")
-        lines.append("  - PQC: Detection limited in TLS 1.3 (key exchange not visible)")
+        lines.append("LIMITATIONS:")
+        lines.append("  - ECH detection: Python ssl has limited TLS extension visibility")
+        lines.append("  - PQC in TLS 1.3: Key exchange not visible via Python ssl")
         lines.append("=" * 70)
         return "\n".join(lines)
 
     @staticmethod
     def to_html(result):
+        """Generate HTML report."""
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        ech_display = "Yes (via DNS)" if result.ech_enabled else "No"
-        pqc_display = "Yes" if result.quantum_ready else "No"
-
         return f"""<!DOCTYPE html>
 <html>
 <head>
-    <title>HTTPSZ v2.2 Security Report</title>
+    <title>HTTPSZ v2.1 Security Report</title>
     <style>
         body {{ font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }}
         .header {{ background: #2c3e50; color: white; padding: 20px; border-radius: 8px; }}
         .section {{ margin: 20px 0; padding: 15px; background: white; border-radius: 8px; }}
         .grade {{ font-size: 48px; font-weight: bold; color: #27ae60; }}
         .real {{ color: #27ae60; font-weight: bold; }}
-        .check-ok {{ color: #27ae60; }}
-        .check-fail {{ color: #e74c3c; }}
-        .check-warn {{ color: #e67e22; }}
-        table {{ border-collapse: collapse; width: 100%; }}
-        td, th {{ padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }}
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>HTTPSZ v2.2 Security Report <span class="real">(REAL Implementation)</span></h1>
+        <h1>HTTPSZ v2.1 Security Report <span class="real">(REAL Implementation)</span></h1>
         <p>Generated: {now}</p>
     </div>
-
     <div class="section">
         <h2>Summary</h2>
         <p><strong>URL:</strong> {result.url}</p>
@@ -168,29 +139,13 @@ class SecurityReport:
         <p><strong>Grade:</strong> <span class="grade">{result.security_grade}</span></p>
         <p><strong>Score:</strong> {result.security_score}/100</p>
     </div>
-
     <div class="section">
         <h2>Connection Details</h2>
-        <table>
-            <tr><td>TLS Version</td><td>{result.tls_version}</td></tr>
-            <tr><td>Cipher</td><td>{result.cipher_used}</td></tr>
-            <tr><td>HTTP Status</td><td>{result.status_code}</td></tr>
-            <tr><td>Connection Time</td><td>{result.connection_time}</td></tr>
-            <tr><td>Resolved IP</td><td>{result.resolved_ip}</td></tr>
-            <tr><td>HSTS</td><td>{'Enabled' if result.hsts_enabled else 'Disabled'}</td></tr>
-            <tr><td>ECH</td><td>{ech_display}</td></tr>
-            <tr><td>Post-Quantum</td><td>{pqc_display}</td></tr>
-            <tr><td>DoH</td><td>{'Used' if result.doh_used else 'Not Used'}</td></tr>
-        </table>
-    </div>
-
-    <div class="section">
-        <h2>Implementation Notes</h2>
         <ul>
-            <li><strong>CT:</strong> Real verification via crt.sh API</li>
-            <li><strong>OCSP:</strong> Real OCSP with automatic issuer fetching</li>
-            <li><strong>ECH:</strong> Detected via DNS HTTPS records (Type 65)</li>
-            <li><strong>PQC:</strong> Detection limited in TLS 1.3</li>
+            <li>TLS Version: {result.tls_version}</li>
+            <li>Cipher: {result.cipher_used}</li>
+            <li>HTTP Status: {result.status_code}</li>
+            <li>Connection Time: {result.connection_time}</li>
         </ul>
     </div>
 </body>
