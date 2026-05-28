@@ -1,7 +1,6 @@
 """Enhanced Post-Quantum Cryptography detection."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -19,15 +18,9 @@ class PQCDetector:
     """
     Enhanced Post-Quantum Cryptography detection.
 
-    Uses multiple detection methods:
-    1. Cipher suite name analysis (works for TLS 1.2)
-    2. Shared ciphers inspection
-    3. OpenSSL version capability check
-
     LIMITATIONS (documented honestly):
     - In TLS 1.3, key exchange is negotiated separately from cipher suite
     - Python's ssl module has limited visibility into negotiated groups
-    - X25519Kyber768 may be used but not visible in cipher name
     """
 
     PQC_KEY_EXCHANGES = [
@@ -46,14 +39,7 @@ class PQCDetector:
     ]
 
     def detect(self, cipher_info, ssl_sock=None, tls_version="") -> PQCStatus:
-        """
-        Enhanced PQC detection with multiple methods.
-
-        Args:
-            cipher_info: Tuple from ssl_sock.cipher()
-            ssl_sock: Optional SSL socket for deeper inspection
-            tls_version: TLS version string (e.g., "TLSv1.3")
-        """
+        """Enhanced PQC detection with multiple methods."""
         status = PQCStatus(
             quantum_ready=False,
             hybrid_cipher=False,
@@ -69,7 +55,6 @@ class PQCDetector:
         cipher_name = cipher_info[0] if isinstance(cipher_info, tuple) else str(cipher_info)
         status.cipher_suite = cipher_name
 
-        # Method 1: Check cipher suite name
         for pqc_algo in self.PQC_KEY_EXCHANGES:
             if pqc_algo.lower() in cipher_name.lower():
                 status.quantum_ready = True
@@ -79,7 +64,6 @@ class PQCDetector:
                 status.detection_method = "cipher_name"
                 return status
 
-        # Method 2: Check shared ciphers (if socket available)
         if ssl_sock:
             try:
                 if hasattr(ssl_sock, 'shared_ciphers'):
@@ -98,28 +82,16 @@ class PQCDetector:
             except Exception:
                 pass
 
-            # Method 3: Check negotiated group via compression (rarely available)
-            try:
-                if hasattr(ssl_sock, 'compression'):
-                    comp = ssl_sock.compression()
-                    # compression() doesn't reveal key exchange, but call for completeness
-            except Exception:
-                pass
-
-        # Method 4: Document TLS 1.3 limitation honestly
         if tls_version == "TLSv1.3":
             status.details = (
                 "TLS 1.3 in use - key exchange (e.g., X25519Kyber768) "
-                "is negotiated separately and not visible via Python's ssl module. "
-                "PQC may be active but undetectable at this layer."
+                "is negotiated separately and not visible via Python ssl."
             )
             status.detection_method = "tls13_limitation"
             status.key_exchange = "unknown (TLS 1.3)"
         else:
-            # TLS 1.2 - cipher name usually contains key exchange
             classical_strong = ["ECDHE", "DHE", "AES256", "AES128", "CHACHA20"]
             is_strong = any(algo in cipher_name.upper() for algo in classical_strong)
-
             if is_strong:
                 status.details = "Classical strong cipher (not post-quantum)"
                 status.key_exchange = "ECDHE/DHE (classical)"
