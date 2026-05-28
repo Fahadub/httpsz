@@ -1,6 +1,6 @@
 """REAL OCSP checking with automatic issuer certificate fetching."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from dataclasses import dataclass
 from typing import Optional
 import urllib.request
@@ -43,8 +43,8 @@ class OCSPVerifier:
     REAL OCSP verification with automatic issuer certificate fetching.
 
     Process:
-    1. Extract OCSP responder URL from certificate's AIA extension
-    2. Extract CA Issuers URL from certificate's AIA extension
+    1. Extract OCSP responder URL from AIA extension
+    2. Extract CA Issuers URL from AIA extension
     3. Download issuer certificate
     4. Build and send OCSP request with proper issuer
     5. Parse and verify OCSP response
@@ -54,25 +54,17 @@ class OCSPVerifier:
         self.timeout = timeout
 
     def check(self, cert_der, issuer_cert_der=None):
-        """
-        REAL OCSP check with automatic issuer fetching.
-
-        Args:
-            cert_der: DER-encoded certificate to check
-            issuer_cert_der: Optional pre-loaded issuer certificate (DER)
-        """
+        """REAL OCSP check with automatic issuer fetching."""
         status = OCSPStatus(checked=False, revoked=False)
 
         if not CRYPTOGRAPHY_AVAILABLE:
-            status.error = "cryptography library not installed (pip install cryptography)"
+            status.error = "cryptography library not installed"
             status.method = "skipped"
             return status
 
         try:
-            # 1. Load the certificate
             cert = load_der_x509_certificate(cert_der)
 
-            # 2. Extract OCSP responder URL
             ocsp_url = self._extract_ocsp_url(cert)
             status.ocsp_url = ocsp_url
             if not ocsp_url:
@@ -80,7 +72,6 @@ class OCSPVerifier:
                 status.method = "no_ocsp_url"
                 return status
 
-            # 3. Get or fetch issuer certificate
             if issuer_cert_der:
                 issuer_cert = load_der_x509_certificate(issuer_cert_der)
             else:
@@ -93,16 +84,14 @@ class OCSPVerifier:
                     status.method = "issuer_fetch_failed"
                     return status
 
-            # 4. Build OCSP request with REAL issuer certificate
             builder = OCSPRequestBuilder()
             builder = builder.add_certificate(
-                cert,           # Certificate to check
-                issuer_cert,    # Issuer certificate (CA)
+                cert,
+                issuer_cert,
                 hashes.SHA256()
             )
             ocsp_request = builder.build()
 
-            # 5. Send OCSP request
             request_data = ocsp_request.public_bytes(serialization.Encoding.DER)
 
             req = urllib.request.Request(
@@ -118,7 +107,6 @@ class OCSPVerifier:
             with urllib.request.urlopen(req, timeout=self.timeout) as response:
                 ocsp_response_data = response.read()
 
-                # 6. Parse OCSP response
                 ocsp_response = load_der_ocsp_response(ocsp_response_data)
 
                 if ocsp_response.response_status == OCSPResponseStatus.SUCCESSFUL:
@@ -142,12 +130,6 @@ class OCSPVerifier:
                     status.error = f"OCSP response status: {ocsp_response.response_status}"
                     status.method = "ocsp_error"
 
-        except urllib.error.HTTPError as e:
-            status.error = f"HTTP error: {e.code} {e.reason}"
-            status.method = "http_error"
-        except urllib.error.URLError as e:
-            status.error = f"Network error: {e}"
-            status.method = "network_error"
         except Exception as e:
             status.error = str(e)
             status.method = "error"
@@ -155,7 +137,7 @@ class OCSPVerifier:
         return status
 
     def _extract_ocsp_url(self, cert):
-        """Extract OCSP responder URL from certificate's AIA extension."""
+        """Extract OCSP responder URL from AIA extension."""
         try:
             aia = cert.extensions.get_extension_for_oid(
                 ExtensionOID.AUTHORITY_INFORMATION_ACCESS
@@ -168,7 +150,7 @@ class OCSPVerifier:
         return None
 
     def _extract_ca_issuers_url(self, cert):
-        """Extract CA Issuers URL from certificate's AIA extension."""
+        """Extract CA Issuers URL from AIA extension."""
         try:
             aia = cert.extensions.get_extension_for_oid(
                 ExtensionOID.AUTHORITY_INFORMATION_ACCESS
@@ -181,12 +163,7 @@ class OCSPVerifier:
         return None
 
     def _fetch_issuer_cert(self, cert):
-        """
-        Fetch issuer certificate from CA Issuers URL in AIA extension.
-
-        Returns:
-            x509.Certificate object or None if fetch fails
-        """
+        """Fetch issuer certificate from CA Issuers URL."""
         ca_issuers_url = self._extract_ca_issuers_url(cert)
         if not ca_issuers_url:
             return None
@@ -200,19 +177,16 @@ class OCSPVerifier:
             with urllib.request.urlopen(req, timeout=self.timeout) as response:
                 issuer_data = response.read()
 
-                # Try DER first (most common for CA Issuers)
                 try:
                     return load_der_x509_certificate(issuer_data)
                 except Exception:
                     pass
 
-                # Try PEM format
                 try:
                     return load_pem_x509_certificate(issuer_data)
                 except Exception:
                     pass
 
-                # Try PKCS#7 format (some CAs use this)
                 try:
                     from cryptography.hazmat.primitives.serialization import pkcs7
                     certs = pkcs7.load_der_pkcs7_certificates(issuer_data)
