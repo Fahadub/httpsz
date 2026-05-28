@@ -1,7 +1,9 @@
 """HTTPSZ v2.1 - Quick demo runner with REAL checks."""
 from httpsz import HTTPSZ, SecurityReport
 
+
 def main():
+    """Run a demo scan and print the text report."""
     print("HTTPSZ v2.1 - Real HTTPS Security Scanner")
     print("=" * 50)
     print("Features: REAL CT, REAL OCSP (auto-issuer), enhanced PQC")
@@ -14,6 +16,7 @@ def main():
     result = scanner.scan(target)
 
     print(SecurityReport.to_text(result))
+
 
 if __name__ == "__main__":
     main()
