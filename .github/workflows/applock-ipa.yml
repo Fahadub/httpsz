@@ -1,0 +1,25 @@
+name: Build AppLock IPA (unsigned)
+on:
+  workflow_dispatch:
+  push:
+    paths: ["AppLock/**"]
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - name: Build
+        working-directory: AppLock
+        run: |
+          xcodegen generate
+          xcodebuild -project AppLock.xcodeproj -scheme AppLock -configuration Release \
+            -sdk iphoneos -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/AppLock.app Payload/
+          zip -qry AppLock.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AppLock-ipa
+          path: AppLock/AppLock.ipa
