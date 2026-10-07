@@ -1,0 +1,64 @@
+# يبني تطبيق بصير للأندرويد (APK) تلقائياً. حمّله من صفحة Actions ← آخر تشغيل ← Artifacts.
+name: Basir Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      server:
+        description: "عنوان خادم بصير الافتراضي (اختياري) مثل http://192.168.1.10:7777"
+        required: false
+        default: ""
+  push:
+    paths:
+      - "basir/**"
+      - ".github/workflows/basir-android.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: basir/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: basir/mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Capacitor
+        run: npm ci
+
+      - name: Build web assets
+        env:
+          BASIR_SERVER: ${{ inputs.server }}
+        run: node scripts/build-www.mjs
+
+      - name: Create and patch Android project
+        run: |
+          npx cap add android
+          node scripts/patch-android.mjs
+          npx cap sync android
+
+      - name: Build debug APK
+        working-directory: basir/mobile/android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: basir-android-apk
+          path: basir/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

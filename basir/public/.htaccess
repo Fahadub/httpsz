@@ -1,0 +1,9 @@
+# عند الاستضافة على Apache بدلاً من خادم PHP المدمج
+AddType application/manifest+json .webmanifest
+DirectoryIndex index.html
+<IfModule mod_headers.c>
+  <Files "sw.js">
+    Header set Service-Worker-Allowed "/"
+    Header set Cache-Control "no-cache"
+  </Files>
+</IfModule>

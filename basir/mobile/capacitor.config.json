@@ -1,0 +1,15 @@
+{
+  "appId": "com.basir.app",
+  "appName": "بصير",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  },
+  "ios": {
+    "contentInset": "never"
+  }
+}

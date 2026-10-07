@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>إعدادات بصير</title>
+  <meta name="theme-color" content="#0b1220">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="assets/app.css">
+  <script src="config.js"></script>
+  <script type="module" src="assets/setup.js"></script>
+</head>
+<body class="page">
+  <main>
+    <div id="install" class="install" role="region" aria-label="تثبيت التطبيق" hidden>
+      <p id="install-text"></p>
+      <button id="install-btn" type="button">تثبيت التطبيق</button>
+      <button id="install-close" type="button" class="ghost" aria-label="إغلاق إشعار التثبيت">✕</button>
+    </div>
+
+    <h1>إعدادات بصير</h1>
+    <p class="lead">هذه الصفحة للمساعد المبصر. تُحفظ الإعدادات مرة واحدة على الخادم، ويستخدمها كل جهاز يفتح التطبيق — لا يحتاج الكفيف لإدخال المفتاح مرة أخرى.</p>
+
+    <section id="server-card" class="card hidden" aria-labelledby="server-h">
+      <h2 id="server-h">عنوان خادم بصير</h2>
+      <label class="field">
+        <span>رابط الخادم</span>
+        <input id="server-url" type="url" inputmode="url" placeholder="http://192.168.1.10:7777" autocomplete="off">
+        <small>الجهاز الذي يعمل عليه ملف start. يجب أن يكون الجوال على نفس شبكة الواي فاي.</small>
+      </label>
+      <button id="server-save" class="btn primary" type="button">حفظ واختبار</button>
+      <p id="server-msg" class="notice" role="status"></p>
+    </section>
+
+    <form id="form" class="hidden" autocomplete="off" novalidate>
+      <section class="card" aria-labelledby="prov-h">
+        <h2 id="prov-h">موفر الذكاء الاصطناعي</h2>
+        <p id="current" class="notice info" role="status"></p>
+
+        <label class="field">
+          <span>الموفر</span>
+          <select id="provider"></select>
+          <small>أي موفر يدعم تحليل الصور (Vision). «موفر آخر» لأي خادم متوافق مع OpenAI أو Anthropic أو Gemini.</small>
+        </label>
+
+        <label class="field" id="protocol-field">
+          <span>البروتوكول (صيغة الـ API)</span>
+          <select id="protocol">
+            <option value="openai">متوافق مع OpenAI — ‎/chat/completions</option>
+            <option value="anthropic">Anthropic — ‎/v1/messages</option>
+            <option value="gemini">Google Gemini — ‎:generateContent</option>
+          </select>
+        </label>
+
+        <label class="field" id="label-field">
+          <span>اسم الموفر (يُنطق للكفيف)</span>
+          <input id="label" type="text" dir="rtl" placeholder="مثال: خادمي المحلي">
+        </label>
+
+        <label class="field">
+          <span>الرابط الأساسي (Base URL)</span>
+          <input id="base_url" type="url" inputmode="url" spellcheck="false">
+        </label>
+
+        <label class="field">
+          <span>المفتاح (API Key)</span>
+          <input id="api_key" type="password" spellcheck="false" autocomplete="new-password">
+          <small id="key-help"></small>
+        </label>
+
+        <div class="field">
+          <span><label for="model">النموذج (Model)</label></span>
+          <div class="row">
+            <input id="model" type="text" list="models" spellcheck="false" aria-describedby="models-help">
+            <button id="fetch-models" class="btn" type="button" style="flex:0 0 auto">جلب النماذج</button>
+          </div>
+          <datalist id="models"></datalist>
+          <small id="models-help">اختر نموذجاً يدعم الصور. النماذج السريعة أفضل للتنقل.</small>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="voice-h">
+        <h2 id="voice-h">الصوت والإرشاد</h2>
+        <div class="row">
+          <label class="field">
+            <span>لهجة التعرف على الكلام والنطق</span>
+            <select id="speech_lang">
+              <option value="ar-SA">العربية — السعودية</option>
+              <option value="ar-AE">العربية — الإمارات</option>
+              <option value="ar-KW">العربية — الكويت</option>
+              <option value="ar-QA">العربية — قطر</option>
+              <option value="ar-BH">العربية — البحرين</option>
+              <option value="ar-OM">العربية — عُمان</option>
+              <option value="ar-EG">العربية — مصر</option>
+              <option value="ar-JO">العربية — الأردن</option>
+              <option value="ar-LB">العربية — لبنان</option>
+              <option value="ar-IQ">العربية — العراق</option>
+              <option value="ar-MA">العربية — المغرب</option>
+              <option value="ar-DZ">العربية — الجزائر</option>
+              <option value="ar-TN">العربية — تونس</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>سرعة الكلام: <output id="rate-out">1.0</output></span>
+            <input id="speech_rate" type="range" min="0.6" max="1.8" step="0.05" value="1">
+          </label>
+        </div>
+        <button id="voice-test" class="btn" type="button">🔊 تجربة الصوت</button>
+        <p id="voice-msg" class="notice" role="status"></p>
+
+        <div class="row" style="margin-top:14px">
+          <label class="field">
+            <span>طول الخطوة (متر)</span>
+            <input id="step_m" type="number" min="0.3" max="1.2" step="0.05" value="0.7">
+            <small>تُحوَّل المسافات إلى خطوات بناءً عليه.</small>
+          </label>
+          <label class="field">
+            <span>الانتظار بين الصور (ثانية)</span>
+            <input id="interval_s" type="number" min="0.5" max="30" step="0.5" value="2">
+            <small>بعد انتهاء كل إرشاد صوتي.</small>
+          </label>
+          <label class="field">
+            <span>دقة الصورة المرسلة</span>
+            <select id="image_px">
+              <option value="512">منخفضة — أسرع وأرخص</option>
+              <option value="768">متوسطة (مستحسن)</option>
+              <option value="1024">عالية — أدق في المسافات</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="pin-h">
+        <h2 id="pin-h">حماية الإعدادات (اختياري)</h2>
+        <label class="field" id="pin-field">
+          <span>رمز الحماية الحالي</span>
+          <input id="pin" type="password" inputmode="numeric" autocomplete="off">
+        </label>
+        <label class="field">
+          <span>رمز حماية جديد</span>
+          <input id="new_pin" type="password" inputmode="numeric" autocomplete="off" placeholder="4 إلى 12 رقماً">
+          <small>يمنع أي شخص على نفس الشبكة من تغيير الموفر أو المفتاح. اتركه فارغاً إن لم تحتجه.</small>
+        </label>
+      </section>
+
+      <div class="row">
+        <button id="test" class="btn" type="button">🧪 اختبار الاتصال</button>
+        <button id="save" class="btn primary" type="submit">💾 حفظ</button>
+      </div>
+      <p id="msg" class="notice" role="status" aria-live="polite"></p>
+      <p id="go-app" class="hidden"><a class="btn primary" href="./" style="width:100%">ابدأ استخدام بصير ←</a></p>
+    </form>
+
+    <div id="extras" class="hidden">
+      <section class="card" aria-labelledby="train-h">
+        <h2 id="train-h">تدريب بصير على المكان من فيديو</h2>
+        <p>صوّر فيديو قصيراً (10–20 ثانية) وأنت تدور ببطء دورة كاملة في المكان، مع إمالة الجوال قليلاً للأسفل. سيقتطع بصير لقطات من كل الاتجاهات ويحفظ وصفاً للمكان يستخدمه في الإرشاد. (يمكن للكفيف أيضاً قول «فيديو» أو «أربع جهات» في التطبيق.)</p>
+        <input id="video-file" type="file" accept="video/*" capture="environment" class="btn" style="width:100%">
+        <div id="frames" class="frames"></div>
+        <p id="train-msg" class="notice" role="status"></p>
+      </section>
+
+      <section class="card" aria-labelledby="mem-h">
+        <h2 id="mem-h">ذاكرة المكان</h2>
+        <p id="memory">لا يوجد وصف محفوظ.</p>
+        <button id="memory-clear" class="btn danger" type="button">نسيان المكان</button>
+      </section>
+
+      <section class="card" aria-labelledby="nodes-h">
+        <h2 id="nodes-h">ربط جوالات إضافية (حتى 4 اتجاهات)</h2>
+        <p>افتح هذا الرابط على كل جوال إضافي، واختر اتجاهه (أمام / يمين / خلف / يسار)، ثم ثبّته على الحقيبة أو الصدر أو الكتف. سيضيف بصير صوره تلقائياً لكل إرشاد.</p>
+        <p class="mono"><a id="cam-link" href="cam.html">cam.html</a></p>
+        <p id="nodes">لا توجد جوالات متصلة الآن.</p>
+      </section>
+
+      <section class="card" aria-labelledby="sc-h">
+        <h2 id="sc-h">اختصارات فتح التطبيق للكفيف</h2>
+        <ul class="plain">
+          <li><b>أندرويد (تطبيق APK):</b> فعّل «اختصار بصير» من الإعدادات ← تسهيل الاستخدام. بعدها: ضغط زر خفض الصوت 3 مرات بسرعة (والشاشة مفتوحة القفل) يفتح بصير ويبدأ الاستماع.</li>
+          <li><b>آيفون:</b> الإعدادات ← تسهيلات الاستخدام ← اللمس ← النقر على الخلف ← نقر ثلاثي ← اختر اختصاراً يفتح «بصير». أو قل «يا سيري افتح بصير».</li>
+          <li><b>ويندوز:</b> بعد التثبيت، اضغط بالزر الأيمن على أيقونة بصير ← خصائص ← مفتاح الاختصار (مثل Ctrl+Alt+B). داخل التطبيق: مسافة = تكلّم، N تنقل، D ماذا أمامي، R اقرأ، Esc توقف.</li>
+        </ul>
+      </section>
+
+      <section class="card" aria-labelledby="reset-h">
+        <h2 id="reset-h">حذف الإعدادات</h2>
+        <p>يحذف الموفر والمفتاح من الخادم.</p>
+        <button id="reset" class="btn danger" type="button">حذف الإعدادات</button>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

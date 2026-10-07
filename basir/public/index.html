@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>بصير</title>
+  <meta name="description" content="بصير: مساعد تنقّل صوتي للمكفوفين بالذكاء الاصطناعي — يصوّر ما أمامك ويخبرك أين تمشي وكم خطوة.">
+  <meta name="theme-color" content="#0b1220">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/icons/icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="بصير">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="assets/app.css">
+  <script src="config.js"></script>
+  <script type="module" src="assets/app.js"></script>
+</head>
+<body class="app" data-mode="loading">
+  <div id="install" class="install" role="region" aria-label="تثبيت التطبيق" hidden>
+    <p id="install-text"></p>
+    <button id="install-btn" type="button">تثبيت التطبيق</button>
+    <button id="install-close" type="button" class="ghost" aria-label="إغلاق إشعار التثبيت">✕</button>
+  </div>
+
+  <main class="stage">
+    <button id="mic" class="mic" type="button" aria-label="جارٍ التحميل">
+      <svg class="mic-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"/>
+      </svg>
+      <span id="mic-text" class="mic-text">جارٍ التحميل…</span>
+      <span id="mic-sub" class="mic-sub"></span>
+    </button>
+
+    <section class="panel" aria-label="آخر إرشاد">
+      <video id="video" class="preview" playsinline muted autoplay aria-hidden="true"></video>
+      <div class="panel-text">
+        <p id="result" class="result"></p>
+        <p id="meta" class="meta"></p>
+      </div>
+    </section>
+  </main>
+  <noscript><p class="noscript">يحتاج «بصير» إلى تفعيل JavaScript.</p></noscript>
+</body>
+</html>

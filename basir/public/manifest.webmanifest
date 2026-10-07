@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "بصير — مساعد التنقل للمكفوفين",
+  "short_name": "بصير",
+  "description": "يصوّر ما أمامك ويخبرك بالصوت أين تمشي وكم خطوة، بأي موفر ذكاء اصطناعي يدعم الصور.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "categories": ["accessibility", "navigation", "utilities"],
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "assets/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "ابدأ التنقل", "short_name": "تنقل", "url": "./?start=nav", "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "ماذا أمامي؟", "short_name": "ماذا أمامي", "url": "./?start=describe", "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "كاميرا إضافية", "short_name": "كاميرا", "url": "./cam.html", "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
