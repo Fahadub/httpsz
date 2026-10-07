@@ -87,18 +87,13 @@ jobs:
           Expand-Archive php.zip C:\phpplain
           C:\phpplain\php.exe -v
 
-      - name: Run start.bat in the background
+      # في خطوة واحدة: نافذة الأوامر تُغلق بنهاية الخطوة فتُغلق معها كل ما شُغّل في الخلفية
+      - name: Run start.bat and speak through the app it starts
         shell: cmd
         working-directory: basir
         run: |
           set PATH=C:\phpplain;%PATH%
           start "" /B cmd /c "start.bat > start.log 2>&1"
-
-      - name: Speak through the app started by start.bat
-        shell: cmd
-        working-directory: basir
-        run: |
-          set PATH=C:\phpplain;%PATH%
           for /f "delims=" %%a in ('php tools\php_args.php') do set "PHPARGS=%%a"
           echo PHPARGS=%PHPARGS%
           php %PHPARGS% tests\voice_ci.php voice-out
@@ -108,8 +103,8 @@ jobs:
         shell: cmd
         working-directory: basir
         run: |
-          type start.log
-          type data\voice.log
+          if exist start.log type start.log
+          if exist data\voice.log type data\voice.log
 
       - uses: actions/upload-artifact@v4
         if: always()

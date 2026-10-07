@@ -14,7 +14,12 @@ final class Voice
     /** حالة الأصوات لكل لغة، لواجهة التطبيق وصفحة الإعداد. */
     public static function status(array $settings): array
     {
-        $ping = self::request(['op' => 'ping'], 0.4);
+        $ping = self::request(['op' => 'ping'], 0.4, $reached);
+        if (!is_array($ping) && $reached) {
+            // الخادم يعمل لكنه مشغول بنطق جملة طويلة: نعتمد الأصوات التي أعلنها عند تشغيله
+            $info = read_json(data_path('voices/daemon.json'));
+            $ping = is_array($info['voices'] ?? null) ? ['voices' => $info['voices']] : null;
+        }
         $live = is_array($ping) ? ($ping['voices'] ?? []) : [];
         $out = ['daemon' => is_array($ping), 'engine_installed' => VoiceCatalog::runtime() !== null, 'langs' => []];
         foreach (array_keys(VoiceCatalog::VOICES) as $lang) {
@@ -68,14 +73,15 @@ final class Voice
     /**
      * طلب واحد لخادم الصوت. يُرجع: مصفوفة لردود JSON، أو نص WAV لطلب say، أو null عند الفشل.
      */
-    private static function request(array $req, float $timeout): array|string|null
+    private static function request(array $req, float $timeout, ?bool &$reached = null): array|string|null
     {
         $port = VoiceCatalog::daemonPort();
         $conn = @stream_socket_client("tcp://127.0.0.1:$port", $errno, $errstr, min(1.0, $timeout));
+        $reached = (bool) $conn;
         if (!$conn) {
             return null;
         }
-        stream_set_timeout($conn, (int) ceil($timeout));
+        stream_set_timeout($conn, (int) $timeout, (int) (fmod($timeout, 1.0) * 1e6));
         fwrite($conn, json_encode($req, JSON_UNESCAPED_UNICODE) . "\n");
         $head = fgets($conn, 8192);
         if (!is_string($head)) {

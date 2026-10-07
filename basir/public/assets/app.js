@@ -665,8 +665,24 @@ function videoSurvey() {
 
 // ───────────────────────── الجوالات الإضافية ─────────────────────────
 
+let voiceCheckAt = 0;
+/** الصوت المدمج لم يكن جاهزاً عند الفتح (ما زال يُحمَّل أو أُعيد تشغيله): نعيد السؤال كل نصف دقيقة. */
+async function recheckVoices() {
+  const v = state.server.voices || {};
+  if ((v[getLang()] || {}).ready || Date.now() - voiceCheckAt < 30000) return;
+  voiceCheckAt = Date.now();
+  try {
+    const s = await api('status', null, { timeout: 8000 });
+    if (s.voices && (s.voices[getLang()] || {}).ready) {
+      state.server.voices = s.voices;
+      applyLanguage();
+    }
+  } catch { /* الخادم مشغول */ }
+}
+
 async function pollNodes() {
   if (document.hidden || !state.ready) return;
+  recheckVoices();
   try {
     const r = await api('nodes', null, { timeout: 8000 });
     const now = new Set(r.nodes.map((n) => n.dir));

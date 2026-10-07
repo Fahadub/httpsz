@@ -76,7 +76,13 @@ if (!$server) {
     vlog("cannot listen on 127.0.0.1:$port ($errstr) — another voice server is probably running");
     exit(4);
 }
-write_json(data_path('voices/daemon.json'), ['pid' => getmypid(), 'port' => $port, 'started' => gmdate('c')]);
+/** يسجّل الأصوات الجاهزة حتى تعرفها الواجهة البرمجية وهذا الخادم مشغول بنطق جملة طويلة. */
+function announce(int $port, array $voices): void
+{
+    write_json(data_path('voices/daemon.json'), ['pid' => getmypid(), 'port' => $port, 'started' => gmdate('c'),
+        'voices' => array_map(static fn ($v) => $v['id'], $voices)]);
+}
+announce($port, $voices);
 vlog("listening on 127.0.0.1:$port");
 
 while (true) {
@@ -112,6 +118,7 @@ while (true) {
             case 'reload':
                 // صوت مختلف اختير في صفحة الإعداد (المحرك القديم يُحرَّر بعد نجاح تحميل الجديد)
                 [$engine, $voices] = load_voices($runtime, $threads);
+                announce($port, $voices);
                 fwrite($conn, "OK 0\n");
                 break;
             case 'quit':
