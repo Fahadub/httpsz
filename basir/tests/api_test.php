@@ -134,6 +134,24 @@ check('gemini models filtered to generateContent', ($r['json']['models'] ?? []) 
 $r = call('test', ['api_key' => 'bad'] + $g);
 check('gemini bad key → key message', $r['code'] === 502 && str_contains($r['json']['error'], 'مفتاح'), $r);
 
+echo "الصوت المدمج (بدون خادم صوت)\n";
+$r = call('voices');
+check('voices list has Arabic and English voices', count(array_filter($r['json']['voices'] ?? [], fn ($v) => $v['lang'] === 'ar')) >= 2 && count(array_filter($r['json']['voices'] ?? [], fn ($v) => $v['lang'] === 'en')) >= 2, $r);
+check('voices never mention engine names', !preg_match('/supertonic|kokoro|piper|sherpa/i', json_encode(array_column($r['json']['voices'] ?? [], 'name'))), $r['json']['voices'] ?? null);
+$r = call('tts', ['text' => 'مرحبا', 'lang' => 'ar']);
+check('tts without voice server → 503 JSON (client falls back to device voice)', $r['code'] === 503 && $r['json']['ok'] === false, $r);
+$r = call('status');
+check('status reports per-language voice readiness', isset($r['json']['voices']['ar']['ready'], $r['json']['voices']['en']['ready']), $r['json']['voices'] ?? null);
+$r = call('save_config', $g + ['pin' => '', 'settings' => ['voice_ar' => 'ar-noura', 'voice_en' => 'bogus']]);
+check('voice settings validated (unknown voice → default)', ($r['json']['settings']['voice_ar'] ?? '') === 'ar-noura' && ($r['json']['settings']['voice_en'] ?? 'x') === '', $r['json']['settings'] ?? $r);
+
+echo "اللغة الإنجليزية\n";
+$r = call('analyze&lang=en', ['mode' => 'navigate', 'images' => [['data' => jpeg()]], 'lang' => 'en']);
+$log = file_get_contents(getenv('MOCK_LOG'));
+check('English request sends English prompts', $r['code'] === 200 && str_contains($log, 'step-by-step walking guidance'), $r);
+$r = call('analyze&lang=en', ['mode' => 'bogus', 'images' => [['data' => jpeg()]]]);
+check('English error messages', $r['code'] === 400 && $r['json']['error'] === 'Unknown mode.', $r);
+
 echo "رمز الحماية\n";
 $r = call('save_config', $g + ['new_pin' => '1234']);
 check('pin set', $r['json']['pin_required'] === true, $r);

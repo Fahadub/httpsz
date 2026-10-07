@@ -199,10 +199,10 @@ final class Providers
         $choice = $r['json']['choices'][0] ?? [];
         $text = self::joinText($choice['message']['content'] ?? '');
         if ($text === '' && !empty($choice['message']['refusal'])) {
-            throw new ProviderError('رفض النموذج الإجابة على هذه الصورة.', (string) $choice['message']['refusal']);
+            throw new ProviderError(tr('رفض النموذج الإجابة على هذه الصورة.', 'The model refused to answer for this image.'), (string) $choice['message']['refusal']);
         }
         if ($text === '' && ($choice['finish_reason'] ?? '') === 'length') {
-            throw new ProviderError('انقطع رد النموذج قبل أن يكتمل. جرّب نموذجاً آخر.', 'finish_reason=length');
+            throw new ProviderError(tr('انقطع رد النموذج قبل أن يكتمل. جرّب نموذجاً آخر.', 'The model reply was cut off. Try another model.'), 'finish_reason=length');
         }
         return $text;
     }
@@ -274,7 +274,7 @@ final class Providers
             }
         }
         if (($j['stop_reason'] ?? '') === 'refusal' && trim($text) === '') {
-            throw new ProviderError('رفض النموذج الإجابة على هذه الصورة.', (string) ($j['stop_details']['explanation'] ?? 'refusal'));
+            throw new ProviderError(tr('رفض النموذج الإجابة على هذه الصورة.', 'The model refused to answer for this image.'), (string) ($j['stop_details']['explanation'] ?? 'refusal'));
         }
         return trim($text);
     }
@@ -315,7 +315,7 @@ final class Providers
         $r = self::sendAdaptive($cfg, $url, $headers, $build, $adjust);
         $j = $r['json'];
         if (!empty($j['promptFeedback']['blockReason'])) {
-            throw new ProviderError('رفض النموذج تحليل هذه الصورة.', (string) $j['promptFeedback']['blockReason']);
+            throw new ProviderError(tr('رفض النموذج تحليل هذه الصورة.', 'The model refused to analyse this image.'), (string) $j['promptFeedback']['blockReason']);
         }
         $text = '';
         foreach ($j['candidates'][0]['content']['parts'] ?? [] as $p) {
@@ -324,7 +324,7 @@ final class Providers
             }
         }
         if (trim($text) === '' && !empty($j['candidates'][0]['finishReason'])) {
-            throw new ProviderError('لم يُرجع النموذج إجابة. جرّب مرة أخرى.', 'finishReason=' . $j['candidates'][0]['finishReason']);
+            throw new ProviderError(tr('لم يُرجع النموذج إجابة. جرّب مرة أخرى.', 'The model returned no answer. Please try again.'), 'finishReason=' . $j['candidates'][0]['finishReason']);
         }
         return trim($text);
     }
@@ -398,6 +398,9 @@ final class Providers
             }
             if ($ca = getenv('BASIR_CA_BUNDLE')) {
                 $opts[CURLOPT_CAINFO] = $ca;
+            } elseif (PHP_OS_FAMILY === 'Windows' && !ini_get('curl.cainfo') && defined('CURLSSLOPT_NATIVE_CA')) {
+                // PHP لويندوز غالباً بلا شهادات: نستخدم مخزن شهادات ويندوز نفسه
+                $opts[CURLOPT_SSL_OPTIONS] = CURLSSLOPT_NATIVE_CA;
             }
             curl_setopt_array($ch, $opts);
             $raw = curl_exec($ch);
@@ -460,26 +463,26 @@ final class Providers
         $low = strtolower($detail);
         if ($s === 0) {
             $speak = (str_contains($low, 'ssl') || str_contains($low, 'certificate'))
-                ? 'مشكلة في شهادة الأمان عند الاتصال بالموفر. راجع إعداد الشهادات على الخادم.'
-                : 'تعذر الاتصال بموفر الذكاء الاصطناعي. تأكد من الإنترنت ومن الرابط.';
+                ? tr('مشكلة في شهادة الأمان عند الاتصال بالموفر. راجع إعداد الشهادات على الخادم.', 'Security certificate problem when contacting the provider. Check the certificate setup on the server.')
+                : tr('تعذر الاتصال بموفر الذكاء الاصطناعي. تأكد من الإنترنت ومن الرابط.', 'Cannot reach the AI provider. Check the internet connection and the base URL.');
         } elseif ($s >= 200 && $s < 300) {
-            $speak = 'رد الموفر بصيغة غير مفهومة. تأكد من الرابط الأساسي.';
+            $speak = tr('رد الموفر بصيغة غير مفهومة. تأكد من الرابط الأساسي.', 'The provider sent an unreadable reply. Check the base URL.');
         } elseif ($s === 401 || preg_match('/api[ _-]?key|unauthori[sz]ed|authentication/', $low)) {
-            $speak = 'مفتاح الموفر غير صحيح أو منتهي.';
+            $speak = tr('مفتاح الموفر غير صحيح أو منتهي.', 'The provider key is wrong or expired.');
         } elseif ($s === 403) {
-            $speak = 'المفتاح لا يملك صلاحية لهذا النموذج.';
+            $speak = tr('المفتاح لا يملك صلاحية لهذا النموذج.', 'The key has no access to this model.');
         } elseif ($s === 404) {
-            $speak = 'النموذج أو الرابط غير موجود. تحقق من اسم النموذج والرابط الأساسي.';
+            $speak = tr('النموذج أو الرابط غير موجود. تحقق من اسم النموذج والرابط الأساسي.', 'Model or URL not found. Check the model name and base URL.');
         } elseif ($s === 402 || $s === 429) {
-            $speak = 'تم تجاوز حد الاستخدام أو نفد الرصيد. انتظر قليلاً ثم حاول.';
+            $speak = tr('تم تجاوز حد الاستخدام أو نفد الرصيد. انتظر قليلاً ثم حاول.', 'Usage limit reached or out of credit. Wait a little and try again.');
         } elseif ($s === 413) {
-            $speak = 'الصورة كبيرة جداً على الموفر.';
+            $speak = tr('الصورة كبيرة جداً على الموفر.', 'The image is too large for the provider.');
         } elseif ($s >= 500) {
-            $speak = 'خادم الموفر مشغول حالياً. حاول بعد قليل.';
+            $speak = tr('خادم الموفر مشغول حالياً. حاول بعد قليل.', 'The provider is busy right now. Try again shortly.');
         } elseif (preg_match('/image|vision|multimodal|multi-modal|modality|image_url|inline_?data/', $low)) {
-            $speak = 'هذا النموذج لا يدعم الصور. اختر نموذجاً يدعم الرؤية.';
+            $speak = tr('هذا النموذج لا يدعم الصور. اختر نموذجاً يدعم الرؤية.', 'This model does not accept images. Choose a vision model.');
         } else {
-            $speak = 'رفض الموفر الطلب. راجع إعدادات الموفر.';
+            $speak = tr('رفض الموفر الطلب. راجع إعدادات الموفر.', 'The provider rejected the request. Check the provider settings.');
         }
         throw new ProviderError($speak, $detail, $s);
     }

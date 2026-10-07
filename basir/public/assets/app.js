@@ -1,10 +1,11 @@
 // بصير — الشاشة الرئيسية للكفيف: زر ميكروفون واحد يملأ الشاشة، وكل شيء آخر بالصوت.
 import {
   api, apiBase, tts, stt, Camera, orientation, wakeLock, sounds, beep, vibrate, unlockAudio,
-  normalizeArabic, speakable, angleDiff, angleName, sleep, store, isNative, DIR_NAMES,
-  setupInstall, registerSW, IOS_INSTALL_TEXT,
+  normalizeArabic, speakable, angleDiff, angleName, sleep, store, isNative, dirName,
+  setupInstall, registerSW,
 } from './core.js';
 import { parseCommand } from './commands.js';
+import { t, setLang, getLang, listSep, plain } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
 const els = { mic: $('mic'), micText: $('mic-text'), micSub: $('mic-sub'), result: $('result'), meta: $('meta'), video: $('video') };
@@ -38,19 +39,21 @@ let install = { available: () => false, ios: false, prompt: async () => false };
 // ───────────────────────── واجهة ─────────────────────────
 
 const MODES = {
-  loading: ['جارٍ التحميل…', ''],
-  idle: ['اضغط وتكلّم', 'قل: ابدأ — ماذا أمامي — اقرأ — أربع جهات — فيديو'],
-  idleNoStt: ['اضغط لبدء التنقل', 'ضغطة أخرى توقفه'],
-  listening: ['أستمع إليك…', 'تكلّم الآن'],
-  thinking: ['لحظة…', 'اضغط للإلغاء'],
-  survey: ['جارٍ التصوير…', 'اضغط للإلغاء'],
-  nav: ['التنقل يعمل', 'اضغط وقل: توقف'],
-  navNoStt: ['التنقل يعمل', 'اضغط لإيقافه'],
-  error: ['تعذر التشغيل', ''],
+  loading: ['mode.loading', ''],
+  idle: ['mode.idle', 'mode.idle.sub'],
+  idleNoStt: ['mode.idleNoStt', 'mode.idleNoStt.sub'],
+  listening: ['mode.listening', 'mode.listening.sub'],
+  thinking: ['mode.thinking', 'mode.cancel.sub'],
+  survey: ['mode.survey', 'mode.cancel.sub'],
+  nav: ['mode.nav', 'mode.nav.sub'],
+  navNoStt: ['mode.nav', 'mode.navNoStt.sub'],
+  error: ['mode.error', ''],
 };
 
 function ui(mode) {
-  const [main, sub] = MODES[mode] || MODES.idle;
+  const [mainKey, subKey] = MODES[mode] || MODES.idle;
+  const main = t(mainKey);
+  const sub = subKey ? t(subKey) : '';
   document.body.dataset.mode = mode;
   els.micText.textContent = main;
   els.micSub.textContent = sub;
@@ -67,7 +70,7 @@ function refreshUi() {
 }
 
 function show(text) {
-  els.result.textContent = text;
+  els.result.textContent = plain(text);
 }
 
 function say(text, opts) {
@@ -78,7 +81,7 @@ function say(text, opts) {
 }
 
 function sayError(e, suffix = '') {
-  const msg = (e && e.message) || 'حدث خطأ.';
+  const msg = (e && e.message) || t('net.serverError');
   if (e && e.detail) console.warn('بصير:', e.detail);
   vibrate([80, 60, 80]);
   return say(msg + suffix);
@@ -96,55 +99,69 @@ const imagePx = () => state.imagePx;
 
 // ───────────────────────── الإعداد والترحيب ─────────────────────────
 
+/** لغة الجهاز: اختيار الكفيف بالصوت (محفوظ على الجهاز) وإلا لغة الخادم الافتراضية. */
+function currentLanguage() {
+  return store.get('basir_lang') || state.server.settings.language || 'ar';
+}
+
+function applyLanguage() {
+  const lang = setLang(currentLanguage());
+  const s = state.server.settings;
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+  const voices = state.server.voices || {};
+  tts.configure({
+    lang,
+    locale: lang === 'en' ? s.speech_lang_en : s.speech_lang,
+    serverVoices: { ar: !!(voices.ar && voices.ar.ready), en: !!(voices.en && voices.en.ready) },
+  });
+}
+
+function switchLanguage(lang) {
+  store.set('basir_lang', lang);
+  applyLanguage();
+  refreshUi();
+}
+
 function applySettings(s) {
   const localRate = Number(store.get('basir_rate', 0));
-  tts.configure({ lang: s.speech_lang, rate: localRate || s.speech_rate });
+  tts.configure({ rate: localRate || s.speech_rate });
+  applyLanguage();
   state.imagePx = s.image_px || 768;
   state.intervalMs = Math.round((s.interval_s || 2) * 1000);
 }
 
 function providerText() {
   const p = state.server.provider;
-  return `الموفر المحفوظ: ${p.label}، والنموذج: ${speakable(p.model)}. ${p.has_key ? 'المفتاح محفوظ على الخادم ولا تحتاج لإدخاله مرة أخرى.' : 'هذا الموفر لا يحتاج مفتاحاً.'}`;
+  return t('provider', { label: p.label, model: speakable(p.model), hasKey: p.has_key });
 }
 
 function devicesText() {
   const nodes = (state.server && state.server.nodes) || [];
   const host = apiBase() ? new URL(apiBase()).host : location.host;
-  const link = `${host || 'عنوان الخادم'}/cam.html`;
-  if (!nodes.length) {
-    return `لا توجد جوالات إضافية متصلة. لربط جوال: افتح على الجوال الآخر الرابط ${link}، واختر اتجاهه: أمام أو يمين أو خلف أو يسار. يمكن ربط حتى 4 جوالات.`;
-  }
-  return `متصل ${nodes.length} ${nodes.length === 1 ? 'جوال إضافي' : 'جوالات إضافية'}: ${nodes.map((n) => n.name).join('، ')}. أستخدم صورها مع كل إرشاد.`;
+  const link = `${host}/cam.html`;
+  if (!nodes.length) return t('devices.none', { link });
+  return t('devices.some', { count: nodes.length, names: nodes.map((n) => dirName(n.dir)).join(listSep()) });
 }
 
 function welcomeText() {
   const p = state.server.provider;
   const first = !store.get('basir_welcomed');
-  let t = first ? `مرحباً، أنا بصير. ${providerText()}` : `بصير جاهز. الموفر: ${p.label}، النموذج: ${speakable(p.model)}.`;
+  let s = first ? t('welcome.first', { provider: providerText() }) : t('welcome.back', { label: p.label, model: speakable(p.model) });
   const nodes = state.server.nodes || [];
-  if (nodes.length) t += ` ${devicesText()}`;
-  if (state.server.memory && first) t += ' لدي وصف محفوظ لهذا المكان.';
-  if (stt.supported()) {
-    t += first
-      ? ' اضغط في أي مكان على الشاشة وتكلّم بعد الصفارة. قل: ابدأ، لأرشدك في المشي، أو قل: مساعدة.'
-      : ' اضغط وتكلّم.';
-  } else {
-    t += ' اضغط في أي مكان على الشاشة لبدء التنقل أو إيقافه.';
-  }
-  if (!store.get('basir_onboarded') && !state.server.memory && stt.supported()) {
-    t += ' هذه أول مرة. لأتعرّف على المكان قل: فيديو، ثم استدر حول نفسك ببطء. أو قل: أربع جهات، لأصوّر كل جهة. أو قل: تخطي.';
-  }
-  if (install.available()) t += ' يمكنك تثبيت التطبيق على جهازك: قل تثبيت.';
-  return t;
+  if (nodes.length) s += ` ${devicesText()}`;
+  if (state.server.memory && first) s += t('welcome.memory');
+  if (stt.supported()) s += first ? t('welcome.tapTalkFirst') : t('welcome.tapTalk');
+  else s += t('welcome.tapToggle');
+  if (!store.get('basir_onboarded') && !state.server.memory && stt.supported()) s += t('welcome.firstTime');
+  if (install.available()) s += t('welcome.install');
+  return s;
 }
-
-const HELP_TEXT = 'الأوامر: ابدأ، للتنقل. خذني إلى الباب، للتوجه لهدف. توقف. ماذا أمامي. اقرأ، لقراءة النص. أربع جهات، أو فيديو، للتعرف على المكان. وين الكرسي، أو أي سؤال عن ما أمامك. الموفر. الجوالات. انسَ المكان. أسرع، أو أبطأ، لسرعة الكلام. كرّر. الإعدادات.';
 
 async function boot() {
   registerSW();
   install = setupInstall({
-    onInstalled: () => say('تم تثبيت التطبيق. يمكنك فتحه من الشاشة الرئيسية.'),
+    onInstalled: () => say(t('installed')),
   });
 
   ui('loading');
@@ -152,7 +169,7 @@ async function boot() {
     state.server = await api('status');
   } catch (e) {
     ui('error');
-    show(e.message + (isNative ? ' — افتح الإعدادات لتحديد عنوان الخادم.' : ''));
+    show(e.message + (isNative ? t('server.openSetup') : ''));
     if (isNative) setTimeout(() => location.replace('setup.html#server'), 2500);
     return;
   }
@@ -165,7 +182,7 @@ async function boot() {
   state.ready = true;
   refreshUi();
   if (!window.isSecureContext && !isNative) {
-    show('تنبيه: الكاميرا والميكروفون يحتاجان رابطاً آمناً (HTTPS) أو فتح التطبيق من نفس الجهاز عبر localhost. راجع ملف README.');
+    show(t('insecure'));
   }
 
   setInterval(pollNodes, 6000);
@@ -174,13 +191,18 @@ async function boot() {
 
   // محاولة الترحيب دون لمس (تنجح في تطبيق الجوال وبعض التطبيقات المثبتة)
   if (isNative) state.welcomed = true; // الكلام في تطبيق الجوال لا يحتاج لمسة أولى
-  await say(welcomeText());
+  const speaking = say(welcomeText());
+  let done = false;
+  speaking.then(() => { done = true; });
+  // بمجرد أن يبدأ الصوت فعلاً نعتبر الترحيب تم: لمسة أثناءه تعني «أريد التكلم» لا «أعد الترحيب»
+  while (!done && tts.allowed !== true) await sleep(100);
   if (tts.allowed === true) {
     state.welcomed = true;
     store.set('basir_welcomed', '1');
+    await speaking;
     runStartAction();
   } else {
-    show('اضغط في أي مكان على الشاشة للبدء.');
+    show(t('tapToStart'));
   }
 }
 
@@ -206,6 +228,8 @@ function onMain() {
     install.prompt();
     return;
   }
+  // الترحيب يعمل الآن بالفعل (الصوت مسموح): اللمسة تعني «أريد التكلم»
+  if (!state.welcomed && tts.allowed === true) state.welcomed = true;
   if (!state.welcomed) {
     state.welcomed = true;
     say(welcomeText()).then(() => { if (state.startAction) runStartAction(); });
@@ -214,7 +238,7 @@ function onMain() {
   }
   if (state.busy) {
     state.cancelTask = true;
-    say('تم الإلغاء.');
+    say(t('cancelled'));
     return;
   }
   if (state.listening) {
@@ -222,7 +246,7 @@ function onMain() {
     return;
   }
   if (!stt.supported()) {
-    if (state.nav) { stopNav(); say('توقف التنقل.'); } else startNav();
+    if (state.nav) { stopNav(); say(t('navStopped')); } else startNav();
     return;
   }
   startListening();
@@ -234,7 +258,7 @@ async function startListening() {
   state.listening = true;
   refreshUi();
   // نبدأ الاستماع فوراً داخل اللمسة، والصفارة بالتوازي
-  const heard = stt.listen(tts.lang);
+  const heard = stt.listen(tts.locale);
   sounds.listen();
   let text = '';
   try {
@@ -249,7 +273,7 @@ async function startListening() {
   refreshUi();
   if (!text) {
     state.navPaused = false;
-    return say('لم أسمع شيئاً. اضغط وتكلّم مرة أخرى.');
+    return say(t('didntHear'));
   }
   show('🗣️ ' + text);
   try {
@@ -262,33 +286,33 @@ async function startListening() {
 
 function handleSttError(e) {
   const code = e && e.code;
-  if (code === 'not-allowed') return say('لم يُسمح باستخدام الميكروفون. اسمح به من إعدادات المتصفح.');
-  if (code === 'audio-capture') return say('لا يوجد ميكروفون يعمل.');
-  if (code === 'network') return say('التعرف على الكلام يحتاج إنترنت. حاول مرة أخرى.');
+  if (code === 'not-allowed') return say(t('mic.denied'));
+  if (code === 'audio-capture') return say(t('mic.none'));
+  if (code === 'network') return say(t('mic.network'));
   if (code === 'service-not-allowed' || code === 'language-not-supported') {
     // المتصفح لا يسمح بالتعرف على الكلام هنا → وضع اللمس
     stt.disabled = true;
     refreshUi();
-    return say('الأوامر الصوتية غير متاحة في هذا المتصفح. اضغط على الشاشة لبدء التنقل، وضغطة أخرى لإيقافه.');
+    return say(t('mic.unavailable'));
   }
-  return say('تعذر تشغيل الميكروفون. اضغط وحاول مرة أخرى.');
+  return say(t('mic.failed'));
 }
 
 async function runCommand(text) {
-  const { cmd, goal, question } = parseCommand(text);
+  const { cmd, goal, question, lang } = parseCommand(text);
   switch (cmd) {
     case 'stop':
       state.cancelTask = true;
       if (state.nav) stopNav();
-      return say('توقفت.');
+      return say(t('stopped'));
     case 'repeat':
-      return say(state.lastSay || 'لا يوجد ما أكرره.');
+      return say(state.lastSay || t('nothingToRepeat'));
     case 'help':
-      return say(HELP_TEXT);
+      return say(t('help'));
     case 'provider':
       return say(providerText());
     case 'settings':
-      await say('سأفتح صفحة الإعدادات. تحتاج مساعداً مبصراً لإكمالها.');
+      await say(t('openingSettings'));
       location.href = 'setup.html';
       return;
     case 'devices':
@@ -297,7 +321,7 @@ async function runCommand(text) {
       try {
         await api('memory_clear', {});
         state.server.memory = null;
-        return say('نسيت وصف المكان.');
+        return say(t('forgot'));
       } catch (e) { return sayError(e); }
     case 'four':
       return fourDirections();
@@ -312,22 +336,25 @@ async function runCommand(text) {
       const r = Math.max(0.6, Math.min(1.8, tts.rate + (cmd === 'faster' ? 0.15 : -0.15)));
       tts.rate = Math.round(r * 100) / 100;
       store.set('basir_rate', tts.rate);
-      return say(cmd === 'faster' ? 'أصبح الكلام أسرع.' : 'أصبح الكلام أبطأ.');
+      return say(t(cmd));
     }
     case 'install':
-      if (!install.available()) return say('التطبيق مثبت بالفعل، أو أن هذا المتصفح لا يدعم التثبيت.');
-      if (install.ios) return say(IOS_INSTALL_TEXT);
+      if (!install.available()) return say(t('install.none'));
+      if (install.ios) return say(t('install.ios'));
       state.pendingInstall = true;
-      return say('اضغط على الشاشة مرة واحدة للتثبيت، ثم اختر تثبيت.');
+      return say(t('install.tap'));
     case 'skip':
       store.set('basir_onboarded', '1');
-      return say('حسناً. قل ابدأ عندما تريد المشي.');
+      return say(t('skipped'));
+    case 'lang':
+      switchLanguage(lang);
+      return say(t('langSwitched'));
     case 'nav':
       return startNav();
     case 'goal':
       return startNav(goal);
     default:
-      if (normalizeArabic(question).length < 2) return say('لم أفهم. قل مساعدة لسماع الأوامر.');
+      if (normalizeArabic(question).length < 2) return say(t('notUnderstood'));
       return oneShot('ask', { question });
   }
 }
@@ -355,8 +382,8 @@ function onVisibility() {
 
 function frameOrWarn(px = imagePx(), q = 0.6) {
   const f = camera.capture(px, q);
-  if (!f) throw new Error('الكاميرا لم تبدأ بعد.');
-  if (f.brightness < 16) throw new Error('المكان مظلم جداً أو الكاميرا مغطاة.');
+  if (!f) throw new Error(t('cam.notStarted'));
+  if (f.brightness < 16) throw new Error(t('cam.dark'));
   return f;
 }
 
@@ -364,8 +391,8 @@ function frameOrWarn(px = imagePx(), q = 0.6) {
 function tiltHint() {
   const b = orientation.beta;
   if (b === null) return null;
-  if (b > 100) return hintOnce('tilt', 'أمِل الجوال للأسفل قليلاً.');
-  if (b < 40) return hintOnce('tilt', 'ارفع الجوال قليلاً، الكاميرا تنظر للأرض.');
+  if (b > 100) return hintOnce('tilt', t('tilt.down'));
+  if (b < 40) return hintOnce('tilt', t('tilt.up'));
   return null;
 }
 
@@ -376,7 +403,11 @@ async function speakResult(res) {
   } else {
     vibrate(40);
   }
-  els.meta.textContent = `${(res.latency_ms / 1000).toFixed(1)} ث · ${res.images} ${res.images === 1 ? 'صورة' : 'صور'}${res.nodes_used && res.nodes_used.length ? ' · ' + res.nodes_used.map((d) => DIR_NAMES[d]).join('، ') : ''}`;
+  els.meta.textContent = plain(t('meta', {
+    sec: (res.latency_ms / 1000).toFixed(1),
+    images: res.images,
+    dirs: (res.nodes_used || []).map(dirName).join(listSep()),
+  }));
   await say(res.say);
 }
 
@@ -389,14 +420,17 @@ async function oneShot(mode, extra = {}) {
   refreshUi();
   try {
     await ensureCamera().catch((e) => { if (!(state.server.nodes || []).length || mode === 'read') throw e; });
-    say(mode === 'read' ? 'لحظة، أقرأ.' : 'لحظة.');
+    say(t(mode === 'read' ? 'momentRead' : 'moment'));
     const images = [];
     if (camera.active) {
       const f = mode === 'read' ? frameOrWarn(1280, 0.85) : frameOrWarn();
-      images.push({ data: f.data, label: 'الأمام (الجوال الرئيسي)' });
+      images.push({ data: f.data, label: t('label.main') });
     }
-    const res = await api('analyze', { mode, images, include_nodes: mode !== 'read', ...extra });
+    const res = await api('analyze', { mode, images, include_nodes: mode !== 'read', lang: getLang(), ...extra });
     if (state.cancelTask) return;
+    // انتهى العمل: أثناء نطق الجواب، اللمسة تعني سؤالاً جديداً لا «إلغاء»
+    state.busy = false;
+    refreshUi();
     await speakResult(res);
   } catch (e) {
     if (!state.cancelTask) await sayError(e);
@@ -412,7 +446,7 @@ async function startNav(goal = '') {
   if (state.nav) {
     state.goal = goal || state.goal;
     state.history = [];
-    return say(goal ? `حسناً، سأوجهك إلى ${goal}.` : 'التنقل يعمل بالفعل.');
+    return say(goal ? t('nav.goalUpdated', { goal }) : t('nav.already'));
   }
   try {
     await ensureCamera();
@@ -424,9 +458,7 @@ async function startNav(goal = '') {
   state.history = [];
   wakeLock.request();
   refreshUi();
-  await say(goal
-    ? `سأوجهك إلى ${goal}. أمسك الجوال أمام صدرك مع إمالة بسيطة للأسفل، وامشِ ببطء.`
-    : 'بدأ التنقل. أمسك الجوال أمام صدرك مع إمالة بسيطة للأسفل، وامشِ ببطء واستمع للإرشادات.');
+  await say(goal ? t('nav.startGoal', { goal }) : t('nav.start'));
   navLoop();
 }
 
@@ -448,8 +480,8 @@ async function navLoop() {
       await tiltHint();
       if (camera.stream && !camera.active) await ensureCamera();
       const images = [];
-      if (camera.active) images.push({ data: frameOrWarn().data, label: 'الأمام (الجوال الرئيسي)' });
-      const res = await api('analyze', { mode: 'navigate', images, include_nodes: true, goal: state.goal, history: state.history });
+      if (camera.active) images.push({ data: frameOrWarn().data, label: t('label.main') });
+      const res = await api('analyze', { mode: 'navigate', images, include_nodes: true, goal: state.goal, history: state.history, lang: getLang() });
       if (!alive() || state.navPaused || state.busy) continue; // المستخدم بدأ يتكلم: نتجاهل الرد القديم
       errors = 0;
       await speakResult(res);
@@ -459,7 +491,7 @@ async function navLoop() {
       errors++;
       if (errors >= 3) {
         stopNav();
-        await sayError(e, ' أوقفت التنقل.');
+        await sayError(e, t('nav.stoppedSuffix'));
         break;
       }
       await sayError(e);
@@ -483,7 +515,7 @@ async function waitForHeading(target, timeoutMs) {
       await sleep(500);
       if (orientation.heading !== null && Math.abs(angleDiff(orientation.heading, target)) < 20) return;
     } else if (d < -25) {
-      await hintOnce('overturn', 'تجاوزت. ارجع قليلاً لليسار.', 3500);
+      await hintOnce('overturn', t('survey.overturn'), 3500);
     } else if (Date.now() - lastBeep > 550) {
       lastBeep = Date.now();
       beep(420 + (1 - Math.min(90, Math.abs(d)) / 90) * 700, 70, 0.14);
@@ -498,7 +530,7 @@ async function settleTilt(timeoutMs) {
   while (Date.now() - t0 < timeoutMs && !state.cancelTask) {
     const b = orientation.beta;
     if (b === null || (b >= 45 && b <= 88)) return;
-    await hintOnce('settle', b > 88 ? 'أمِل الجوال للأسفل قليلاً.' : 'ارفع الجوال قليلاً.', 2500);
+    await hintOnce('settle', b > 88 ? t('tilt.down') : t('tilt.upShort'), 2500);
     await sleep(200);
   }
 }
@@ -514,15 +546,17 @@ async function runSurvey(kind, capture) {
     await ensureCamera();
     const frames = await capture();
     if (state.cancelTask || !frames) return;
-    await say('تم التصوير. جارٍ تحليل المكان، قد يستغرق ذلك بعض الوقت.');
+    await say(t('survey.analyzing'));
     state.busyKind = kind;
     refreshUi();
-    const res = await api('analyze', { mode: 'survey', images: frames }, { timeout: 180000 });
+    const res = await api('analyze', { mode: 'survey', images: frames, lang: getLang() }, { timeout: 180000 });
     if (state.cancelTask) return;
     store.set('basir_onboarded', '1');
     state.server.memory = { say: res.say, summary: res.memory };
+    state.busy = false;
+    refreshUi();
     await speakResult(res);
-    if (stt.supported()) await say('حفظت وصف المكان. قل ابدأ عندما تريد المشي.', { interrupt: false });
+    if (stt.supported()) await say(t('survey.saved'), { interrupt: false });
   } catch (e) {
     if (!state.cancelTask) await sayError(e);
   } finally {
@@ -534,25 +568,25 @@ async function runSurvey(kind, capture) {
 
 function fourDirections() {
   return runSurvey('four', async () => {
-    const names = ['الأمام', 'اليمين', 'الخلف', 'اليسار'];
-    await say('سأصوّر أربع جهات. أمسك الجوال أمام صدرك والشاشة نحوك، مع إمالة بسيطة للأسفل. بعد كل صورة استدر لليمين ربع دورة حتى تسمع الصفارات تعلو ثم تتوقف.');
+    const names = ['front', 'right', 'back', 'left'].map(dirName);
+    await say(t('four.intro'));
     const start = orientation.heading;
     const frames = [];
     for (let i = 0; i < 4; i++) {
       if (state.cancelTask) return null;
       if (i > 0) {
-        await say('استدر لليمين ربع دورة.');
+        await say(t('four.turn'));
         if (start !== null) await waitForHeading((start + 90 * i) % 360, 10000);
         else await sleep(4000);
       }
       await settleTilt(4000);
       if (state.cancelTask) return null;
-      await say(`${names[i]}. اثبت.`);
+      await say(t('four.hold', { name: names[i] }));
       await sleep(350);
       const f = frameOrWarn(imagePx(), 0.65);
       sounds.shutter();
       vibrate(40);
-      frames.push({ data: f.data, label: `${names[i]} (زاوية ${90 * i} درجة)` });
+      frames.push({ data: f.data, label: t('four.label', { name: names[i], angle: 90 * i }) });
     }
     return frames;
   });
@@ -562,7 +596,7 @@ function fourDirections() {
 
 function videoSurvey() {
   return runSurvey('video', async () => {
-    await say('سأصوّر فيديو للمكان. أمسك الجوال أمام صدرك مع إمالة بسيطة للأسفل، ثم استدر حول نفسك لليمين ببطء دورة كاملة. ابدأ بعد الصفارة.');
+    await say(t('video.intro'));
     await settleTilt(3000);
     if (state.cancelTask) return null;
     await sounds.listen();
@@ -591,19 +625,19 @@ function videoSurvey() {
       }
       if (hasCompass) {
         if (Math.abs(turned) >= nextCue && nextCue < 360) {
-          tts.speak({ 90: 'ربع', 180: 'نصف', 270: 'ثلاثة أرباع' }[nextCue], { interrupt: false });
+          tts.speak(t({ 90: 'video.q1', 180: 'video.q2', 270: 'video.q3' }[nextCue]), { interrupt: false });
           nextCue += 90;
         }
         if (Math.abs(turned) >= 345) break;
-        if (Date.now() - lastNudge > 6000 && Math.abs(turned) < 20) { lastNudge = Date.now(); tts.speak('استدر ببطء لليمين.'); }
+        if (Date.now() - lastNudge > 6000 && Math.abs(turned) < 20) { lastNudge = Date.now(); tts.speak(t('video.turnSlowly')); }
       } else if (Date.now() - lastNudge > 5000) {
         lastNudge = Date.now();
-        tts.speak('استمر بالدوران.', { interrupt: false });
+        tts.speak(t('video.keepTurning'), { interrupt: false });
       }
     }
     if (state.cancelTask) return null;
     sounds.done();
-    if (samples.length < 4) throw new Error('لم ألتقط صوراً كافية. حاول مرة أخرى.');
+    if (samples.length < 4) throw new Error(t('video.notEnough'));
 
     // اختيار 8 لقطات تغطي الدورة كلها
     const N = 8;
@@ -618,13 +652,13 @@ function videoSurvey() {
       }
       return picked.map((s) => {
         const a = Math.round(((s.turned % 360) + 360) % 360);
-        return { data: s.data, label: `زاوية ${a} درجة — ${angleName(a)}` };
+        return { data: s.data, label: t('video.angleLabel', { a, name: angleName(a) }) };
       });
     }
     for (let k = 0; k < N; k++) picked.push(samples[Math.min(samples.length - 1, Math.floor(((k + 0.5) * samples.length) / N))]);
     return picked.map((s, k) => {
       const a = Math.round((360 * (k + 0.5)) / N);
-      return { data: s.data, label: `لقطة ${k + 1} من ${N} — تقريباً زاوية ${a} درجة (${angleName(a)})` };
+      return { data: s.data, label: t('video.approxLabel', { k: k + 1, n: N, a, name: angleName(a) }) };
     });
   });
 }
@@ -637,8 +671,8 @@ async function pollNodes() {
     const r = await api('nodes', null, { timeout: 8000 });
     const now = new Set(r.nodes.map((n) => n.dir));
     const msgs = [];
-    for (const n of r.nodes) if (!state.knownNodes.has(n.dir)) msgs.push(`تم ربط جوال ${n.name}.`);
-    for (const d of state.knownNodes) if (!now.has(d)) msgs.push(`انقطع جوال ${DIR_NAMES[d]}.`);
+    for (const n of r.nodes) if (!state.knownNodes.has(n.dir)) msgs.push(t('node.linked', { name: dirName(n.dir) }));
+    for (const d of state.knownNodes) if (!now.has(d)) msgs.push(t('node.lost', { name: dirName(d) }));
     state.knownNodes = now;
     state.server.nodes = r.nodes;
     if (msgs.length && state.welcomed && !state.listening) tts.speak(msgs.join(' '), { interrupt: false });

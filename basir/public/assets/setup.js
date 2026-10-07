@@ -1,5 +1,6 @@
 // بصير — صفحة الإعداد (للمساعد المبصر): الموفر والمفتاح مرة واحدة، الصوت، التدريب من فيديو، الجوالات الإضافية.
-import { api, apiBase, setApiBase, tts, isNative, framesFromVideoFile, setupInstall, registerSW, speakable } from './core.js';
+import { api, apiBase, setApiBase, tts, isNative, framesFromVideoFile, setupInstall, registerSW, speakable, unlockAudio } from './core.js';
+import { STRINGS } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -53,11 +54,15 @@ function formData() {
     pin: $('pin').value.trim(),
     new_pin: $('new_pin').value.trim(),
     settings: {
+      language: $('language').value,
       speech_lang: $('speech_lang').value,
+      speech_lang_en: $('speech_lang_en').value,
       speech_rate: Number($('speech_rate').value),
       step_m: Number($('step_m').value),
       interval_s: Number($('interval_s').value),
       image_px: Number($('image_px').value),
+      voice_ar: $('voice_ar').value,
+      voice_en: $('voice_en').value,
     },
   };
 }
@@ -125,7 +130,9 @@ function applyStatus() {
     lastPreset = null;
   }
   onPresetChange();
+  $('language').value = s.language;
   $('speech_lang').value = s.speech_lang;
+  $('speech_lang_en').value = s.speech_lang_en;
   $('speech_rate').value = s.speech_rate;
   $('rate-out').textContent = Number(s.speech_rate).toFixed(2);
   $('step_m').value = s.step_m;
@@ -142,14 +149,63 @@ $('provider').addEventListener('change', onPresetChange);
 $('base_url').addEventListener('input', keyHelp);
 $('speech_rate').addEventListener('input', () => { $('rate-out').textContent = Number($('speech_rate').value).toFixed(2); });
 
-$('voice-test').addEventListener('click', () => {
+// ───────────────────────── الأصوات المدمجة ─────────────────────────
+
+let voiceInfo = { voices: [], status: { daemon: false, engine_installed: false, langs: {} } };
+
+function fillVoices() {
+  for (const lang of ['ar', 'en']) {
+    const sel = $('voice_' + lang);
+    const keep = sel.value || (status && status.settings['voice_' + lang]) || '';
+    sel.innerHTML = '';
+    for (const v of voiceInfo.voices.filter((x) => x.lang === lang)) {
+      const o = document.createElement('option');
+      o.value = v.id;
+      const gender = v.gender === 'female' ? 'نسائي' : 'رجالي';
+      o.textContent = `${v.name} — ${gender}${v.default ? ' (افتراضي)' : ''}${v.installed ? '' : ` — يُنزَّل عند التشغيل (${v.size_mb} MB)`}`;
+      sel.append(o);
+    }
+    const def = voiceInfo.voices.find((x) => x.lang === lang && x.default);
+    sel.value = keep && [...sel.options].some((o) => o.value === keep) ? keep : (def ? def.id : '');
+  }
+}
+
+function voiceStatusText() {
+  const st = voiceInfo.status;
+  if (!st.engine_installed) {
+    return ['الأصوات المدمجة لم تُنزَّل بعد. أعد تشغيل بصير عبر start.bat أو start.sh وستُنزَّل تلقائياً مرة واحدة (يحتاج إنترنت أول مرة فقط). حتى ذلك الحين يُستخدم صوت الجهاز.', 'err'];
+  }
+  if (!st.daemon) {
+    return ['خادم الصوت متوقف. شغّل بصير عبر start.bat أو start.sh (وليس php -S مباشرة) ليعمل الصوت المدمج.', 'err'];
+  }
+  const parts = Object.entries(st.langs).map(([lang, l]) => `${lang === 'ar' ? 'العربي' : 'الإنجليزي'}: ${l.ready ? '✓ ' + l.name : 'غير مثبت'}`);
+  return ['الصوت المدمج يعمل — ' + parts.join(' · '), 'ok'];
+}
+
+async function loadVoices() {
+  try {
+    voiceInfo = await api('voices');
+  } catch { /* الخادم القديم */ }
+  fillVoices();
+  notice($('voice-msg'), ...voiceStatusText());
+}
+
+$('voice-test').addEventListener('click', async () => {
+  unlockAudio();
   tts.unlock();
-  tts.configure({ lang: $('speech_lang').value, rate: Number($('speech_rate').value) });
-  tts.speak('مرحباً، هذا صوت بصير. تقدّم 3 خطوات للأمام، الطريق خالٍ.');
-  if (!tts.hasLangVoice()) {
-    notice($('voice-msg'), 'لا يوجد صوت عربي مثبت على هذا الجهاز. ثبّته من إعدادات الجهاز: تحويل النص إلى كلام (Text-to-speech) ← اللغة العربية. على ويندوز: الإعدادات ← الوقت واللغة ← الكلام ← إضافة أصوات.', 'err');
-  } else {
-    notice($('voice-msg'), `الصوت: ${tts.voice ? tts.voice.name : 'صوت النظام'}`, 'ok');
+  const lang = $('language').value;
+  const ready = voiceInfo.status.langs[lang] && voiceInfo.status.langs[lang].ready;
+  tts.configure({
+    lang,
+    locale: lang === 'en' ? $('speech_lang_en').value : $('speech_lang').value,
+    rate: Number($('speech_rate').value),
+    serverVoices: { [lang]: !!ready },
+  });
+  tts.speak(STRINGS[lang]['voice.sample']);
+  if (!ready && !tts.hasLangVoice()) {
+    notice($('voice-msg'), 'لا يوجد صوت لهذه اللغة على هذا الجهاز، والصوت المدمج غير جاهز. شغّل بصير عبر start ليُنزَّل الصوت المدمج.', 'err');
+  } else if (!ready) {
+    notice($('voice-msg'), `يُستخدم صوت الجهاز مؤقتاً: ${tts.voice ? tts.voice.name : 'صوت النظام'}`, 'info');
   }
 });
 
@@ -192,7 +248,9 @@ $('form').addEventListener('submit', async (ev) => {
     applyStatus();
     notice($('msg'), '✅ تم الحفظ على الخادم. لن يحتاج الكفيف لإدخال المفتاح مرة أخرى.', 'ok');
     $('go-app').classList.remove('hidden');
-    tts.configure({ lang: status.settings.speech_lang, rate: status.settings.speech_rate });
+    await loadVoices();
+    const v = status.voices || {};
+    tts.configure({ lang: 'ar', locale: status.settings.speech_lang, rate: status.settings.speech_rate, serverVoices: { ar: !!(v.ar && v.ar.ready) } });
     tts.speak(`تم حفظ الموفر ${status.provider.label}، والنموذج ${speakable(status.provider.model)}.`);
     $('go-app').querySelector('a').focus();
   } catch (e) {
@@ -297,6 +355,7 @@ async function boot() {
   $('form').classList.remove('hidden');
   $('extras').classList.remove('hidden');
   applyStatus();
+  loadVoices();
   if (params.get('first') && !status.configured) {
     notice($('msg'), 'مرحباً! أدخل بيانات موفر الذكاء الاصطناعي مرة واحدة، ثم اضغط حفظ.', 'info');
   }

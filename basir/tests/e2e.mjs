@@ -22,12 +22,15 @@ async function post(action, body) {
 
 // محاكاة النطق والتعرف على الكلام داخل الصفحة
 const speechStub = () => {
-  window.__spoken = [];
+  window.__basirPlaybackRate = 6; // الصوت المدمج يُشغَّل أسرع في الاختبار فقط
+  window.__spoken = []; // كل ما نطقه التطبيق (بأي صوت)
+  window.__basirSpokenLog = window.__spoken;
+  window.__browserSpoken = []; // ما نُطق بصوت المتصفح الاحتياطي فقط
   window.__transcripts = [];
   const synth = {
     getVoices: () => [],
     speak(u) {
-      window.__spoken.push(u.text);
+      window.__browserSpoken.push(u.text);
       setTimeout(() => { u.onstart && u.onstart(); setTimeout(() => u.onend && u.onend(), 20); }, 5);
     },
     cancel() {},
@@ -50,9 +53,25 @@ const speechStub = () => {
 };
 
 const spoken = (page) => page.evaluate(() => window.__spoken.slice());
+const plain = (t) => String(t).replace(/[\u064B-\u0652\u0670]/g, '');
+
+// كل ما يُنطق: عبر الصوت المدمج (طلبات tts للخادم) أو صوت المتصفح الاحتياطي (speechSynthesis)
+const ttsTexts = [];
+let ttsMark = 0;
+async function heardSince(page) {
+  const local = await page.evaluate(() => window.__spoken.slice(window.__mark || 0)).catch(() => []);
+  return local.map(plain);
+}
 // ينتظر جملة منطوقة جديدة (بعد آخر أمر صوتي فقط) تطابق التعبير
-const waitSpoken = (page, re, timeout = 15000) =>
-  page.waitForFunction((src) => window.__spoken.slice(window.__mark || 0).some((t) => new RegExp(src).test(t)), re.source, { timeout }).then(() => true, () => false);
+async function waitSpoken(page, re, timeout = 15000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeout) {
+    const want = new RegExp(plain(re.source));
+    if ((await heardSince(page)).some((t) => want.test(t))) return true;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return false;
+}
 const mockLog = () => (fs.existsSync(process.env.MOCK_LOG) ? fs.readFileSync(process.env.MOCK_LOG, 'utf8') : '');
 async function waitMockLog(substr, timeout = 15000) {
   const t0 = Date.now();
@@ -62,7 +81,12 @@ async function waitMockLog(substr, timeout = 15000) {
   }
   return false;
 }
+async function mark(page) {
+  ttsMark = ttsTexts.length;
+  await page.evaluate(() => { window.__mark = window.__spoken.length; });
+}
 async function sayToApp(page, text) {
+  ttsMark = ttsTexts.length;
   await page.evaluate((t) => { window.__mark = window.__spoken.length; window.__transcripts.push(t); }, text);
   await page.click('#mic');
 }
@@ -72,12 +96,24 @@ const browser = await chromium.launch({
 });
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, permissions: ['camera', 'microphone'] });
 await ctx.addInitScript(speechStub);
+const VOICE = process.env.EXPECT_VOICE === '1';
+let ttsOk = 0;
+ctx.on('request', (req) => {
+  if (req.url().includes('action=tts')) {
+    try { ttsTexts.push(JSON.parse(req.postData()).text); } catch { /* */ }
+  }
+});
+ctx.on('response', (res) => {
+  if (res.url().includes('action=tts') && res.status() === 200 && (res.headers()['content-type'] || '').startsWith('audio/')) ttsOk++;
+});
 
 try {
   console.log('قبل الإعداد');
   let page = await ctx.newPage();
   const errors = [];
+  const warnings = [];
   page.on('pageerror', (e) => errors.push(String(e)));
+  ctx.on('console', (m) => { if (['warning', 'error'].includes(m.type())) warnings.push(m.text().slice(0, 300)); });
   await page.goto(APP + '/');
   await page.waitForURL(/setup\.html\?first=1/, { timeout: 10000 });
   check('unconfigured app redirects to setup', page.url().includes('setup.html'));
@@ -108,6 +144,7 @@ try {
   await page.waitForFunction(() => document.body.dataset.mode === 'idle', null, { timeout: 10000 });
   check('main screen idle with mic', (await page.textContent('#mic-text')).includes('اضغط وتكلّم'));
   check('welcome announces provider on open', await waitSpoken(page, /الموفر المحفوظ: خادم الاختبار/));
+  await page.waitForTimeout(400); // يتأكد التطبيق أن الصوت يعمل فعلاً
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/main.png` });
 
   await sayToApp(page, 'ماذا أمامي');
@@ -165,6 +202,27 @@ try {
     { cmd: 'nav' }, { cmd: 'goal', goal: 'مطبخ' }, { cmd: 'read' }, { cmd: 'describe' }, { cmd: 'forget' },
     { cmd: 'repeat' }, { cmd: 'settings' }, { cmd: 'ask', question: 'هل الباب مفتوح؟' }, { cmd: 'install' },
   ]), parsed);
+
+  console.log('English');
+  await page.waitForFunction(() => document.body.dataset.mode === 'idle', null, { timeout: 15000 });
+  await sayToApp(page, 'English');
+  check('voice "English" switches language', await waitSpoken(page, /I will speak English/));
+  await page.waitForFunction(() => document.documentElement.lang === 'en' && document.body.dataset.mode === 'idle', null, { timeout: 10000 });
+  check('UI switches to English (LTR)', (await page.getAttribute('html', 'dir')) === 'ltr' && (await page.textContent('#mic-text')) === 'Tap and speak');
+  await sayToApp(page, 'what do you see');
+  check('English describe uses English prompt', await waitMockLog('Task: describe the surroundings'));
+  await waitSpoken(page, /عدد الصور/);
+  await page.waitForFunction(() => document.body.dataset.mode === 'idle', null, { timeout: 15000 });
+  await sayToApp(page, 'عربي');
+  check('voice "عربي" switches back to Arabic', await waitSpoken(page, /سأتكلم بالعربية/));
+  await page.waitForFunction(() => document.documentElement.lang === 'ar', null, { timeout: 10000 });
+
+  if (VOICE) {
+    console.log('الصوت المدمج');
+    check('speech went through the built-in voice (server audio, not the browser voice)', ttsOk >= 5, { ttsOk, tts: ttsTexts.length, warnings: warnings.slice(0, 5) });
+    const browserVoice = (await page.evaluate(() => window.__browserSpoken.slice())).filter((t) => t.trim().length > 1);
+    check('no fallback to the browser voice while the built-in voice works', browserVoice.length === 0, browserVoice.slice(0, 3));
+  }
 
   console.log('PWA');
   const mf = await fetch(APP + '/manifest.webmanifest');

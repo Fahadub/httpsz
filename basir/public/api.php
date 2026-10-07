@@ -14,12 +14,15 @@
  *   POST api.php?action=node_frame    جوال إضافي يرسل آخر صورة لاتجاهه
  *   POST api.php?action=node_leave    جوال إضافي يفصل نفسه
  *   GET  api.php?action=nodes         الجوالات المتصلة الآن
+ *   POST api.php?action=tts           نطق جملة بالصوت المدمج → ملف audio/wav
+ *   GET  api.php?action=voices        الأصوات المتاحة والمثبتة (لصفحة الإعداد)
  */
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/src/bootstrap.php';
+require dirname(__DIR__) . '/src/Voice.php';
 
-const NODE_DIRS = ['front' => 'الأمام', 'right' => 'اليمين', 'back' => 'الخلف', 'left' => 'اليسار'];
+const NODE_DIRS = ['front' => ['الأمام', 'front'], 'right' => ['اليمين', 'right'], 'back' => ['الخلف', 'back'], 'left' => ['اليسار', 'left']];
 const NODE_FRESH_SECONDS = 12;
 const MAX_BODY_BYTES = 30 * 1024 * 1024;
 
@@ -39,6 +42,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
+
+// لغة الرسائل والتعليمات: من الجهاز (?lang=) وإلا الإعداد الافتراضي على الخادم
+basir_lang((string) ($_GET['lang'] ?? '') ?: (string) settings_of(load_config())['language']);
 header('X-Content-Type-Options: nosniff');
 
 try {
@@ -56,7 +62,9 @@ try {
         'node_frame'   => action_node_frame(body()),
         'node_leave'   => action_node_leave(body()),
         'nodes'        => ['ok' => true, 'nodes' => fresh_nodes()],
-        default        => throw new ApiError('أمر غير معروف.', 404),
+        'tts'          => action_tts(body()),
+        'voices'       => ['ok' => true, 'voices' => VoiceCatalog::listForSetup(), 'status' => Voice::status(settings_of(load_config()))],
+        default        => throw new ApiError(tr('أمر غير معروف.', 'Unknown action.'), 404),
     };
     respond($result);
 } catch (ApiError $e) {
@@ -64,7 +72,7 @@ try {
 } catch (ProviderError $e) {
     respond(['ok' => false, 'error' => $e->getMessage(), 'detail' => $e->detail, 'provider_status' => $e->status], 502);
 } catch (Throwable $e) {
-    respond(['ok' => false, 'error' => 'حدث خطأ داخلي في الخادم.', 'detail' => $e->getMessage()], 500);
+    respond(['ok' => false, 'error' => tr('حدث خطأ داخلي في الخادم.', 'Internal server error.'), 'detail' => $e->getMessage()], 500);
 }
 
 // ───────────────────────── أدوات الطلب والرد ─────────────────────────
@@ -83,19 +91,19 @@ function respond(array $data, int $status = 200): never
 function body(): array
 {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
-        throw new ApiError('يجب استخدام POST.', 405);
+        throw new ApiError(tr('يجب استخدام POST.', 'POST is required.'), 405);
     }
     $type = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? ''));
     if (!str_starts_with($type, 'application/json')) {
-        throw new ApiError('نوع المحتوى يجب أن يكون application/json.', 415);
+        throw new ApiError(tr('نوع المحتوى يجب أن يكون application/json.', 'Content-Type must be application/json.'), 415);
     }
     $raw = file_get_contents('php://input', false, null, 0, MAX_BODY_BYTES + 1);
     if ($raw === false || strlen($raw) > MAX_BODY_BYTES) {
-        throw new ApiError('الطلب كبير جداً.', 413);
+        throw new ApiError(tr('الطلب كبير جداً.', 'The request is too large.'), 413);
     }
     $data = json_decode($raw, true);
     if (!is_array($data)) {
-        throw new ApiError('صيغة JSON غير صحيحة.');
+        throw new ApiError(tr('صيغة JSON غير صحيحة.', 'Invalid JSON.'));
     }
     return $data;
 }
@@ -144,6 +152,7 @@ function action_status(): array
             'updated_at' => $cfg['updated_at'] ?? null,
         ] : null,
         'settings' => settings_of($cfg),
+        'voices' => Voice::status(settings_of($cfg))['langs'],
         'pin_required' => !empty($cfg['admin_pin_hash']),
         'memory' => $memory ? [
             'updated_at' => $memory['updated_at'] ?? null,
@@ -157,7 +166,7 @@ function action_status(): array
 function require_pin(array $cfg, array $in): void
 {
     if (!empty($cfg['admin_pin_hash']) && !password_verify((string) ($in['pin'] ?? ''), $cfg['admin_pin_hash'])) {
-        throw new ApiError('رمز حماية الإعدادات غير صحيح.', 403);
+        throw new ApiError(tr('رمز حماية الإعدادات غير صحيح.', 'Wrong settings PIN.'), 403);
     }
 }
 
@@ -172,19 +181,19 @@ function candidate_config(array $in, array $current): array
 
     $protocol = $provider === 'custom' ? (string) ($in['protocol'] ?? 'openai') : $preset['protocol'];
     if (!in_array($protocol, Providers::PROTOCOLS, true)) {
-        throw new ApiError('البروتوكول غير مدعوم.');
+        throw new ApiError(tr('البروتوكول غير مدعوم.', 'Unsupported protocol.'));
     }
 
     $base = trim((string) ($in['base_url'] ?? '')) ?: $preset['base_url'];
     $base = rtrim($base, '/');
     $scheme = strtolower((string) parse_url($base, PHP_URL_SCHEME));
     if ($base === '' || !filter_var($base, FILTER_VALIDATE_URL) || !in_array($scheme, ['http', 'https'], true)) {
-        throw new ApiError('الرابط الأساسي (Base URL) غير صحيح. مثال: https://api.openai.com/v1');
+        throw new ApiError(tr('الرابط الأساسي (Base URL) غير صحيح. مثال: https://api.openai.com/v1', 'Invalid base URL. Example: https://api.openai.com/v1'));
     }
 
     $model = trim((string) ($in['model'] ?? '')) ?: $preset['model'];
     if ($model === '' || strlen($model) > 200) {
-        throw new ApiError('اكتب اسم النموذج (Model) الذي يدعم الصور.');
+        throw new ApiError(tr('اكتب اسم النموذج (Model) الذي يدعم الصور.', 'Enter the name of a model that accepts images.'));
     }
 
     $key = trim((string) ($in['api_key'] ?? ''));
@@ -195,17 +204,25 @@ function candidate_config(array $in, array $current): array
         $key = (string) $current['api_key'];
     }
     if ($key === '' && $preset['needs_key']) {
-        throw new ApiError('أدخل مفتاح الموفر (API Key).');
+        throw new ApiError(tr('أدخل مفتاح الموفر (API Key).', 'Enter the provider API key.'));
     }
 
     $s = $in['settings'] ?? [];
+    $locale = static fn (string $k): string => preg_match('/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/', (string) ($s[$k] ?? '')) ? (string) $s[$k] : BASIR_DEFAULT_SETTINGS[$k];
     $settings = [
-        'speech_lang' => preg_match('/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/', (string) ($s['speech_lang'] ?? '')) ? (string) $s['speech_lang'] : BASIR_DEFAULT_SETTINGS['speech_lang'],
+        'language'    => in_array($s['language'] ?? '', BASIR_LANGS, true) ? $s['language'] : BASIR_DEFAULT_SETTINGS['language'],
+        'speech_lang' => $locale('speech_lang'),
+        'speech_lang_en' => $locale('speech_lang_en'),
         'speech_rate' => clamp_float($s['speech_rate'] ?? null, 0.5, 2.0, BASIR_DEFAULT_SETTINGS['speech_rate']),
         'step_m'      => clamp_float($s['step_m'] ?? null, 0.3, 1.2, BASIR_DEFAULT_SETTINGS['step_m']),
         'interval_s'  => clamp_float($s['interval_s'] ?? null, 0.5, 30, BASIR_DEFAULT_SETTINGS['interval_s']),
         'image_px'    => (int) clamp_float($s['image_px'] ?? null, 320, 1600, BASIR_DEFAULT_SETTINGS['image_px']),
     ];
+    foreach (array_keys(VoiceCatalog::VOICES) as $lang) {
+        $id = (string) ($s['voice_' . $lang] ?? '');
+        $v = VoiceCatalog::voice($id);
+        $settings['voice_' . $lang] = $v && $v['lang'] === $lang ? $id : '';
+    }
 
     $label = trim((string) ($in['label'] ?? ''));
     return [
@@ -228,11 +245,16 @@ function action_save_config(array $in): array
     $newPin = trim((string) ($in['new_pin'] ?? ''));
     if ($newPin !== '') {
         if (!preg_match('/^\d{4,12}$/', $newPin)) {
-            throw new ApiError('رمز الحماية يجب أن يكون من 4 إلى 12 رقماً.');
+            throw new ApiError(tr('رمز الحماية يجب أن يكون من 4 إلى 12 رقماً.', 'The PIN must be 4 to 12 digits.'));
         }
         $cfg['admin_pin_hash'] = password_hash($newPin, PASSWORD_DEFAULT);
     }
+    $voicesChanged = settings_of($cfg)['voice_ar'] !== settings_of($current)['voice_ar']
+        || settings_of($cfg)['voice_en'] !== settings_of($current)['voice_en'];
     save_config($cfg);
+    if ($voicesChanged) {
+        Voice::reload();
+    }
     return action_status() + ['saved' => true];
 }
 
@@ -309,21 +331,21 @@ function action_memory_clear(array $in): array
 function decode_image(mixed $value, int $maxBytes = 4 * 1024 * 1024): array
 {
     if (!is_string($value) || $value === '') {
-        throw new ApiError('صورة فارغة.');
+        throw new ApiError(tr('صورة فارغة.', 'Empty image.'));
     }
     $b64 = preg_replace('#^data:image/[a-z+]+;base64,#i', '', $value);
     $bin = base64_decode($b64, true);
     if ($bin === false || strlen($bin) < 100) {
-        throw new ApiError('صورة غير صالحة.');
+        throw new ApiError(tr('صورة غير صالحة.', 'Invalid image.'));
     }
     if (strlen($bin) > $maxBytes) {
-        throw new ApiError('الصورة كبيرة جداً.', 413);
+        throw new ApiError(tr('الصورة كبيرة جداً.', 'The image is too large.'), 413);
     }
     $mime = match (true) {
         str_starts_with($bin, "\xFF\xD8\xFF") => 'image/jpeg',
         str_starts_with($bin, "\x89PNG") => 'image/png',
         str_starts_with($bin, 'RIFF') && substr($bin, 8, 4) === 'WEBP' => 'image/webp',
-        default => throw new ApiError('نوع الصورة غير مدعوم (JPEG/PNG/WebP فقط).'),
+        default => throw new ApiError(tr('نوع الصورة غير مدعوم (JPEG/PNG/WebP فقط).', 'Unsupported image type (JPEG, PNG or WebP only).')),
     };
     return ['bin' => $bin, 'mime' => $mime];
 }
@@ -337,12 +359,12 @@ function action_analyze(array $in): array
 {
     $cfg = load_config();
     if (!is_configured($cfg)) {
-        throw new ApiError('لم يتم إعداد موفر الذكاء الاصطناعي بعد. اطلب من مساعد فتح صفحة الإعدادات.', 409);
+        throw new ApiError(tr('لم يتم إعداد موفر الذكاء الاصطناعي بعد. اطلب من مساعد فتح صفحة الإعدادات.', 'No AI provider is set up yet. Ask a helper to open the settings page.'), 409);
     }
     $settings = settings_of($cfg);
     $mode = (string) ($in['mode'] ?? 'navigate');
     if (!in_array($mode, Prompts::MODES, true)) {
-        throw new ApiError('وضع غير معروف.');
+        throw new ApiError(tr('وضع غير معروف.', 'Unknown mode.'));
     }
 
     $images = [];
@@ -350,9 +372,9 @@ function action_analyze(array $in): array
     $list = is_array($in['images'] ?? null) ? array_slice($in['images'], 0, 12) : [];
     foreach ($list as $i => $img) {
         $d = decode_image(is_array($img) ? ($img['data'] ?? '') : $img);
-        $label = short_text(is_array($img) ? ($img['label'] ?? '') : '', 80) ?: 'الأمام';
+        $label = short_text(is_array($img) ? ($img['label'] ?? '') : '', 80) ?: node_name('front');
         $labels[] = $label;
-        $images[] = ['data' => base64_encode($d['bin']), 'mime' => $d['mime'], 'label' => 'صورة ' . ($i + 1) . ' — ' . $label];
+        $images[] = ['data' => base64_encode($d['bin']), 'mime' => $d['mime'], 'label' => tr('صورة ', 'Image ') . ($i + 1) . ' — ' . $label];
     }
 
     $nodesUsed = [];
@@ -363,14 +385,14 @@ function action_analyze(array $in): array
             if ($bin === false || $bin === '') {
                 continue;
             }
-            $label = NODE_DIRS[$node['dir']] . ' (جوال إضافي)';
+            $label = node_name($node['dir']) . tr(' (جوال إضافي)', ' (extra phone)');
             $labels[] = $label;
             $nodesUsed[] = $node['dir'];
-            $images[] = ['data' => base64_encode($bin), 'mime' => 'image/jpeg', 'label' => 'صورة ' . (count($images) + 1) . ' — ' . $label];
+            $images[] = ['data' => base64_encode($bin), 'mime' => 'image/jpeg', 'label' => tr('صورة ', 'Image ') . (count($images) + 1) . ' — ' . $label];
         }
     }
     if (!$images) {
-        throw new ApiError('لا توجد صورة. تأكد من تشغيل الكاميرا.');
+        throw new ApiError(tr('لا توجد صورة. تأكد من تشغيل الكاميرا.', 'No image. Make sure the camera is on.'));
     }
 
     $memory = read_json(data_path('memory.json'));
@@ -388,7 +410,8 @@ function action_analyze(array $in): array
     ];
 
     $t = microtime(true);
-    $raw = Providers::complete($cfg, Prompts::system((float) $settings['step_m']), Prompts::user($mode, $ctx), $images, Prompts::maxTokens($mode));
+    $system = Prompts::system((float) $settings['step_m'], basir_lang() === 'ar' && VoiceCatalog::needsTashkeel($settings));
+    $raw = Providers::complete($cfg, $system, Prompts::user($mode, $ctx), $images, Prompts::maxTokens($mode));
     $result = Prompts::parse($raw, $mode);
     $latency = (int) round((microtime(true) - $t) * 1000);
 
@@ -405,13 +428,40 @@ function action_analyze(array $in): array
     return ['ok' => true, 'mode' => $mode] + $result + ['latency_ms' => $latency, 'nodes_used' => $nodesUsed, 'images' => count($images)];
 }
 
+// ───────────────────────── الصوت المدمج ─────────────────────────
+
+/** يُرجع ملف WAV مباشرة (وليس JSON) حتى يشغّله التطبيق فوراً. */
+function action_tts(array $in): never
+{
+    $lang = basir_lang(in_array($in['lang'] ?? '', BASIR_LANGS, true) ? $in['lang'] : null);
+    $text = short_text($in['text'] ?? '', 1500);
+    if ($text === '') {
+        throw new ApiError(tr('نص فارغ.', 'Empty text.'));
+    }
+    try {
+        $wav = Voice::speak($lang, $text, clamp_float($in['rate'] ?? 1, 0.5, 2.0, 1.0), settings_of(load_config()));
+    } catch (Throwable $e) {
+        throw new ApiError(tr('الصوت المدمج غير متاح الآن.', 'The built-in voice is not available right now.') . ' (' . $e->getMessage() . ')', 503);
+    }
+    header('Content-Type: audio/wav');
+    header('Content-Length: ' . strlen($wav));
+    header('Cache-Control: private, max-age=86400');
+    echo $wav;
+    exit;
+}
+
 // ───────────────────────── الجوالات الإضافية ─────────────────────────
+
+function node_name(string $dir): string
+{
+    return tr(NODE_DIRS[$dir][0], NODE_DIRS[$dir][1]);
+}
 
 function node_dir_of(array $in): string
 {
     $dir = (string) ($in['dir'] ?? '');
     if (!array_key_exists($dir, NODE_DIRS)) {
-        throw new ApiError('اتجاه غير صحيح.');
+        throw new ApiError(tr('اتجاه غير صحيح.', 'Invalid direction.'));
     }
     return $dir;
 }
@@ -421,7 +471,7 @@ function action_node_frame(array $in): array
     $dir = node_dir_of($in);
     $img = decode_image($in['image'] ?? '', 2 * 1024 * 1024);
     if ($img['mime'] !== 'image/jpeg') {
-        throw new ApiError('صورة الجوال الإضافي يجب أن تكون JPEG.');
+        throw new ApiError(tr('صورة الجوال الإضافي يجب أن تكون JPEG.', 'Extra phone images must be JPEG.'));
     }
     write_file_atomic(data_path("nodes/$dir.jpg"), $img['bin']);
     write_json(data_path("nodes/$dir.json"), [
@@ -446,14 +496,14 @@ function action_node_leave(array $in): array
 function fresh_nodes(): array
 {
     $out = [];
-    foreach (NODE_DIRS as $dir => $name) {
+    foreach (array_keys(NODE_DIRS) as $dir) {
         $meta = read_json(data_path("nodes/$dir.json"));
         if (!$meta || !is_file(data_path("nodes/$dir.jpg"))) {
             continue;
         }
         $age = time() - (int) ($meta['ts'] ?? 0);
         if ($age <= NODE_FRESH_SECONDS) {
-            $out[] = ['dir' => $dir, 'name' => $name, 'age_s' => $age];
+            $out[] = ['dir' => $dir, 'name' => node_name($dir), 'age_s' => $age];
         }
     }
     return $out;

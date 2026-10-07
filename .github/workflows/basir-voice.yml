@@ -1,0 +1,147 @@
+# يتحقق من الصوت المدمج في بصير على ويندوز ولينكس وماك: التثبيت، خادم الصوت، النطق العربي والإنجليزي،
+# ثم يحوّل كل الأصوات إلى نص بـ Whisper للتأكد أنها مفهومة. ويشغّل اختبارات الواجهة والمتصفح.
+name: Basir voice check
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "basir/src/**"
+      - "basir/tools/**"
+      - "basir/public/**"
+      - "basir/tests/**"
+      - "basir/start.*"
+      - ".github/workflows/basir-voice.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  voice:
+    name: voice (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+        working-directory: basir
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: ffi, curl, mbstring, gd
+          ini-values: ffi.enable=1
+
+      - name: API tests (mock AI provider)
+        run: sh tests/run.sh
+
+      - name: Install the built-in voices
+        run: php tools/voices.php install
+
+      - name: Start the voice server and the app
+        run: |
+          php -d ffi.enable=1 src/voice_daemon.php 2> voice.log &
+          php -S 127.0.0.1:7777 -t public router.php > app.log 2>&1 &
+          for i in $(seq 1 90); do php -r 'exit(@fsockopen("127.0.0.1", 7778) ? 0 : 1);' && break; sleep 2; done
+          cat voice.log
+
+      - name: Speak Arabic and English through the API
+        run: php tests/voice_ci.php voice-out
+
+      - name: Browser test with the built-in voice (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          npm install -g playwright@1.56.1
+          npx playwright@1.56.1 install --with-deps chromium
+          php tools/voices.php stop
+          VOICES_FROM="$PWD/data/voices" PLAYWRIGHT_PATH="$(npm root -g)/playwright" sh tests/run_e2e.sh
+
+      - name: Logs
+        if: always()
+        run: cat voice.log app.log 2>/dev/null | tail -80
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: voice-${{ matrix.os }}
+          path: basir/voice-out
+          if-no-files-found: warn
+
+  windows-plain-php:
+    # يحاكي مستخدماً عادياً: PHP الرسمي لويندوز بلا php.ini، ثم start.bat كما هو
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download official PHP for Windows (no php.ini)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest "https://windows.php.net/downloads/releases/latest/php-8.3-nts-Win32-vs16-x64-latest.zip" -OutFile php.zip
+          Expand-Archive php.zip C:\phpplain
+          C:\phpplain\php.exe -v
+
+      - name: Run start.bat in the background
+        shell: cmd
+        working-directory: basir
+        run: |
+          set PATH=C:\phpplain;%PATH%
+          start "" /B cmd /c "start.bat > start.log 2>&1"
+
+      - name: Speak through the app started by start.bat
+        shell: cmd
+        working-directory: basir
+        run: |
+          set PATH=C:\phpplain;%PATH%
+          for /f "delims=" %%a in ('php tools\php_args.php') do set "PHPARGS=%%a"
+          echo PHPARGS=%PHPARGS%
+          php %PHPARGS% tests\voice_ci.php voice-out
+
+      - name: Logs
+        if: always()
+        shell: cmd
+        working-directory: basir
+        run: |
+          type start.log
+          type data\voice.log
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: voice-windows-plain-php
+          path: basir/voice-out
+          if-no-files-found: warn
+
+  intelligibility:
+    # يحوّل أصوات كل الأنظمة إلى نص بـ Whisper ويقارنها بالنص المتوقع
+    needs: [voice, windows-plain-php]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: basir
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring
+      - uses: actions/download-artifact@v4
+        with:
+          path: basir/all-voices
+      - name: Download speech recognizer (Whisper large-v3-turbo, ONNX)
+        run: |
+          B=https://github.com/k2-fsa/sherpa-onnx/releases/download
+          curl -sSL -o s.tar.bz2 $B/v1.13.8/sherpa-onnx-v1.13.8-linux-x64-shared.tar.bz2 && tar xjf s.tar.bz2
+          curl -sSL -o w.tar.bz2 $B/asr-models/sherpa-onnx-whisper-turbo.tar.bz2 && tar xjf w.tar.bz2
+      - name: Transcribe and score every voice
+        run: |
+          S=$PWD/sherpa-onnx-v1.13.8-linux-x64-shared
+          LD_LIBRARY_PATH=$S/lib php tests/asr_check.php $S/bin/sherpa-onnx-offline $PWD/sherpa-onnx-whisper-turbo all-voices/*

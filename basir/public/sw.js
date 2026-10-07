@@ -1,8 +1,8 @@
 // بصير — عامل الخدمة: يحفظ واجهة التطبيق ليفتح بسرعة ويُثبَّت كتطبيق. طلبات api.php لا تُخزَّن أبداً.
-const CACHE = 'basir-v1';
+const CACHE = 'basir-v2';
 const SHELL = [
   './', 'index.html', 'setup.html', 'cam.html', 'config.js', 'manifest.webmanifest',
-  'assets/app.css', 'assets/core.js', 'assets/app.js', 'assets/commands.js', 'assets/setup.js', 'assets/cam.js',
+  'assets/app.css', 'assets/core.js', 'assets/i18n.js', 'assets/app.js', 'assets/commands.js', 'assets/setup.js', 'assets/cam.js',
   'assets/icons/icon.svg', 'assets/icons/icon-192.png', 'assets/icons/icon-512.png', 'assets/icons/maskable-512.png',
   'assets/icons/apple-touch-icon.png',
 ];

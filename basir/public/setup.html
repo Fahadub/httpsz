@@ -85,7 +85,15 @@
         <h2 id="voice-h">الصوت والإرشاد</h2>
         <div class="row">
           <label class="field">
-            <span>لهجة التعرف على الكلام والنطق</span>
+            <span>لغة التطبيق الافتراضية</span>
+            <select id="language">
+              <option value="ar">العربية</option>
+              <option value="en">English</option>
+            </select>
+            <small>يستطيع الكفيف التبديل بالصوت: «English» أو «عربي».</small>
+          </label>
+          <label class="field">
+            <span>لهجة التعرف على الكلام العربي</span>
             <select id="speech_lang">
               <option value="ar-SA">العربية — السعودية</option>
               <option value="ar-AE">العربية — الإمارات</option>
@@ -103,8 +111,27 @@
             </select>
           </label>
           <label class="field">
+            <span>لهجة الإنجليزية</span>
+            <select id="speech_lang_en">
+              <option value="en-US">English — US</option>
+              <option value="en-GB">English — UK</option>
+              <option value="en-AU">English — Australia</option>
+              <option value="en-IN">English — India</option>
+            </select>
+          </label>
+          <label class="field">
             <span>سرعة الكلام: <output id="rate-out">1.0</output></span>
             <input id="speech_rate" type="range" min="0.6" max="1.8" step="0.05" value="1">
+          </label>
+        </div>
+        <div class="row">
+          <label class="field">
+            <span>الصوت العربي</span>
+            <select id="voice_ar"></select>
+          </label>
+          <label class="field">
+            <span>English voice</span>
+            <select id="voice_en"></select>
           </label>
         </div>
         <button id="voice-test" class="btn" type="button">🔊 تجربة الصوت</button>

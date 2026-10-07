@@ -1,5 +1,6 @@
 // بصير — جوال إضافي: يرسل صورة اتجاهه للخادم كل ثانية ونصف، ويضيفها بصير لكل إرشاد.
-import { api, Camera, tts, wakeLock, sleep, store, DIR_NAMES, registerSW } from './core.js';
+import { api, Camera, tts, wakeLock, sleep, store, DIRS, dirName, registerSW } from './core.js';
+import { t, setLang, listSep, plain } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
 const camera = new Camera($('video'));
@@ -20,9 +21,9 @@ async function start(d, { announce = true } = {}) {
   store.set('basir_cam_dir', d);
   $('picker').classList.add('hidden');
   $('live').classList.remove('hidden');
-  $('badge').textContent = `كاميرا ${DIR_NAMES[d]}`;
+  $('badge').textContent = plain(t('node.badge', { name: dirName(d) }));
   $('badge').classList.remove('live');
-  if (announce) tts.speak(`هذا الجوال الآن كاميرا ${DIR_NAMES[d]}.`);
+  if (announce) tts.speak(t('node.thisIs', { name: dirName(d) }));
   wakeLock.request();
   loop(++run);
 }
@@ -39,14 +40,14 @@ async function loop(myRun) {
         if (myRun !== run) break;
         failures = 0;
         $('badge').classList.add('live');
-        const others = r.nodes.filter((n) => n.dir !== dir).map((n) => n.name);
-        msg(`متصل ويرسل الصور كل ${INTERVAL_MS / 1000} ثانية.${others.length ? ` جوالات أخرى: ${others.join('، ')}.` : ''} اترك الشاشة مفتوحة.`, 'ok');
+        const others = r.nodes.filter((n) => n.dir !== dir).map((n) => dirName(n.dir));
+        msg(plain(t('node.sending', { sec: INTERVAL_MS / 1000, others: others.join(listSep()) })), 'ok');
       }
     } catch (e) {
       failures++;
       $('badge').classList.remove('live');
       msg(e.message, 'err');
-      if (failures === 3) tts.speak(`انقطع اتصال كاميرا ${DIR_NAMES[dir]}.`);
+      if (failures === 3) tts.speak(t('node.disconnected', { name: dirName(dir) }));
       await sleep(Math.min(10000, 1000 * failures));
     }
     await sleep(INTERVAL_MS);
@@ -71,9 +72,20 @@ document.querySelectorAll('[data-dir]').forEach((b) => b.addEventListener('click
 $('change').addEventListener('click', () => stop(true));
 $('stop').addEventListener('click', async () => {
   await stop(true);
-  tts.speak('تم فصل الجوال.');
+  tts.speak(t('node.unlinked'));
 });
 
 registerSW();
+// لغة وصوت الخادم الافتراضيان
+api('status').then((s) => {
+  const lang = setLang(store.get('basir_lang') || s.settings.language || 'ar');
+  const v = s.voices || {};
+  tts.configure({
+    lang,
+    locale: lang === 'en' ? s.settings.speech_lang_en : s.settings.speech_lang,
+    rate: s.settings.speech_rate,
+    serverVoices: { ar: !!(v.ar && v.ar.ready), en: !!(v.en && v.en.ready) },
+  });
+}).catch(() => {});
 const saved = store.get('basir_cam_dir');
-if (saved && DIR_NAMES[saved]) start(saved, { announce: false });
+if (saved && DIRS.includes(saved)) start(saved, { announce: false });

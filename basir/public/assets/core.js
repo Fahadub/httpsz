@@ -1,4 +1,5 @@
 // بصير — أدوات مشتركة: الاتصال بالخادم، الكلام، التعرف على الصوت، الكاميرا، البوصلة، التثبيت.
+import { t, getLang } from './i18n.js';
 
 export const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const plugins = () => (window.Capacitor && window.Capacitor.Plugins) || {};
@@ -29,20 +30,20 @@ export class ApiError extends Error {
 export async function api(action, body = null, { timeout = 90000, base = apiBase() } = {}) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeout);
-  const url = (base ? base + '/' : '') + 'api.php?action=' + encodeURIComponent(action);
+  const url = (base ? base + '/' : '') + 'api.php?action=' + encodeURIComponent(action) + '&lang=' + getLang();
   const init = body === null
     ? { cache: 'no-store', signal: ctrl.signal }
     : { method: 'POST', cache: 'no-store', signal: ctrl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
   try {
     const res = await fetch(url, init);
     let data;
-    try { data = await res.json(); } catch { throw new ApiError('رد غير مفهوم من خادم بصير.', res.status); }
-    if (!res.ok || data.ok === false) throw new ApiError(data.error || 'خطأ من الخادم.', res.status, data.detail || '');
+    try { data = await res.json(); } catch { throw new ApiError(t('net.badReply'), res.status); }
+    if (!res.ok || data.ok === false) throw new ApiError(data.error || t('net.serverError'), res.status, data.detail || '');
     return data;
   } catch (e) {
     if (e instanceof ApiError) throw e;
-    if (e && e.name === 'AbortError') throw new ApiError('انتهت مهلة الاتصال. حاول مرة أخرى.', 0);
-    throw new ApiError('تعذر الاتصال بخادم بصير. تأكد أنه يعمل وأن الجوال على نفس الشبكة.', 0, String(e));
+    if (e && e.name === 'AbortError') throw new ApiError(t('net.timeout'), 0);
+    throw new ApiError(t('net.unreachable'), 0, String(e));
   } finally {
     clearTimeout(timer);
   }
@@ -70,46 +71,124 @@ export function speakable(s) {
   return String(s || '').replace(/^models\//, '').replace(/[-_/:]+/g, ' ').trim();
 }
 
-export const DIR_NAMES = { front: 'الأمام', right: 'اليمين', back: 'الخلف', left: 'اليسار' };
+export const DIRS = ['front', 'right', 'back', 'left'];
+export const dirName = (d) => t(`dir.${d}`);
 
 export function angleName(a) {
   a = ((a % 360) + 360) % 360;
-  if (a < 22.5 || a >= 337.5) return 'الأمام';
-  if (a < 67.5) return 'أمام اليمين';
-  if (a < 112.5) return 'اليمين';
-  if (a < 157.5) return 'خلف اليمين';
-  if (a < 202.5) return 'الخلف';
-  if (a < 247.5) return 'خلف اليسار';
-  if (a < 292.5) return 'اليسار';
-  return 'أمام اليسار';
+  const keys = ['front', 'frontRight', 'right', 'backRight', 'back', 'backLeft', 'left', 'frontLeft'];
+  return t(`dir.${keys[Math.round(a / 45) % 8]}`);
 }
 
 /** الفرق بالإشارة بين زاويتين (-180..180). موجب = الدوران لليمين. */
 export const angleDiff = (from, to) => ((to - from + 540) % 360) - 180;
 
-// ───────────────────────── الكلام (TTS) ─────────────────────────
+// ───────────────────────── الصوت (WebAudio) ─────────────────────────
 
+let actx = null;
+
+/** سياق الصوت المشترك (للصوت المدمج والصفارات). يُنشأ عند أول حاجة. */
+export function audioCtx() {
+  if (!actx) {
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch { actx = null; }
+  }
+  return actx;
+}
+
+/** يجب استدعاؤها داخل لمسة المستخدم: المتصفحات لا تسمح بالصوت قبلها. */
+export function unlockAudio() {
+  const ctx = audioCtx();
+  try {
+    if (ctx && ctx.state !== 'running') ctx.resume();
+    // آيفون: تشغيل عيّنة صامتة داخل اللمسة يفتح الصوت نهائياً
+    if (ctx && !unlockAudio.done) {
+      const src = ctx.createBufferSource();
+      src.buffer = ctx.createBuffer(1, 1, 22050);
+      src.connect(ctx.destination);
+      src.start(0);
+      unlockAudio.done = true;
+    }
+  } catch { /* لا صوت */ }
+}
+
+/** يحاول تشغيل سياق الصوت دون انتظار لا نهائي (بدون لمسة يبقى معلّقاً). */
+async function ensureRunning(ctx) {
+  if (ctx.state === 'running') return true;
+  try { await Promise.race([ctx.resume(), sleep(300)]); } catch { /* */ }
+  return ctx.state === 'running';
+}
+
+/** يقسم النص إلى جمل حتى تبدأ الجملة الأولى بالكلام بينما تُجهَّز التالية. */
+export function splitSentences(text, max = 220) {
+  // علامة الوقف تُنهي الجملة فقط إذا تلتها مسافة (حتى لا تنقسم «4.1» أو «gpt-4.1»)
+  const parts = String(text || '').match(/(?:[^.!?؟؛\n]|[.!?؟؛](?=\S))+[.!?؟؛]*\s*/g) || [];
+  const out = [];
+  for (let p of parts) {
+    p = p.trim();
+    if (!p) continue;
+    while (p.length > max) {
+      // جملة طويلة جداً: نقطعها عند آخر فاصلة أو مسافة قبل الحد
+      let cut = Math.max(p.lastIndexOf('،', max), p.lastIndexOf(',', max));
+      if (cut < max / 2) cut = p.lastIndexOf(' ', max);
+      if (cut < 1) cut = max;
+      out.push(p.slice(0, cut + 1).trim());
+      p = p.slice(cut + 1).trim();
+    }
+    if (out.length && (out[out.length - 1].length < 25 || p.length < 12) && out[out.length - 1].length + p.length < max) {
+      out[out.length - 1] += ' ' + p;
+    } else if (p) {
+      out.push(p);
+    }
+  }
+  return out;
+}
+
+// ───────────────────────── الكلام ─────────────────────────
+
+/**
+ * الكلام بالصوت المدمج في خادم بصير (عربي افتراضياً، وإنجليزي) — يعمل على كل الأجهزة حتى التي
+ * لا تملك صوتاً عربياً. إذا لم يكن الصوت المدمج متاحاً نستخدم صوت الجهاز احتياطياً.
+ */
 export const tts = {
-  lang: 'ar-SA',
+  /** لغة الكلام: ar أو en */
+  lang: 'ar',
+  /** لهجة التعرف على الكلام وصوت الجهاز الاحتياطي، مثل ar-SA أو en-US */
+  locale: 'ar-SA',
   rate: 1,
   voice: null,
-  /** null = غير معروف، true = المتصفح سمح بالكلام، false = يحتاج لمسة أولاً */
+  /** اللغات التي لها صوت مدمج جاهز على الخادم، مثل { ar: true, en: true } */
+  serverVoices: {},
+  /** null = غير معروف، true = الصوت يعمل، false = يحتاج لمسة أولاً */
   allowed: null,
   _queue: Promise.resolve(),
   _gen: 0,
   _cancelAt: 0,
+  _source: null,
+  _buffers: new Map(),
+  _serverFailures: 0,
 
-  configure({ lang, rate } = {}) {
+  configure({ lang, locale, rate, serverVoices } = {}) {
     if (lang) this.lang = lang;
+    if (locale) this.locale = locale;
+    else if (lang) this.locale = lang === 'en' ? 'en-US' : 'ar-SA';
     if (rate) this.rate = Number(rate) || 1;
+    if (serverVoices) {
+      this.serverVoices = serverVoices;
+      this._serverFailures = 0;
+    }
     this._pickVoice();
+  },
+
+  /** هل نستخدم الصوت المدمج للغة الحالية؟ */
+  usesServerVoice() {
+    return !!this.serverVoices[this.lang] && this._serverFailures < 3 && !!audioCtx();
   },
 
   _pickVoice() {
     if (!('speechSynthesis' in window)) return;
     const voices = speechSynthesis.getVoices() || [];
     const norm = (l) => String(l || '').replace('_', '-').toLowerCase();
-    const want = norm(this.lang);
+    const want = norm(this.locale);
     const base = want.split('-')[0];
     this.voice = voices.find((v) => norm(v.lang) === want)
       || voices.find((v) => norm(v.lang).startsWith(base + '-') || norm(v.lang) === base)
@@ -118,15 +197,18 @@ export const tts = {
 
   /** آيفون: أول كلام يجب أن يبدأ داخل لمسة المستخدم مباشرة. نستدعيها بشكل متزامن في معالج اللمس. */
   unlock() {
+    unlockAudio();
     if (this._unlocked || isNative || !('speechSynthesis' in window)) return;
     this._unlocked = true;
-    const u = new SpeechSynthesisUtterance(' ');
-    u.volume = 0;
-    speechSynthesis.speak(u);
+    try {
+      const u = new SpeechSynthesisUtterance(' ');
+      u.volume = 0;
+      speechSynthesis.speak(u);
+    } catch { /* */ }
   },
 
   hasLangVoice() {
-    if (isNative) return true;
+    if (isNative || this.usesServerVoice()) return true;
     this._pickVoice();
     return !!this.voice;
   },
@@ -135,7 +217,7 @@ export const tts = {
   speak(text, { interrupt = true } = {}) {
     if (interrupt) this.cancel();
     const gen = this._gen;
-    const run = () => (gen === this._gen ? this._speakNow(text) : undefined);
+    const run = () => (gen === this._gen ? this._speakNow(text, gen) : undefined);
     this._queue = this._queue.then(run, run);
     return this._queue;
   },
@@ -144,18 +226,89 @@ export const tts = {
     this._gen++;
     this._queue = Promise.resolve();
     this._cancelAt = Date.now();
+    if (this._source) {
+      try { this._source.stop(); } catch { /* انتهى */ }
+      this._source = null;
+    }
     const T = plugins().TextToSpeech;
-    if (isNative && T) { T.stop().catch(() => {}); return; }
+    if (isNative && T) T.stop().catch(() => {});
     if ('speechSynthesis' in window) speechSynthesis.cancel();
   },
 
-  async _speakNow(text) {
+  async _speakNow(text, gen) {
     text = String(text || '').trim();
     if (!text) return;
+    if (window.__basirSpokenLog) window.__basirSpokenLog.push(text); // للاختبارات فقط
+    if (this.usesServerVoice()) {
+      try {
+        await this._speakServer(text, gen);
+        this._serverFailures = 0;
+        return;
+      } catch (e) {
+        if (e && e.code === 'not-allowed') return;
+        this._serverFailures++;
+        console.warn('basir voice:', e);
+        if (gen !== this._gen) return;
+      }
+    }
+    await this._speakDevice(text);
+  },
+
+  /** الصوت المدمج: كل جملة تُطلب من الخادم، وتُجهَّز الجملة التالية أثناء تشغيل الحالية. */
+  async _speakServer(text, gen) {
+    const ctx = audioCtx();
+    if (!(await ensureRunning(ctx))) {
+      this.allowed = false;
+      throw Object.assign(new Error('audio locked'), { code: 'not-allowed' });
+    }
+    this.allowed = true; // الصوت مسموح: الترحيب بدأ فعلاً حتى لو لم يصل الملف الصوتي بعد
+    const parts = splitSentences(text);
+    let next = this._buffer(parts[0]);
+    for (let i = 0; i < parts.length; i++) {
+      const buf = await next;
+      if (i + 1 < parts.length) {
+        next = this._buffer(parts[i + 1]);
+        next.catch(() => {});
+      }
+      if (gen !== this._gen) return;
+      this.allowed = true;
+      await this._play(ctx, buf, gen);
+      if (gen !== this._gen) return;
+    }
+  },
+
+  /** صوت جملة واحدة (مع ذاكرة للعبارات المتكررة مثل التنبيهات). */
+  _buffer(text) {
+    const key = `${this.lang}|${this.rate}|${text}`;
+    let p = this._buffers.get(key);
+    if (!p) {
+      p = fetchVoice(text, this.lang, this.rate).then((data) => audioCtx().decodeAudioData(data));
+      p.catch(() => this._buffers.delete(key));
+      this._buffers.set(key, p);
+      if (this._buffers.size > 60) this._buffers.delete(this._buffers.keys().next().value);
+    }
+    return p;
+  },
+
+  _play(ctx, buffer, gen) {
+    return new Promise((resolve) => {
+      if (gen !== this._gen) { resolve(); return; }
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      if (window.__basirPlaybackRate) src.playbackRate.value = window.__basirPlaybackRate; // للاختبارات فقط
+      src.connect(ctx.destination);
+      src.onended = () => { if (this._source === src) this._source = null; resolve(); };
+      this._source = src;
+      src.start();
+    });
+  },
+
+  /** الاحتياط: صوت الجهاز (تطبيق الجوال أو المتصفح). */
+  async _speakDevice(text) {
     const T = plugins().TextToSpeech;
     if (isNative && T) {
       this.allowed = true;
-      try { await T.speak({ text, lang: this.lang, rate: this.rate, category: 'playback' }); } catch { /* أُلغي */ }
+      try { await T.speak({ text, lang: this.locale, rate: this.rate, category: 'playback' }); } catch { /* أُلغي */ }
       return;
     }
     if (!('speechSynthesis' in window)) return;
@@ -167,7 +320,7 @@ export const tts = {
       let u;
       try {
         u = new SpeechSynthesisUtterance(text);
-        u.lang = this.lang;
+        u.lang = this.locale;
         u.rate = this.rate;
         if (this.voice) u.voice = this.voice;
       } catch {
@@ -186,6 +339,32 @@ export const tts = {
 };
 if ('speechSynthesis' in window) {
   speechSynthesis.addEventListener?.('voiceschanged', () => tts._pickVoice());
+}
+
+/** يطلب صوت جملة من الخادم ويُرجع بيانات الملف الصوتي. */
+async function fetchVoice(text, lang, rate) {
+  const base = apiBase();
+  const url = (base ? base + '/' : '') + 'api.php?action=tts&lang=' + lang;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      cache: 'no-store',
+      signal: ctrl.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, lang, rate }),
+    });
+    const type = res.headers.get('Content-Type') || '';
+    if (!res.ok || !type.startsWith('audio/')) {
+      let msg = `voice HTTP ${res.status}`;
+      try { msg = (await res.json()).error || msg; } catch { /* */ }
+      throw new Error(msg);
+    }
+    return await res.arrayBuffer();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ───────────────────────── التعرف على الكلام (STT) ─────────────────────────
@@ -253,16 +432,8 @@ export const stt = {
 
 // ───────────────────────── أصوات واهتزاز ─────────────────────────
 
-let actx = null;
-export function unlockAudio() {
-  try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    if (actx.state === 'suspended') actx.resume();
-  } catch { /* لا صوت */ }
-}
-
 export function beep(freq = 880, ms = 120, vol = 0.18) {
-  if (!actx) return Promise.resolve();
+  if (!actx || actx.state !== 'running') return Promise.resolve();
   return new Promise((resolve) => {
     try {
       const o = actx.createOscillator();
@@ -311,9 +482,7 @@ export class Camera {
     if (this.active) return;
     this.stop();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error(window.isSecureContext
-        ? 'هذا المتصفح لا يدعم الكاميرا.'
-        : 'الكاميرا تحتاج اتصالاً آمناً HTTPS. افتح التطبيق عبر رابط آمن أو من نفس الجهاز localhost.');
+      throw new Error(t(window.isSecureContext ? 'cam.unsupported' : 'cam.insecure'));
     }
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
@@ -322,10 +491,10 @@ export class Camera {
       });
     } catch (e) {
       const name = e && e.name;
-      if (name === 'NotAllowedError' || name === 'SecurityError') throw new Error('لم يُسمح باستخدام الكاميرا. اسمح بها من إعدادات المتصفح.');
-      if (name === 'NotFoundError' || name === 'OverconstrainedError') throw new Error('لا توجد كاميرا في هذا الجهاز.');
-      if (name === 'NotReadableError') throw new Error('الكاميرا مستخدمة من تطبيق آخر.');
-      throw new Error('تعذر تشغيل الكاميرا.');
+      if (name === 'NotAllowedError' || name === 'SecurityError') throw new Error(t('cam.denied'));
+      if (name === 'NotFoundError' || name === 'OverconstrainedError') throw new Error(t('cam.none'));
+      if (name === 'NotReadableError') throw new Error(t('cam.busy'));
+      throw new Error(t('cam.failed'));
     }
     const v = this.video;
     v.muted = true;
@@ -383,18 +552,18 @@ export async function framesFromVideoFile(file, count = 8, maxPx = 640) {
   try {
     await new Promise((resolve, reject) => {
       v.onloadeddata = resolve;
-      v.onerror = () => reject(new Error('تعذر قراءة الفيديو. جرّب صيغة MP4.'));
+      v.onerror = () => reject(new Error(t('video.readFail')));
     });
     const dur = v.duration;
-    if (!isFinite(dur) || dur <= 0) throw new Error('مدة الفيديو غير معروفة. جرّب ملف MP4.');
+    if (!isFinite(dur) || dur <= 0) throw new Error(t('video.noDuration'));
     const canvas = document.createElement('canvas');
     const frames = [];
     for (let i = 0; i < count; i++) {
-      const t = (dur * (i + 0.5)) / count;
+      const sec = (dur * (i + 0.5)) / count;
       await new Promise((resolve) => {
         const done = () => { v.removeEventListener('seeked', done); resolve(); };
         v.addEventListener('seeked', done);
-        v.currentTime = t;
+        v.currentTime = sec;
         setTimeout(done, 3000);
       });
       const s = Math.min(1, maxPx / Math.max(v.videoWidth, v.videoHeight));
@@ -406,7 +575,7 @@ export async function framesFromVideoFile(file, count = 8, maxPx = 640) {
       frames.push({
         data: data.slice(data.indexOf(',') + 1),
         preview: data,
-        label: `لقطة ${i + 1} من ${count} عند الثانية ${t.toFixed(1)} — إذا كان التصوير دورة كاملة فالزاوية تقريباً ${angle} درجة (${angleName(angle)})`,
+        label: t('video.fileLabel', { i: i + 1, n: count, t: sec.toFixed(1), a: angle, name: angleName(angle) }),
       });
     }
     return frames;
@@ -485,8 +654,6 @@ document.addEventListener('visibilitychange', () => {
 export const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 export const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
-export const IOS_INSTALL_TEXT = 'لتثبيت بصير على الآيفون: افتح الموقع في سفاري، اضغط زر المشاركة أسفل الشاشة، ثم اختر: إضافة إلى الشاشة الرئيسية.';
-
 /**
  * إشعار التثبيت: أندرويد وويندوز (كروم وإيدج) عبر beforeinstallprompt، والآيفون بتعليمات.
  * يحتاج عنصراً #install فيه #install-text و #install-btn و #install-close.
@@ -509,8 +676,8 @@ export function setupInstall({ onInstalled, onAvailable } = {}) {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferred = e;
-    text.textContent = 'ثبّت «بصير» على جهازك ليفتح كتطبيق مستقل من الشاشة الرئيسية.';
-    btn.textContent = 'تثبيت التطبيق';
+    text.textContent = t('install.banner');
+    btn.textContent = t('install.button');
     show();
   });
   window.addEventListener('appinstalled', () => { deferred = null; hide(); onInstalled && onInstalled(); });
@@ -528,7 +695,7 @@ export function setupInstall({ onInstalled, onAvailable } = {}) {
 
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (ctl.ios) tts.speak(IOS_INSTALL_TEXT);
+    if (ctl.ios) tts.speak(t('install.ios'));
     else ctl.prompt();
   });
   close.addEventListener('click', (e) => {
@@ -539,8 +706,8 @@ export function setupInstall({ onInstalled, onAvailable } = {}) {
 
   if (isIOS) {
     ctl.ios = true;
-    text.textContent = 'لتثبيت بصير على الآيفون: اضغط زر المشاركة ⬆️ في سفاري ثم «إضافة إلى الشاشة الرئيسية».';
-    btn.textContent = 'اسمع الطريقة';
+    text.textContent = t('install.iosBanner');
+    btn.textContent = t('install.listen');
     show();
   }
   return ctl;

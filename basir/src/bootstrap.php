@@ -14,11 +14,15 @@ require_once __DIR__ . '/Prompts.php';
 
 /** الإعدادات الافتراضية المشتركة بين كل الأجهزة (الكفيف لا يحتاج لضبطها). */
 const BASIR_DEFAULT_SETTINGS = [
+    'language'    => 'ar',
     'speech_lang' => 'ar-SA',
+    'speech_lang_en' => 'en-US',
     'speech_rate' => 1.0,
     'step_m'      => 0.7,
     'interval_s'  => 2.0,
     'image_px'    => 768,
+    'voice_ar'    => '',
+    'voice_en'    => '',
 ];
 
 function data_path(string $rel): string
@@ -122,4 +126,24 @@ function clamp_float($v, float $min, float $max, float $def): float
         return $def;
     }
     return max($min, min($max, (float) $v));
+}
+
+// ───────────────────────── اللغة ─────────────────────────
+
+const BASIR_LANGS = ['ar', 'en'];
+
+/** لغة الطلب الحالي (ar افتراضياً). يضبطها api.php من ?lang= أو من إعداد الخادم. */
+function basir_lang(?string $set = null): string
+{
+    static $lang = 'ar';
+    if ($set !== null && in_array($set, BASIR_LANGS, true)) {
+        $lang = $set;
+    }
+    return $lang;
+}
+
+/** نص بلغة الطلب الحالي. */
+function tr(string $ar, string $en): string
+{
+    return basir_lang() === 'en' ? $en : $ar;
 }
