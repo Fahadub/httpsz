@@ -1,6 +1,6 @@
 // بصير — الشاشة الرئيسية للكفيف: زر ميكروفون واحد يملأ الشاشة، وكل شيء آخر بالصوت.
 import {
-  api, ApiError, tts, stt, Camera, orientation, wakeLock, sounds, beep, vibrate, unlockAudio,
+  api, apiBase, tts, stt, Camera, orientation, wakeLock, sounds, beep, vibrate, unlockAudio,
   normalizeArabic, speakable, angleDiff, angleName, sleep, store, isNative, DIR_NAMES,
   setupInstall, registerSW, IOS_INSTALL_TEXT,
 } from './core.js';
@@ -110,7 +110,8 @@ function providerText() {
 
 function devicesText() {
   const nodes = (state.server && state.server.nodes) || [];
-  const link = `${location.host || 'عنوان الخادم'} شرطة cam`;
+  const host = apiBase() ? new URL(apiBase()).host : location.host;
+  const link = `${host || 'عنوان الخادم'}/cam.html`;
   if (!nodes.length) {
     return `لا توجد جوالات إضافية متصلة. لربط جوال: افتح على الجوال الآخر الرابط ${link}، واختر اتجاهه: أمام أو يمين أو خلف أو يسار. يمكن ربط حتى 4 جوالات.`;
   }
@@ -506,8 +507,7 @@ async function runSurvey(kind, capture) {
   state.busy = true;
   state.busyKind = 'survey';
   state.cancelTask = false;
-  const wasNav = state.nav;
-  if (wasNav) stopNav();
+  if (state.nav) stopNav();
   refreshUi();
   wakeLock.request();
   try {

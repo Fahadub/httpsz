@@ -420,7 +420,7 @@ export async function framesFromVideoFile(file, count = 8, maxPx = 640) {
 /** اتجاه الكاميرا الخلفية (بالدرجات، مع عقارب الساعة) من زوايا الجهاز — يعمل والجوال قائم. */
 function rearCameraHeading(alpha, beta, gamma) {
   const r = Math.PI / 180;
-  const cX = Math.cos(beta * r), sX = Math.sin(beta * r);
+  const sX = Math.sin(beta * r);
   const cY = Math.cos(gamma * r), sY = Math.sin(gamma * r);
   const cZ = Math.cos(alpha * r), sZ = Math.sin(alpha * r);
   const vx = -cZ * sY - sZ * sX * cY;

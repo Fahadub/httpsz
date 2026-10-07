@@ -38,6 +38,9 @@ jobs:
           java-version: 21
 
       - uses: android-actions/setup-android@v3
+        with:
+          # الحزمة الافتراضية "tools" أُزيلت من مستودع أندرويد؛ Gradle ينزّل الباقي تلقائياً
+          packages: platform-tools
 
       - name: Install Capacitor
         run: npm ci
