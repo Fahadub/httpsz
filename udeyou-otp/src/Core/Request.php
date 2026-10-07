@@ -68,7 +68,7 @@ final class Request
         return is_string($value) ? trim($value) : $default;
     }
 
-    /** API key from "Authorization: Bearer sk_..." or "X-API-Key: sk_...". */
+    /** API key from "Authorization: Bearer udy_live_..." or "X-API-Key: udy_live_...". */
     public function apiKey(): ?string
     {
         $auth = $this->header('authorization');

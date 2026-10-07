@@ -88,14 +88,14 @@ $test = $keys->generate($clientId, 'test', 'test');
 $rcpt = static fn (string $tag): string => "{$tag}-{$suffix}@example.com";
 
 echo "\nAPI keys & auth\n";
-check('key format sk_live_ + 40 chars', (bool) preg_match('/^sk_live_[0-9A-Za-z]{40}$/', $live));
+check('key format udy_live_ + 40 chars', (bool) preg_match('/^udy_live_[0-9A-Za-z]{40}$/', $live));
 $stored = Database::connection()->query("SELECT key_hash, key_prefix FROM api_keys WHERE client_id = {$clientId} AND mode = 'live'")->fetch();
 check('only sha256 hash stored', $stored['key_hash'] === hash('sha256', $live) && !str_contains(json_encode($stored), substr($live, 15)));
 [$s, $r] = api('GET', '/api/v1/health', null);
 check('health 200', $s === 200);
 [$s, $r] = api('POST', '/api/v1/otp/send', null, ['to' => 'a@b.com']);
 check('missing key -> 401', $s === 401 && $r['error']['code'] === 'invalid_api_key', $r);
-[$s, $r] = api('POST', '/api/v1/otp/send', 'sk_live_' . str_repeat('x', 40), ['to' => 'a@b.com']);
+[$s, $r] = api('POST', '/api/v1/otp/send', 'udy_live_' . str_repeat('x', 40), ['to' => 'a@b.com']);
 check('unknown key -> 401', $s === 401, $r);
 [$s, $r] = api('GET', '/api/v1/balance', $live);
 check('balance = 20', $s === 200 && $r['data']['credits'] === 20, $r);
@@ -112,7 +112,7 @@ check('template without {{code}} -> 422', $s === 422 && isset($r['error']['field
 [$s, $r] = api('POST', '/api/v1/otp/send', $live, ['to' => $rcpt('v'), 'sender_name' => 'Shop', 'expires_in' => 5]);
 check('expires_in out of range -> 422', $s === 422 && isset($r['error']['fields']['expires_in']), $r);
 
-echo "\nTest mode (sk_test_)\n";
+echo "\nTest mode (udy_test_)\n";
 [$s, $r] = api('POST', '/api/v1/otp/send', $test, ['to' => $rcpt('t'), 'sender_name' => 'Shop']);
 check('test send -> 201 with code', $s === 201 && ($r['data']['test_mode'] ?? false) && preg_match('/^\d{6}$/', $r['data']['code'] ?? ''), $r);
 check('test send does not charge', $r['data']['credits_remaining'] === 20, $r);
@@ -238,7 +238,7 @@ $webEmail = "web-{$suffix}@example.com";
 [$s, $html] = $web('/register', ['_csrf' => $csrf($html), 'company_name' => 'Web Shop', 'email' => $webEmail, 'password' => 'password123']);
 check('register -> dashboard with signup bonus', $s === 200 && str_contains($html, 'Web Shop') && str_contains($html, 'رصيد ترحيبي'));
 [$s, $html] = $web('/keys', ['_csrf' => $csrf($html), 'name' => 'My key', 'mode' => 'live']);
-check('create key shows full key once', (bool) preg_match('/sk_live_[0-9A-Za-z]{40}/', $html, $km));
+check('create key shows full key once', (bool) preg_match('/udy_live_[0-9A-Za-z]{40}/', $html, $km));
 $webKey = $km[0] ?? '';
 [$s, $html] = $web('/dashboard');
 check('key not shown again on reload', !str_contains($html, $webKey) && str_contains($html, substr($webKey, 0, 14)));

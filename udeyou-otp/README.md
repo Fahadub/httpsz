@@ -55,7 +55,7 @@ udeyou-otp/
 │   ├── Core/                  ← Config(.env) / Database(PDO) / Router / Request / Response / Session(CSRF) / View
 │   ├── Repositories/          ← كل استعلامات SQL (Clients / ApiKeys / Otps)
 │   ├── Services/
-│   │   ├── ApiKeyService.php  ← توليد sk_live_/sk_test_ والتحقق منها (تُخزن كـ SHA-256 فقط)
+│   │   ├── ApiKeyService.php  ← توليد udy_live_/udy_test_ والتحقق منها (تُخزن كـ SHA-256 فقط)
 │   │   ├── CreditService.php  ← حجز/خصم/استرجاع الرصيد بشكل ذرّي + سجل حركات
 │   │   ├── OtpService.php     ← منطق الإرسال والتحقق + حدود الإرسال
 │   │   ├── OtpTemplate.php    ← قالب البريد (عربي/إنجليزي/قالب العميل)
@@ -110,13 +110,13 @@ CSRF + جلسات آمنة في لوحة التحكم · `.env` و`src` غير �
 ```bash
 # إرسال
 curl -X POST https://udeyou.com/api/v1/otp/send \
-  -H "Authorization: Bearer sk_live_..." -H "Content-Type: application/json" \
+  -H "Authorization: Bearer udy_live_..." -H "Content-Type: application/json" \
   -d '{"to":"customer@gmail.com","sender_name":"متجر الورد"}'
 # → {"success":true,"data":{"otp_id":"otp_...","expires_at":"...","credits_remaining":99,...}}
 
 # تحقق
 curl -X POST https://udeyou.com/api/v1/otp/verify \
-  -H "Authorization: Bearer sk_live_..." -H "Content-Type: application/json" \
+  -H "Authorization: Bearer udy_live_..." -H "Content-Type: application/json" \
   -d '{"otp_id":"otp_...","code":"482913"}'
 # → {"success":true,"data":{"verified":true,...}}
 ```
@@ -128,7 +128,7 @@ curl -X POST https://udeyou.com/api/v1/otp/verify \
 | `GET /api/v1/balance` | الرصيد الحالي |
 | `GET /api/v1/health` | فحص حالة الخدمة |
 
-مفاتيح `sk_test_...` لا ترسل بريد ولا تخصم رصيد وترجّع الرمز في الرد — مثالية للمطورين أثناء الربط.
+مفاتيح `udy_test_...` لا ترسل بريد ولا تخصم رصيد وترجّع الرمز في الرد — مثالية للمطورين أثناء الربط.
 
 ---
 

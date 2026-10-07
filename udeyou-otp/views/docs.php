@@ -5,10 +5,10 @@
 
   <h2>1) المصادقة</h2>
   <p>أنشئ مفتاح من <a href="/dashboard">لوحة التحكم</a> وأرسله في كل طلب بالهيدر:</p>
-  <pre><code>Authorization: Bearer sk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</code></pre>
+  <pre><code>Authorization: Bearer udy_live_...</code></pre>
   <ul>
-    <li><code>sk_live_...</code> يرسل بريد حقيقي ويخصم <b>1 رصيد</b> لكل رسالة ناجحة (لا يُخصم شيء إذا فشل الإرسال).</li>
-    <li><code>sk_test_...</code> للتجربة: لا يرسل بريد ولا يخصم رصيد، ويرجّع الرمز في الرد.</li>
+    <li><code>udy_live_...</code> يرسل بريد حقيقي ويخصم <b>1 رصيد</b> لكل رسالة ناجحة (لا يُخصم شيء إذا فشل الإرسال).</li>
+    <li><code>udy_test_...</code> للتجربة: لا يرسل بريد ولا يخصم رصيد، ويرجّع الرمز في الرد.</li>
     <li>⚠️ المفتاح سرّي: استخدمه من الخادم (Backend) فقط، لا تضعه في JavaScript المتصفح أو تطبيق الجوال.</li>
   </ul>
 
@@ -26,7 +26,7 @@
     <tr><td><code>reply_to</code></td><td>لا</td><td>بريد دعم متجرك لو رد العميل على الرسالة.</td></tr>
   </table>
   <pre><code>curl -X POST <?= e($base) ?>/api/v1/otp/send \
-  -H "Authorization: Bearer sk_live_..." \
+  -H "Authorization: Bearer udy_live_..." \
   -H "Content-Type: application/json" \
   -d '{
     "to": "customer@gmail.com",
@@ -51,7 +51,7 @@
   <h2>3) التحقق من الرمز — <code dir="ltr">POST /otp/verify</code></h2>
   <p>أرسل <code>code</code> مع <code>otp_id</code> (مفضّل) أو <code>to</code> (يتحقق من آخر رمز أُرسل لهذا البريد).</p>
   <pre><code>curl -X POST <?= e($base) ?>/api/v1/otp/verify \
-  -H "Authorization: Bearer sk_live_..." \
+  -H "Authorization: Bearer udy_live_..." \
   -H "Content-Type: application/json" \
   -d '{"otp_id": "otp_8f2a9c...", "code": "482913"}'</code></pre>
   <pre><code>// نجاح (200)
@@ -62,7 +62,7 @@
   <p>الرمز يُستخدم مرة واحدة فقط، وينتهي بعد المدة المحددة، ويُقفل بعد 5 محاولات خاطئة. إرسال رمز جديد لنفس البريد يُلغي الرموز السابقة.</p>
 
   <h2>4) الرصيد — <code dir="ltr">GET /balance</code></h2>
-  <pre><code>curl <?= e($base) ?>/api/v1/balance -H "Authorization: Bearer sk_live_..."</code></pre>
+  <pre><code>curl <?= e($base) ?>/api/v1/balance -H "Authorization: Bearer udy_live_..."</code></pre>
 
   <h2>5) أكواد الأخطاء</h2>
   <table>

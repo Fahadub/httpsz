@@ -7,7 +7,7 @@ namespace Udeyou\Services;
 use Udeyou\Repositories\ApiKeyRepository;
 
 /**
- * Key format: sk_live_<40 base62 chars> / sk_test_<40 base62 chars>.
+ * Key format: udy_live_<40 base62 chars> / udy_test_<40 base62 chars>.
  * Only sha256(key) is stored; the plain key is shown to the client exactly once.
  */
 final class ApiKeyService
@@ -23,8 +23,8 @@ final class ApiKeyService
     public function generate(int $clientId, string $name, string $mode): string
     {
         $mode = $mode === 'test' ? 'test' : 'live';
-        $plain = "sk_{$mode}_" . self::randomString(self::RANDOM_LENGTH);
-        $prefix = substr($plain, 0, strlen("sk_{$mode}_") + 6);
+        $plain = "udy_{$mode}_" . self::randomString(self::RANDOM_LENGTH);
+        $prefix = substr($plain, 0, strlen("udy_{$mode}_") + 6);
 
         $this->keys->create($clientId, $name, $mode, $prefix, self::hash($plain));
         return $plain;
@@ -33,8 +33,8 @@ final class ApiKeyService
     /** @throws ApiException */
     public function authenticate(?string $plainKey): array
     {
-        if ($plainKey === null || !preg_match('/^sk_(live|test)_[0-9A-Za-z]{' . self::RANDOM_LENGTH . '}$/', $plainKey)) {
-            throw new ApiException('invalid_api_key', 'Missing or malformed API key. Send it as "Authorization: Bearer sk_live_..."', 401);
+        if ($plainKey === null || !preg_match('/^udy_(live|test)_[0-9A-Za-z]{' . self::RANDOM_LENGTH . '}$/', $plainKey)) {
+            throw new ApiException('invalid_api_key', 'Missing or malformed API key. Send it as "Authorization: Bearer udy_live_..."', 401);
         }
 
         $key = $this->keys->findActiveByHash(self::hash($plainKey));
