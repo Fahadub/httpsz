@@ -64,7 +64,8 @@ function write_file_atomic(string $file, string $content): void
 {
     ensure_dir(dirname($file));
     $tmp = $file . '.' . bin2hex(random_bytes(4)) . '.tmp';
-    if (file_put_contents($tmp, $content, LOCK_EX) === false) {
+    if (@file_put_contents($tmp, $content, LOCK_EX) !== strlen($content)) {
+        @unlink($tmp); // قرص ممتلئ: لا نترك ملفاً ناقصاً
         throw new RuntimeException('تعذر حفظ الملف: ' . basename($file));
     }
     @chmod($tmp, 0600);

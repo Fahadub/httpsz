@@ -154,16 +154,37 @@ final class VoiceCatalog
         return self::dir() . '/models/' . self::MODELS[$modelKey]['archive'];
     }
 
-    /** كل ملفات النموذج موجودة (فك الضغط يتم في مجلد مؤقت ثم يُنقل كاملاً، فلا يبقى نموذج ناقص). */
+    /**
+     * كل ملفات النموذج موجودة وغير فارغة، وبأحجامها المسجلة عند التثبيت (فك الضغط يتم في مجلد
+     * مؤقت ثم يُنقل كاملاً، وملف ناقص لسبب آخر يُكتشف هنا فيُنزَّل النموذج من جديد).
+     */
     public static function modelInstalled(string $modelKey): bool
     {
         $dir = self::modelDir($modelKey);
+        $sizes = read_json("$dir/.basir-files.json");
         foreach (self::MODELS[$modelKey]['files'] as $f) {
-            if (!file_exists("$dir/$f")) {
+            $path = "$dir/$f";
+            if (is_dir($path)) {
+                continue;
+            }
+            if (!is_file($path) || filesize($path) === 0 || (isset($sizes[$f]) && filesize($path) !== $sizes[$f])) {
                 return false;
             }
         }
         return true;
+    }
+
+    /** يسجّل أحجام ملفات النموذج بعد تثبيته (ليكشف modelInstalled أي ملف تلف لاحقاً). */
+    public static function writeManifest(string $modelKey): void
+    {
+        $dir = self::modelDir($modelKey);
+        $sizes = [];
+        foreach (self::MODELS[$modelKey]['files'] as $f) {
+            if (is_file("$dir/$f")) {
+                $sizes[$f] = filesize("$dir/$f");
+            }
+        }
+        write_json("$dir/.basir-files.json", $sizes);
     }
 
     public static function daemonPort(): int

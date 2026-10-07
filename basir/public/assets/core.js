@@ -27,7 +27,7 @@ export class ApiError extends Error {
   constructor(message, status = 0, detail = '') { super(message); this.status = status; this.detail = detail; }
 }
 
-export async function api(action, body = null, { timeout = 90000, base = apiBase(), signal } = {}) {
+export async function api(action, body = null, { timeout = 90000, base = apiBase(), signal, background = false } = {}) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeout);
   // إلغاء من المستخدم (لمسة أثناء الانتظار، أو «توقف»)
@@ -44,8 +44,11 @@ export async function api(action, body = null, { timeout = 90000, base = apiBase
     return data;
   } catch (e) {
     if (e instanceof ApiError) throw e;
+    if (signal && signal.aborted) throw new ApiError(t('cancelled'), 0);
+    // الخادم لا يرد: رسالة الخطأ تُنطق بصوت الجهاز فوراً بدل انتظار الخادم نفسه
+    // (لا للطلبات الدورية: في ويندوز تنتظر خلف طلب الذكاء الاصطناعي وليس الخادم معطلاً)
+    if (!background) tts.serverUnreachable();
     if (e && e.name === 'AbortError') throw new ApiError(t('net.timeout'), 0);
-    tts.serverUnreachable(); // رسالة «تعذر الاتصال» تُنطق بصوت الجهاز فوراً بدل انتظار الخادم
     throw new ApiError(t('net.unreachable'), 0, String(e));
   } finally {
     clearTimeout(timer);
@@ -100,6 +103,9 @@ export function audioCtx() {
   return actx;
 }
 
+/** هل اشتغل الصوت مرة في هذه الجلسة؟ (بعدها لا ننتظر لمسة: نستخدم صوت الجهاز إن علق) */
+let audioEverRan = false;
+
 /** سياق صوت جديد بدل سياق علق (آيفون بعد مكالمة). يُفتح عند اللمسة التالية. */
 function resetAudioCtx() {
   try { actx && actx.close(); } catch { /* */ }
@@ -131,9 +137,15 @@ export function unlockAudio() {
 
 /** يحاول تشغيل سياق الصوت دون انتظار لا نهائي (بدون لمسة يبقى معلّقاً). */
 async function ensureRunning(ctx) {
-  if (ctx.state === 'running') return true;
-  try { await Promise.race([ctx.resume(), sleep(300)]); } catch { /* */ }
-  return ctx.state === 'running';
+  if (ctx.state !== 'running') {
+    try { await Promise.race([ctx.resume(), sleep(300)]); } catch { /* */ }
+  }
+  if (ctx.state === 'running') {
+    ctx.__ran = true;
+    audioEverRan = true;
+    return true;
+  }
+  return false;
 }
 
 /** يقسم النص إلى جمل حتى تبدأ الجملة الأولى بالكلام بينما تُجهَّز التالية. */
@@ -188,6 +200,8 @@ export const tts = {
   voice: null,
   /** اللغات التي لها صوت مدمج جاهز على الخادم، مثل { ar: true, en: true } */
   serverVoices: {},
+  /** الصوت المستخدم لكل لغة (يدخل في مفتاح الذاكرة: تغيّر الصوت = تسجيلات جديدة) */
+  voiceIds: {},
   /** null = غير معروف، true = الصوت يعمل، false = يحتاج لمسة أولاً */
   allowed: null,
   _queue: Promise.resolve(),
@@ -200,7 +214,8 @@ export const tts = {
   /** بعد تعذر الصوت المدمج نستخدم صوت الجهاز قليلاً ثم نعود إليه */
   _serverDownUntil: 0,
 
-  configure({ lang, locale, rate, serverVoices } = {}) {
+  configure({ lang, locale, rate, serverVoices, voiceIds } = {}) {
+    if (voiceIds) this.voiceIds = { ...this.voiceIds, ...voiceIds };
     if (lang) this.lang = lang;
     if (locale) this.locale = locale;
     else if (lang) this.locale = lang === 'en' ? 'en-US' : 'ar-SA';
@@ -290,13 +305,13 @@ export const tts = {
   async _speakServer(text, gen, lang, onRest) {
     const ctx = audioCtx();
     if (!(await ensureRunning(ctx))) {
-      if (!unlockAudio.done) {
+      if (!audioEverRan) {
         // لم يلمس المستخدم الشاشة بعد: ننتظر لمسته
         this.allowed = false;
         throw Object.assign(new Error('audio locked'), { code: 'not-allowed' });
       }
-      // كان يعمل ثم علق (مكالمة، أو التطبيق في الخلفية): صوت الجهاز الآن، وسياق جديد يُفتح باللمسة التالية
-      resetAudioCtx();
+      // كان يعمل ثم علق (مكالمة، أو التطبيق في الخلفية): صوت الجهاز الآن (لا صمت)، وسياق جديد يُفتح باللمسة التالية
+      if (ctx.__ran) resetAudioCtx();
       throw Object.assign(new Error('audio interrupted'), { code: 'interrupted' });
     }
     this.allowed = true; // الصوت مسموح: الترحيب بدأ فعلاً حتى لو لم يصل الملف الصوتي بعد
@@ -317,8 +332,12 @@ export const tts = {
   },
 
   /** صوت جملة واحدة (مع ذاكرة للعبارات المتكررة مثل التنبيهات). */
+  _key(text, lang) {
+    return `${lang}|${this.voiceIds[lang] || ''}|${this.rate}|${text}`;
+  },
+
   _buffer(text, lang = this.lang) {
-    const key = `${lang}|${this.rate}|${text}`;
+    const key = this._key(text, lang);
     let p = this._pinned.get(key) || this._buffers.get(key);
     if (!p) {
       p = this._fetchBuffer(text, lang);
@@ -333,17 +352,27 @@ export const tts = {
     return fetchVoice(text, lang, this.rate).then((data) => audioCtx().decodeAudioData(data));
   },
 
-  /** يجهّز العبارات الثابتة مسبقاً، واحدة بعد الأخرى حتى لا يزحم الخادم. */
+  /**
+   * يجهّز العبارات الثابتة مسبقاً، واحدة بعد الأخرى حتى لا يزحم الخادم. يُستدعى مرات عدة
+   * (بعد الترحيب، وتغيير السرعة أو اللغة أو الصوت، ودورياً): لا يجلب إلا الناقص.
+   */
   async preload(texts, lang = this.lang) {
-    for (const text of texts) {
-      for (const part of splitSentences(text)) {
-        const key = `${lang}|${this.rate}|${part}`;
-        if (this._pinned.has(key) || !this.usesServerVoice(lang)) continue;
-        const p = this._fetchBuffer(part, lang);
-        this._pinned.set(key, p);
-        try { await p; } catch { this._pinned.delete(key); return; }
-        if (this._pinned.size > 80) this._pinned.delete(this._pinned.keys().next().value);
+    if (this._preloading) return;
+    this._preloading = true;
+    try {
+      for (const text of texts) {
+        for (const part of splitSentences(text)) {
+          if (!this.usesServerVoice(lang)) return;
+          const key = this._key(part, lang);
+          if (this._pinned.has(key)) continue;
+          const p = this._fetchBuffer(part, lang);
+          this._pinned.set(key, p);
+          try { await p; } catch { this._pinned.delete(key); }
+          if (this._pinned.size > 120) this._pinned.delete(this._pinned.keys().next().value);
+        }
       }
+    } finally {
+      this._preloading = false;
     }
   },
 
@@ -407,7 +436,7 @@ async function fetchVoice(text, lang, rate) {
   const base = apiBase();
   const url = (base ? base + '/' : '') + 'api.php?action=tts&lang=' + lang;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 20000);
+  const timer = setTimeout(() => ctrl.abort(), 15000);
   try {
     const res = await fetch(url, {
       method: 'POST',

@@ -12,7 +12,6 @@ if "%BASIR_NO_VOICE%"=="1" goto app
 php %PHPARGS% -r "exit(extension_loaded('ffi') ? 0 : 1);" || (echo Note: PHP FFI is not available, the device voice will be used. & goto app)
 echo The built-in voice is prepared in the background (first time: about 140 MB download).
 echo Until it is ready the device voice is used. Progress: data\voice-install.log
-php %PHPARGS% tools\voices.php stop >nul 2>nul
 start "" /B php %PHPARGS% tools\voices.php run > data\voice-install.log 2>&1
 
 :app

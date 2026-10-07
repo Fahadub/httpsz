@@ -36,7 +36,7 @@ async function loop(myRun) {
       if (!camera.active) await camera.start();
       const f = camera.capture(640, 0.55);
       if (f) {
-        const r = await api('node_frame', { dir, image: f.data, device }, { timeout: 10000 });
+        const r = await api('node_frame', { dir, image: f.data, device }, { timeout: 10000, background: true });
         if (myRun !== run) break;
         failures = 0;
         $('badge').classList.add('live');
@@ -76,6 +76,8 @@ $('stop').addEventListener('click', async () => {
 });
 
 registerSW();
+// قبل رد الخادم: لغة آخر اختيار على هذا الجهاز، وإلا لغة الجهاز (لرسائل تعذر الاتصال)
+setLang(store.get('basir_lang') || (/^en/i.test(navigator.language || '') ? 'en' : 'ar'));
 // لغة وصوت الخادم الافتراضيان
 api('status').then((s) => {
   const lang = setLang(store.get('basir_lang') || s.settings.language || 'ar');
@@ -85,6 +87,7 @@ api('status').then((s) => {
     locale: lang === 'en' ? s.settings.speech_lang_en : s.settings.speech_lang,
     rate: s.settings.speech_rate,
     serverVoices: { ar: !!(v.ar && v.ar.ready), en: !!(v.en && v.en.ready) },
+    voiceIds: { ar: (v.ar || {}).voice || '', en: (v.en || {}).voice || '' },
   });
 }).catch(() => {});
 const saved = store.get('basir_cam_dir');

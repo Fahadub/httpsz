@@ -11,6 +11,7 @@ final class Voice
 {
     private const CACHE_MAX_FILES = 400;
     private const CACHE_MAX_BYTES = 150 * 1048576;
+    private const CACHE_MAX_ENTRY = 2 * 1048576;
 
     /** حالة الأصوات لكل لغة، لواجهة التطبيق وصفحة الإعداد. */
     public static function status(array $settings): array
@@ -34,6 +35,13 @@ final class Voice
             $out['langs'][$lang] = ['ready' => isset($live[$lang]), 'voice' => $id, 'name' => $v['name'] ?? null];
         }
         return $out;
+    }
+
+    /** الصوت الذي يستخدمه خادم الصوت الآن لكل لغة (من ملفه، بلا انتظار). */
+    public static function liveIds(): array
+    {
+        $ids = read_json(data_path('voices/daemon.json'))['voices'] ?? [];
+        return is_array($ids) ? $ids : [];
     }
 
     /** ملف WAV لجملة بصوت اللغة المطلوبة. يرمي استثناءً إذا لم يكن الصوت المدمج متاحاً. */
@@ -66,13 +74,16 @@ final class Voice
         try {
             ensure_dir($cacheDir);
             $file = $cached((string) ($res['voice'] ?? $voice));
-            $tmp = $file . '.' . getmypid() . '.tmp';
-            if (file_put_contents($tmp, $wav) === strlen($wav)) {
-                rename($tmp, $file);
-            } else {
-                @unlink($tmp); // قرص ممتلئ: لا نحفظ ملفاً ناقصاً
+            // الجمل الطويلة جداً لا تتكرر: لا داعي لحفظها
+            if (strlen($wav) <= self::CACHE_MAX_ENTRY) {
+                $tmp = $file . '.' . getmypid() . '.tmp';
+                if (@file_put_contents($tmp, $wav) === strlen($wav)) {
+                    @rename($tmp, $file);
+                } else {
+                    @unlink($tmp); // قرص ممتلئ: لا نحفظ ملفاً ناقصاً
+                }
+                self::prune($cacheDir);
             }
-            self::prune($cacheDir);
         } catch (Throwable) {
             // الذاكرة اختيارية
         }
@@ -134,9 +145,6 @@ final class Voice
 
     private static function prune(string $dir): void
     {
-        if (random_int(1, 20) !== 1) {
-            return;
-        }
         foreach (glob($dir . '/*.tmp') ?: [] as $f) {
             if (filemtime($f) < time() - 600) {
                 @unlink($f); // بقايا كتابة انقطعت

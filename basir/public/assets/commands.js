@@ -22,42 +22,49 @@ const COMMANDS_AR = [
   ['nav', ['ابدا', 'ابدء', 'امشي', 'امش', 'نمشي', 'تنقل', 'وجهني', 'ارشدني', 'دلني', 'يلا']],
 ];
 
-// الإنجليزية: الأمر يجب أن يبدأ الجملة، والجملة قصيرة (عدد الكلمات المسموح بعده)،
+// الإنجليزية: «توقف» أمر أمان: يكفي أن يبدأ الجملة مهما طالت، أو أن يأتي بعد no / wait / i said.
+const EN_STOP = /^(?:(?:no|wait|oh|ok|okay|hey|please|just|now|basir|i said)\s+)*(?:stop|halt|cancel|be quiet|shut up|thats enough|that s enough|enough already|forget it|forget about it|forget that|never mind|nevermind)\b/;
+const EN_STOP_ANYWHERE = /\b(?:no stop|wait stop|stop stop|i said stop)\b/;
+
+// بقية الأوامر الإنجليزية: تبدأ الجملة، والجملة قصيرة (عدد الكلمات المسموح بعد الأمر)،
 // حتى تذهب أسئلة مثل «where is the bus stop?» أو «is there a train?» إلى الذكاء الاصطناعي.
+// تُقارن بعد حذف أدوات التعريف (a / an / the) وكلمات التهذيب.
 const COMMANDS_EN = [
-  ['stop', ['stop', 'halt', 'cancel', 'be quiet', 'quiet', 'thats enough', 'that s enough', 'enough'], 2],
-  ['repeat', ['repeat', 'say again', 'say that again', 'again', 'what did you say'], 1],
-  ['help', ['help', 'commands', 'what can i say'], 1],
-  ['provider', ['provider', 'which provider', 'which ai', 'which model', 'what model are you'], 3],
-  ['settings', ['settings', 'open settings', 'setup'], 1],
-  ['devices', ['devices', 'phones', 'cameras', 'linked phones', 'link phone', 'link a phone'], 2],
-  ['forget', ['forget', 'forget the place', 'clear memory'], 2],
-  ['four', ['four directions', '4 directions', 'four sides', 'all directions'], 1],
-  ['video', ['video', 'scan', 'scan the room', 'look around', 'explore', 'start video', 'start scan', 'learn the place'], 1],
-  ['read', ['read', 'what does it say', 'what does this say'], 4],
-  ['describe', ['describe', 'what is in front', 'whats in front', 'what s in front', 'what do you see', 'what is around', 'whats around'], 3],
-  ['faster', ['faster', 'speak faster', 'talk faster'], 1],
-  ['slower', ['slower', 'speak slower', 'talk slower'], 1],
-  ['install', ['install', 'install the app'], 2],
-  ['skip', ['skip'], 1],
-  ['nav', ['start', 'go', 'walk', 'navigate', 'guide me', 'lets go', 'let s go', 'start walking', 'start navigation'], 2],
+  ['repeat', ['repeat', 'repeat that', 'repeat it', 'say again', 'say that again', 'say it again', 'again', 'what did you say', 'come again', 'pardon'], 1],
+  ['help', ['help', 'help me', 'commands', 'what can i say'], 0],
+  ['provider', ['provider', 'which provider', 'which ai', 'what ai', 'which ai are you', 'what ai are you', 'which ai are you using', 'what ai are you using', 'what model are you', 'which model are you', 'what model are you using', 'which model are you using'], 1],
+  ['settings', ['settings', 'open settings', 'setup', 'open setup'], 0],
+  ['devices', ['devices', 'phones', 'cameras', 'linked phones', 'link phone', 'connected phones', 'extra phones'], 0],
+  ['forget', ['forget place', 'forget this place', 'forget room', 'forget memory', 'clear memory', 'erase memory'], 1],
+  ['four', ['four directions', '4 directions', 'four sides', 'all directions', 'start four directions', 'start 4 directions', 'start all directions', 'do four directions'], 1],
+  ['video', ['video', 'scan', 'scan room', 'scan place', 'look around', 'explore', 'start video', 'start scan', 'start scanning', 'record video', 'take video', 'begin video', 'learn place'], 0],
+  ['read', ['read', 'read it', 'read this', 'what does it say', 'what does this say', 'what is written'], 4],
+  ['describe', ['describe', 'describe surroundings', 'what is in front', 'whats in front', 'what s in front', 'what do you see', 'what is around', 'whats around', 'what s around'], 3],
+  ['install', ['install', 'install app'], 0],
+  ['skip', ['skip', 'skip it', 'skip this'], 0],
+  ['nav', ['start', 'go', 'walk', 'navigate', 'begin', 'continue', 'resume', 'guide me', 'go ahead', 'lets go', 'let s go', 'start walking', 'start navigation', 'start navigating'], 0],
 ];
-// كلمات تهذيب في أول الجملة الإنجليزية لا تغيّر الأمر
-const EN_LEAD = /^(?:(?:please|ok|okay|hey|hi|basir|bassir|now|just|can you|could you|would you|will you|i want you to|i want to|i d like to|id like to)\s+)+/;
+const EN_FASTER = /^(?:(?:speak|talk)\s+)?(?:(?:little|bit|lot|much|even)\s+)?(?:faster|quicker|more quickly)$|^speed up$/;
+const EN_SLOWER = /^(?:(?:speak|talk)\s+)?(?:(?:little|bit|lot|much|even)\s+)?(?:slower|more slowly)$|^slow down$/;
+// كلمات تهذيب في أول الجملة الإنجليزية وآخرها لا تغيّر الأمر
+const EN_LEAD = /^(?:(?:please|ok|okay|hey|hi|basir|bassir|now|just|so|can you|could you|would you|will you|i want you to|i want to|i need to|i have to|i would like to|i d like to|id like to|lets|let s)\s+)+/;
+const EN_TAIL = /(?:\s+(?:please|now|right now|for me|thanks|thank you|basir))+$/;
 
 // تبديل لغة التطبيق بالصوت: الجملة كلها طلب لغة (فلا يتحول سؤال مثل «هل هذا عربي؟» إلى تبديل)
 const LANG_WORDS = {
-  en: ['english', 'inglish', 'انجليزي', 'انجليزيه', 'الانجليزي', 'الانجليزيه', 'بالانجليزي', 'بالانجليزيه',
-    'انقليزي', 'الانقليزي', 'الانقليزيه', 'بالانقليزي', 'انكليزي', 'الانكليزيه', 'بالانكليزي',
-    'انجلش', 'انجليش', 'اينجلش', 'بالانجلش', 'انقلش'],
-  ar: ['arabic', 'arabi', 'arabik', 'عربي', 'عربيه', 'العربي', 'العربيه', 'بالعربي', 'بالعربيه'],
+  en: ['english', 'inglish', 'انجليزي', 'انجليزيه', 'الانجليزي', 'الانجليزيه', 'بالانجليزي', 'بالانجليزيه', 'للانجليزي', 'للانجليزيه',
+    'انقليزي', 'الانقليزي', 'الانقليزيه', 'بالانقليزي', 'للانقليزي', 'انكليزي', 'الانكليزي', 'الانكليزيه', 'بالانكليزي', 'بالانكليزيه',
+    'انجلش', 'انجليش', 'اينجلش', 'بالانجلش', 'انقلش', 'انكلش', 'انغلش', 'انغليش'],
+  ar: ['arabic', 'arabi', 'arabik', 'arab', 'arabie', 'عربي', 'عربيه', 'العربي', 'العربيه', 'بالعربي', 'بالعربيه', 'للعربي', 'للعربيه'],
 };
 const LANG_FILLER = new Set(['please', 'ok', 'okay', 'speak', 'talk', 'switch', 'change', 'to', 'the', 'language', 'in', 'now',
-  'use', 'mode', 'basir', 'تكلم', 'تكلمي', 'اتكلم', 'تحدث', 'كلمني', 'حول', 'الى', 'الي', 'غير', 'اللغه', 'لغه',
-  'خلها', 'خليها', 'خل', 'الحين', 'الان', 'بس', 'يا', 'بصير']);
+  'use', 'mode', 'basir', 'i', 'want', 'would', 'like', 'me', 'with', 'you', 'can', 'could', 'set',
+  'تكلم', 'تكلمي', 'اتكلم', 'تتكلم', 'تحدث', 'كلمني', 'تكلمني', 'تحكي', 'احكي', 'حول', 'الى', 'الي', 'غير', 'اللغه', 'لغه',
+  'باللغه', 'للغه', 'خلها', 'خليها', 'خل', 'الحين', 'الان', 'بس', 'يا', 'بصير', 'ابي', 'ابيك', 'ابغى', 'ابغي', 'ابغاك',
+  'اريد', 'ودي', 'معي', 'معاي', 'لي']);
 
 const GOAL_AR = /(?:خذني|ودني|وديني|وصلني|اوصلني|اريد الذهاب|اريد ان اذهب|ابغى اروح|ابغي اروح|ابي اروح|كيف اروح|كيف اذهب)\s+(?:الى|الي|لل|ل|على|عند)?\s*(.+)/;
-const GOAL_EN = /^(?:take me to|go to|guide me to|lead me to|bring me to|walk me to|navigate to|i want to go to|how do i get to)\s+(?:the\s+)?(.+)/;
+const GOAL_EN = /^(?:take me to|go to|guide me to|lead me to|bring me to|walk me to|walk to|get me to|head to|navigate to|start walking to|how do i get to|how can i get to)\s+(?:the\s+)?(.+)/;
 
 function langRequest(n) {
   const words = n.replace(/من فضلك|لو سمحت/g, ' ').split(' ').filter((w) => w && !LANG_FILLER.has(w));
@@ -69,7 +76,9 @@ function langRequest(n) {
 
 /** أمر إنجليزي يبدأ الجملة (الأطول تطابقاً يفوز: «start video» قبل «start»). */
 function englishCommand(n) {
-  const s = n.replace(EN_LEAD, '');
+  const s = n.replace(EN_LEAD, '').replace(EN_TAIL, '').replace(/\b(?:a|an|the)\s+/g, '').trim();
+  if (EN_FASTER.test(s)) return 'faster';
+  if (EN_SLOWER.test(s)) return 'slower';
   const count = s.split(' ').length;
   let best = null;
   for (const [cmd, keys, extra] of COMMANDS_EN) {
@@ -85,10 +94,10 @@ export function parseCommand(text) {
   const n = normalizeArabic(text);
   const padded = ` ${n} `;
   const has = (k) => padded.includes(` ${k} `);
-  if (COMMANDS_AR[0][1].some(has)) return { cmd: 'stop' };
+  if (COMMANDS_AR[0][1].some(has) || EN_STOP.test(n) || EN_STOP_ANYWHERE.test(n)) return { cmd: 'stop' };
   const lang = langRequest(n);
   if (lang) return { cmd: 'lang', lang };
-  const goal = n.match(GOAL_AR) || n.replace(EN_LEAD, '').match(GOAL_EN);
+  const goal = n.match(GOAL_AR) || n.replace(EN_LEAD, '').replace(EN_TAIL, '').match(GOAL_EN);
   if (goal && goal[1].trim()) return { cmd: 'goal', goal: goal[1].trim() };
   const en = englishCommand(n);
   if (en) return { cmd: en };

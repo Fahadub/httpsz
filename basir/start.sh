@@ -18,7 +18,6 @@ export PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-6}"
 VOICE_PID=""
 if [ "${BASIR_NO_VOICE:-0}" != "1" ]; then
   if php $PHPARGS -r 'exit(extension_loaded("ffi") ? 0 : 1);'; then
-    php $PHPARGS tools/voices.php stop >/dev/null 2>&1
     php $PHPARGS tools/voices.php run >data/voice-install.log 2>&1 &
     VOICE_PID=$!
     echo "الصوت المدمج يُجهَّز في الخلفية (أول مرة: تنزيل نحو 140 ميغابايت). التقدم في data/voice-install.log"
@@ -30,7 +29,9 @@ fi
 stop_voice() {
   [ -n "$VOICE_PID" ] || return 0
   kill "$VOICE_PID" 2>/dev/null
-  php $PHPARGS tools/voices.php stop >/dev/null 2>&1
+  sleep 1
+  # يوقف خادم الصوت فقط إن لم تبقَ خدمة صوت أخرى (تشغيل ثانٍ لبصير لا يوقف الأول)
+  php $PHPARGS tools/voices.php stop --if-orphan >/dev/null 2>&1
   VOICE_PID=""
 }
 trap stop_voice EXIT

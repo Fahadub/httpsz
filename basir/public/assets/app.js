@@ -123,7 +123,11 @@ const imagePx = () => state.imagePx;
 
 /** لغة الجهاز: اختيار الكفيف بالصوت (محفوظ على الجهاز) وإلا لغة الخادم الافتراضية. */
 function currentLanguage() {
-  return store.get('basir_lang') || state.server.settings.language || 'ar';
+  const s = state.server.settings;
+  const local = store.get('basir_lang');
+  // تبديل بالصوت على هذا الجوال، إلا إذا غيّر المساعد اللغة من صفحة الإعداد بعده
+  if (local && Number(store.get('basir_lang_at', 0)) >= Number(s.language_at || 0)) return local;
+  return s.language || 'ar';
 }
 
 function applyLanguage() {
@@ -136,11 +140,13 @@ function applyLanguage() {
     lang,
     locale: lang === 'en' ? s.speech_lang_en : s.speech_lang,
     serverVoices: { ar: !!(voices.ar && voices.ar.ready), en: !!(voices.en && voices.en.ready) },
+    voiceIds: { ar: (voices.ar || {}).voice || '', en: (voices.en || {}).voice || '' },
   });
 }
 
 function switchLanguage(lang) {
   store.set('basir_lang', lang);
+  store.set('basir_lang_at', Math.floor(Date.now() / 1000));
   applyLanguage();
   refreshUi();
   preloadPhrases();
@@ -193,6 +199,8 @@ async function boot() {
   try {
     state.server = await api('status');
   } catch (e) {
+    document.documentElement.lang = getLang();
+    document.documentElement.dir = getLang() === 'ar' ? 'rtl' : 'ltr';
     ui('error');
     show(e.message + (isNative ? t('server.openSetup') : ''));
     if (isNative) setTimeout(() => location.replace('setup.html#server'), 2500);
@@ -362,7 +370,9 @@ async function runCommand(text) {
       const r = Math.max(0.6, Math.min(1.8, tts.rate + (cmd === 'faster' ? 0.15 : -0.15)));
       tts.rate = Math.round(r * 100) / 100;
       store.set('basir_rate', tts.rate);
-      return say(t(cmd));
+      const done = say(t(cmd));
+      done.finally(preloadPhrases); // العبارات الثابتة بالسرعة الجديدة
+      return done;
     }
     case 'install':
       if (!install.available()) return say(t('install.none'));
@@ -704,7 +714,7 @@ async function recheckVoices() {
   if ((v[getLang()] || {}).ready || Date.now() - voiceCheckAt < 30000) return;
   voiceCheckAt = Date.now();
   try {
-    const s = await api('status', null, { timeout: 8000 });
+    const s = await api('status', null, { timeout: 8000, background: true });
     if (s.voices && (s.voices[getLang()] || {}).ready) {
       state.server.voices = s.voices;
       applyLanguage();
@@ -713,11 +723,22 @@ async function recheckVoices() {
   } catch { /* الخادم مشغول */ }
 }
 
+let preloadAt = 0;
 async function pollNodes() {
   if (document.hidden || !state.ready) return;
   recheckVoices();
+  if (Date.now() - preloadAt > 60000) {
+    preloadAt = Date.now();
+    preloadPhrases(); // يكمل ما فات (بعد انقطاع أو بطء)، ولا يجلب الموجود
+  }
   try {
-    const r = await api('nodes', null, { timeout: 8000 });
+    const r = await api('nodes', null, { timeout: 8000, background: true });
+    // خادم الصوت غيّر صوته (اكتمل تنزيل صوت أفضل، أو اختير صوت آخر): تسجيلات جديدة
+    const ids = r.voice_ids || {};
+    if (Object.keys(ids).some((l) => ids[l] && ids[l] !== tts.voiceIds[l])) {
+      tts.configure({ voiceIds: ids });
+      preloadPhrases();
+    }
     const now = new Set(r.nodes.map((n) => n.dir));
     const msgs = [];
     for (const n of r.nodes) if (!state.knownNodes.has(n.dir)) msgs.push(t('node.linked', { name: dirName(n.dir) }));

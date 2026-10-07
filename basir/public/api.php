@@ -22,6 +22,10 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/src/bootstrap.php';
 require dirname(__DIR__) . '/src/Voice.php';
 
+// PHP بلا php.ini (ويندوز) يعرض التحذيرات داخل الرد فيُفسد JSON والصوت: تذهب للسجل فقط
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+
 const NODE_DIRS = ['front' => ['الأمام', 'front'], 'right' => ['اليمين', 'right'], 'back' => ['الخلف', 'back'], 'left' => ['اليسار', 'left']];
 const NODE_FRESH_SECONDS = 12;
 const MAX_BODY_BYTES = 30 * 1024 * 1024;
@@ -61,7 +65,7 @@ try {
         'memory_clear' => action_memory_clear(body()),
         'node_frame'   => action_node_frame(body()),
         'node_leave'   => action_node_leave(body()),
-        'nodes'        => ['ok' => true, 'nodes' => fresh_nodes()],
+        'nodes'        => ['ok' => true, 'nodes' => fresh_nodes(), 'voice_ids' => Voice::liveIds()],
         'tts'          => action_tts(body()),
         'voices'       => ['ok' => true, 'voices' => VoiceCatalog::listForSetup(), 'status' => Voice::status(settings_of(load_config()))],
         default        => throw new ApiError(tr('أمر غير معروف.', 'Unknown action.'), 404),
@@ -224,6 +228,9 @@ function candidate_config(array $in, array $current): array
         $v = VoiceCatalog::voice($id);
         $settings['voice_' . $lang] = $v && $v['lang'] === $lang ? $id : '';
     }
+    // لغة غيّرها المساعد هنا تتقدم على تبديل سابق بالصوت على الجوال (انظر currentLanguage في app.js)
+    $was = $current ? settings_of($current) : null;
+    $settings['language_at'] = !$was || $was['language'] !== $settings['language'] ? time() : (int) ($was['language_at'] ?? 0);
 
     $label = trim((string) ($in['label'] ?? ''));
     return [

@@ -33,8 +33,11 @@ function load_voices(array $runtime, int $threads): array
     $voices = VoiceCatalog::readyVoices(settings_of(load_config()));
     $engine = new SherpaTts($runtime['library'], $runtime['preload'] ?? []);
     $t0 = microtime(true);
+    $marker = VoiceCatalog::dir() . '/loading.json';
     foreach ($voices as $lang => $v) {
         try {
+            // إن انهار التحميل (ملف نموذج تالف يُسقط المحرك) يعرف المشرف أي نموذج يحذف ويعيد تنزيله
+            @file_put_contents($marker, json_encode(['model' => $v['model'], 'pid' => getmypid()]));
             $engine->load($v['model'], VoiceCatalog::MODELS[$v['model']], $v['dir'], $threads);
             vlog(sprintf('%s voice: %s', $lang, $v['id']));
         } catch (Throwable $e) {
@@ -46,10 +49,12 @@ function load_voices(array $runtime, int $threads): array
     // تسخين: أول جملة أبطأ قليلاً، فننطقها الآن بدل أن ينتظرها الكفيف
     foreach ($voices as $lang => $v) {
         try {
+            @file_put_contents($marker, json_encode(['model' => $v['model'], 'pid' => getmypid()]));
             $engine->speak($v, $lang === 'en' ? 'Ready.' : 'جاهز.');
         } catch (Throwable) {
         }
     }
+    @unlink($marker);
     return [$engine, $voices];
 }
 
@@ -79,8 +84,12 @@ if (!$server) {
 /** يسجّل الأصوات الجاهزة حتى تعرفها الواجهة البرمجية وهذا الخادم مشغول بنطق جملة طويلة. */
 function announce(int $port, array $voices): void
 {
-    write_json(data_path('voices/daemon.json'), ['pid' => getmypid(), 'port' => $port, 'started' => gmdate('c'),
-        'voices' => array_map(static fn ($v) => $v['id'], $voices)]);
+    try {
+        write_json(data_path('voices/daemon.json'), ['pid' => getmypid(), 'port' => $port, 'started' => gmdate('c'),
+            'voices' => array_map(static fn ($v) => $v['id'], $voices)]);
+    } catch (Throwable $e) {
+        vlog('cannot write daemon.json: ' . $e->getMessage()); // قرص ممتلئ: نكمل بلا هذا الملف
+    }
 }
 announce($port, $voices);
 vlog("listening on 127.0.0.1:$port");

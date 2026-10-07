@@ -81,6 +81,13 @@ function download(string $url, string $dest, int $size, string $sha256, string $
         @unlink($tmp);
         $have = 0;
     }
+    // مساحة كافية للتنزيل وفك الضغط معاً؟ (لا نملأ القرص فيتوقف بصير كله)
+    $need = ($size - $have) + max((int) ($size * 1.25), 40 * 1048576) + 50 * 1048576;
+    $free = @disk_free_space(dirname($dest));
+    if ($free !== false && $free < $need) {
+        @unlink($tmp);
+        throw new RuntimeException(sprintf('not enough disk space for %s: %d MB free, about %d MB needed', $label, $free / 1048576, $need / 1048576));
+    }
     $fh = fopen($tmp, $have ? 'ab' : 'wb');
     if (!$fh) {
         throw new RuntimeException("cannot write $tmp");
@@ -136,11 +143,15 @@ function download(string $url, string $dest, int $size, string $sha256, string $
     curl_setopt_array($ch, $opts);
     $ok = curl_exec($ch);
     $err = curl_error($ch);
+    $errno = curl_errno($ch);
     curl_close($ch);
     fclose($fh);
     fwrite(STDOUT, PHP_EOL);
     if (!$ok) {
-        // نُبقي الجزء المنزَّل ليُستأنف في المحاولة التالية
+        if ($errno === 23 || $errno === 33) {
+            @unlink($tmp); // تعذرت الكتابة (قرص ممتلئ) أو رفض الخادم الاستئناف: نبدأ من جديد لاحقاً
+        }
+        // غير ذلك نُبقي الجزء المنزَّل ليُستأنف في المحاولة التالية
         throw new RuntimeException("download interrupted: $err ($label)");
     }
     clearstatcache();
@@ -197,7 +208,12 @@ function extract_atomic(string $archive, string $into, string $top): void
 {
     $tmp = "$into/.partial-$top";
     rrmdir($tmp);
-    extract_tbz($archive, $tmp);
+    try {
+        extract_tbz($archive, $tmp);
+    } catch (Throwable $e) {
+        rrmdir($tmp); // لا نترك نصف نموذج يشغل القرص
+        throw $e;
+    }
     if (!is_dir("$tmp/$top")) {
         rrmdir($tmp);
         throw new RuntimeException("unexpected archive layout: $top missing");
@@ -254,6 +270,7 @@ function install_model(array &$state, string $key): bool
         download(VoiceCatalog::modelUrl($key), $archive, $m['size'], $m['sha256'], $key);
         progress(['stage' => 'extract', 'model' => $key]);
         extract_atomic($archive, VoiceCatalog::dir() . '/models', $m['archive']);
+        VoiceCatalog::writeManifest($key);
         @unlink($archive);
     }
     if (!VoiceCatalog::modelInstalled($key)) {
@@ -335,13 +352,22 @@ function stop_daemon(): void
 /** خيارات PHP التي يحتاجها خادم الصوت (ffi، وإضافات ويندوز بلا php.ini) كما يحسبها php_args.php. */
 function child_php_args(): array
 {
-    $p = proc_open([PHP_BINARY, __DIR__ . '/php_args.php', '--json'], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-    $json = is_resource($p) ? stream_get_contents($pipes[1]) : '';
+    // تحذيرات بدء PHP (إضافة لا تُحمَّل في php.ini) قد تُطبع قبل الجواب: نُسكتها ونأخذ آخر سطر
+    $p = proc_open([PHP_BINARY, '-d', 'display_startup_errors=0', '-d', 'display_errors=stderr', __DIR__ . '/php_args.php', '--json'],
+        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    $outText = '';
     if (is_resource($p)) {
+        $outText = (string) stream_get_contents($pipes[1]);
+        stream_get_contents($pipes[2]);
         proc_close($p);
     }
-    $args = json_decode((string) $json, true);
-    return is_array($args) ? $args : ['-d', 'ffi.enable=1'];
+    $lines = array_values(array_filter(array_map('trim', explode("\n", $outText))));
+    $args = $lines ? json_decode((string) end($lines), true) : null;
+    if (!is_array($args)) {
+        out('✗ could not read PHP options for the voice server (tools/php_args.php); trying with ffi only');
+        return ['-d', 'ffi.enable=1', '-d', 'extension=ffi'];
+    }
+    return $args;
 }
 
 /** @return resource|null */
@@ -358,6 +384,38 @@ function start_daemon(array $phpArgs)
     return $p;
 }
 
+/** هل يكفي المثبت ليتكلم بصير الآن (المحرك + صوت لكل لغة)؟ */
+function voices_usable(): bool
+{
+    return VoiceCatalog::runtime() !== null
+        && count(VoiceCatalog::readyVoices(settings_of(load_config()))) === count(VoiceCatalog::VOICES);
+}
+
+/**
+ * تنزيل الأصوات الأكبر في عملية منفصلة، حتى يبقى المشرف يراقب خادم الصوت أثناء تنزيل طويل.
+ * @return resource|null
+ */
+function start_installer(array $phpArgs)
+{
+    $p = proc_open(array_merge([PHP_BINARY], $phpArgs, [__FILE__, 'install', '--reload']), [0 => ['pipe', 'r'], 1 => STDOUT, 2 => STDOUT], $pipes);
+    return is_resource($p) ? $p : null;
+}
+
+/** صوت تعطّل تحميله فأوقع خادم الصوت: نحذفه ليُنزَّل من جديد، ويعمل الخادم بغيره الآن. */
+function quarantine_crashed_model(): bool
+{
+    $marker = VoiceCatalog::dir() . '/loading.json';
+    $info = read_json($marker);
+    @unlink($marker);
+    $key = (string) ($info['model'] ?? '');
+    if (!isset(VoiceCatalog::MODELS[$key]) || !is_dir(VoiceCatalog::modelDir($key))) {
+        return false;
+    }
+    out("✗ voice model $key is damaged (the voice server stopped while loading it); it will be downloaded again");
+    rrmdir(VoiceCatalog::modelDir($key));
+    return true;
+}
+
 /**
  * خدمة الصوت في الخلفية: بصير يعمل من البداية (بصوت الجهاز)، وهذه الخدمة تجهّز الصوت المدمج
  * ثم تبقيه يعمل. يكفي أن تُغلق نافذة بصير لتتوقف كلها.
@@ -372,67 +430,90 @@ function run_service(): void
     }
     $phpArgs = child_php_args();
 
-    // 1) ما يكفي ليتكلم بصير (إعادة المحاولة إن لم يتوفر الإنترنت؛ التنزيل يُستأنف)
+    // 1) ما يكفي ليتكلم بصير (إعادة المحاولة إن لم يتوفر الإنترنت؛ التنزيل يُستأنف).
+    //    إن كان المثبت يكفي أصلاً (تثبيت سابق) نبدأ الخادم حتى لو فشلت المحاولة.
     for ($try = 1; ; $try++) {
         try {
             install_all(['--quick']);
             break;
         } catch (Throwable $e) {
+            out('✗ ' . $e->getMessage());
+            if (voices_usable()) {
+                break;
+            }
             $wait = min(300, 30 * $try);
             progress(['stage' => 'error', 'error' => $e->getMessage(), 'retry_in' => $wait]);
-            out('✗ ' . $e->getMessage() . " — retrying in {$wait}s");
+            out("  retrying in {$wait}s");
             sleep($wait);
         }
     }
 
-    // 2) خادم الصوت، و3) الأصوات الأكبر في الخلفية، و4) إعادة تشغيله إن توقف فجأة
+    // 2) خادم الصوت، و3) الأصوات الأكبر في عملية منفصلة، و4) إعادة تشغيل الخادم إن توقف فجأة
     stop_daemon();
     $daemon = start_daemon($phpArgs);
+    $installer = null;
     $restDone = false;
     $restAt = time() + 5;
     $restTry = 0;
     $nextCheck = 0;
     $crashes = [];
+    $gaveUp = false;
     while (true) {
-        // صوت جديد اختير في صفحة الإعداد ولم يُنزَّل بعد
-        if ($restDone && time() >= $nextCheck) {
+        // صوت جديد اختير في صفحة الإعداد، أو صوت حُذف لتلفه، ولم يُنزَّل بعد
+        if ($restDone && !$installer && time() >= $nextCheck) {
             $nextCheck = time() + 30;
-            $missing = array_filter(wanted_models([]), static fn ($k) => !VoiceCatalog::modelInstalled($k));
-            if ($missing) {
+            if (array_filter(wanted_models([]), static fn ($k) => !VoiceCatalog::modelInstalled($k))) {
                 $restDone = false;
                 $restAt = time();
                 $restTry = 0;
             }
         }
-        if (!$restDone && time() >= $restAt) {
-            try {
-                if (install_all([])) {
-                    reload_daemon();
+        if (!$restDone && !$installer && time() >= $restAt) {
+            $installer = start_installer($phpArgs);
+        }
+        if ($installer) {
+            $ist = proc_get_status($installer);
+            if (!$ist['running']) {
+                proc_close($installer);
+                $installer = null;
+                if ($ist['exitcode'] === 0) {
+                    $restDone = true;
+                    progress(['stage' => 'done']);
+                } else {
+                    $wait = min(600, 60 * ++$restTry);
+                    $restAt = time() + $wait;
+                    out("  voice download failed; retrying in {$wait}s");
                 }
-                $restDone = true;
-                progress(['stage' => 'done']);
-            } catch (Throwable $e) {
-                $wait = min(600, 60 * ++$restTry);
-                $restAt = time() + $wait;
-                progress(['stage' => 'error', 'error' => $e->getMessage(), 'retry_in' => $wait]);
-                out('✗ ' . $e->getMessage() . " — retrying in {$wait}s");
             }
         }
         $st = $daemon ? proc_get_status($daemon) : ['running' => false, 'exitcode' => -1];
         if (!$st['running']) {
             if ($daemon) {
                 proc_close($daemon);
+                $daemon = null;
+                out('voice server stopped (exit ' . $st['exitcode'] . ')');
+                if ($st['exitcode'] !== 0 && quarantine_crashed_model()) {
+                    $crashes = [];
+                    $restDone = false;
+                    $restAt = time();
+                }
+            }
+            // لا أصوات صالحة الآن: ننتظر التنزيل بدل تشغيله وإيقافه مراراً
+            if (!voices_usable()) {
+                sleep(2);
+                continue;
             }
             $crashes = array_values(array_filter($crashes, static fn ($t) => $t > time() - 600));
             if (count($crashes) >= 5) {
-                out('✗ the voice server keeps stopping (see data/voice.log); the device voice is used until Basir restarts');
-                progress(['stage' => 'error', 'error' => 'voice server keeps stopping']);
-                $daemon = null;
-                sleep(60);
+                if (!$gaveUp) {
+                    $gaveUp = true;
+                    out('✗ the voice server keeps stopping (see data/voice.log); the device voice is used until Basir restarts');
+                    progress(['stage' => 'error', 'error' => 'voice server keeps stopping']);
+                }
+                sleep(10);
                 continue;
             }
             $crashes[] = time();
-            out('voice server stopped (exit ' . $st['exitcode'] . '); restarting');
             sleep($st['exitcode'] === 4 ? 15 : 3); // 4 = المنفذ مشغول (خادم قديم ما زال يتوقف)
             $daemon = start_daemon($phpArgs);
         }
@@ -482,7 +563,14 @@ try {
             break;
 
         case 'stop':
-            // إيقاف خادم صوت قديم (قبل تشغيل جديد)
+            // --if-orphan: فقط إن لم تعد خدمة صوت تعمل (خدمة حية تمسك قفلها)
+            if (in_array('--if-orphan', $args, true)) {
+                $lock = @fopen(VoiceCatalog::dir() . '/service.lock', 'c');
+                if ($lock && !flock($lock, LOCK_EX | LOCK_NB)) {
+                    out('a voice service is still running; not stopping its voice server');
+                    break;
+                }
+            }
             stop_daemon();
             break;
 
