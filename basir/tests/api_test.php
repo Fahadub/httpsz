@@ -162,5 +162,19 @@ check('save with pin ok', $r['code'] === 200, $r);
 $r = call('reset', ['pin' => '1234']);
 check('reset', $r['code'] === 200 && $r['json']['configured'] === false, $r);
 
+echo "نطق الأرقام العربية\n";
+require_once __DIR__ . '/../src/SherpaTts.php';
+$nums = [
+    'تقدم 3 خطوات للأمام.' => 'تقدم ثلاث خطوات للأمام.',
+    'بعد 3 أمتار' => 'بعد ثلاثة أمتار',
+    'انتظر ٥ دقائق' => 'انتظر خمس دقائق',
+    'بعد 12 خطوة' => 'بعد اثنتا عشرة خطوة',
+    'بعد 15 مترا' => 'بعد خمسة عشر مترا',
+    'النموذج 4.1' => 'النموذج أربعة فاصلة واحد',
+];
+foreach ($nums as $in => $want) {
+    check("digits → words: $in", SherpaTts::arabicNumbers($in) === $want, SherpaTts::arabicNumbers($in));
+}
+
 echo "\n$passes نجح، $fails فشل\n";
 exit($fails ? 1 : 0);

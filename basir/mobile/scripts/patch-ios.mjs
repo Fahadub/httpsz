@@ -31,4 +31,17 @@ if (add) {
   s = s.slice(0, i) + add + s.slice(i);
   fs.writeFileSync(plist, s);
 }
+// الصوت المدمج يُشغَّل عبر WebAudio: فئة «playback» تجعله مسموعاً حتى مع زر الوضع الصامت
+const delegate = path.resolve(here, '../ios/App/App/AppDelegate.swift');
+if (fs.existsSync(delegate)) {
+  let d = fs.readFileSync(delegate, 'utf8');
+  const hook = /(didFinishLaunchingWithOptions[^{]*\{\n)/;
+  if (!d.includes('AVAudioSession') && hook.test(d)) {
+    d = d.replace('import UIKit', 'import UIKit\nimport AVFoundation');
+    d = d.replace(hook, '$1        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])\n');
+    fs.writeFileSync(delegate, d);
+  } else if (!d.includes('AVAudioSession')) {
+    console.warn('تنبيه: لم أجد didFinishLaunchingWithOptions في AppDelegate.swift؛ أضف فئة الصوت playback يدوياً.');
+  }
+}
 console.log('✓ تم تجهيز مشروع iOS. افتحه في Xcode: npx cap open ios');

@@ -28,12 +28,18 @@ function req(string $base, string $action, ?array $body = null, int $timeout = 6
     return ['code' => $info['http_code'], 'type' => (string) $info['content_type'], 'body' => (string) $raw, 'secs' => microtime(true) - $t];
 }
 
-// 1) جاهزية الصوت المدمج
+// 1) جاهزية الصوت المدمج: أولاً أي صوت (قد يكون الخفيف ريثما يُنزَّل الإنجليزي في الخلفية)، ثم الأصوات الافتراضية
 $ready = false;
-for ($i = 0; $i < 200 && !$ready; $i++) {
+$first = null;
+for ($i = 0; $i < 250 && !$ready; $i++) {
     $r = req($base, 'status', null, 5);
     $j = json_decode($r['body'], true);
-    $ready = !empty($j['voices']['ar']['ready']) && !empty($j['voices']['en']['ready']);
+    $v = $j['voices'] ?? [];
+    if (!$first && !empty($v['ar']['ready']) && !empty($v['en']['ready'])) {
+        $first = $v;
+        echo "  first voices: ar={$v['ar']['voice']} en={$v['en']['voice']}\n";
+    }
+    $ready = $first && ($v['ar']['voice'] ?? '') === 'ar-salem' && ($v['en']['voice'] ?? '') === 'en-hannah' && !empty($v['en']['ready']);
     if (!$ready) {
         sleep(2);
     }

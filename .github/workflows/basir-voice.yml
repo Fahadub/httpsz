@@ -105,6 +105,7 @@ jobs:
         run: |
           if exist start.log type start.log
           if exist data\voice.log type data\voice.log
+          if exist data\voice-install.log type data\voice-install.log
 
       - uses: actions/upload-artifact@v4
         if: always()

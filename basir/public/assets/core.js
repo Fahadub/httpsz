@@ -90,16 +90,31 @@ let actx = null;
 /** سياق الصوت المشترك (للصوت المدمج والصفارات). يُنشأ عند أول حاجة. */
 export function audioCtx() {
   if (!actx) {
+    // آيفون (16.4+): بدون «playback» يُسكت زر الوضع الصامت صوت التطبيق كله
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* */ }
     try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch { actx = null; }
   }
   return actx;
+}
+
+/** سياق صوت جديد بدل سياق علق (آيفون بعد مكالمة). يُفتح عند اللمسة التالية. */
+function resetAudioCtx() {
+  try { actx && actx.close(); } catch { /* */ }
+  actx = null;
+  unlockAudio.done = false;
+  return audioCtx();
+}
+
+/** يعيد تشغيل الصوت عند العودة للتطبيق (يكفي في أندرويد وويندوز؛ آيفون ينتظر اللمسة التالية). */
+export function resumeAudio() {
+  if (actx && actx.state !== 'running') actx.resume().catch(() => {});
 }
 
 /** يجب استدعاؤها داخل لمسة المستخدم: المتصفحات لا تسمح بالصوت قبلها. */
 export function unlockAudio() {
   const ctx = audioCtx();
   try {
-    if (ctx && ctx.state !== 'running') ctx.resume();
+    if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {});
     // آيفون: تشغيل عيّنة صامتة داخل اللمسة يفتح الصوت نهائياً
     if (ctx && !unlockAudio.done) {
       const src = ctx.createBufferSource();
@@ -246,7 +261,7 @@ export const tts = {
         return;
       } catch (e) {
         if (e && e.code === 'not-allowed') return;
-        this._serverFailures++;
+        if (!(e && e.code === 'interrupted')) this._serverFailures++;
         console.warn('basir voice:', e);
         if (gen !== this._gen) return;
       }
@@ -258,8 +273,14 @@ export const tts = {
   async _speakServer(text, gen) {
     const ctx = audioCtx();
     if (!(await ensureRunning(ctx))) {
-      this.allowed = false;
-      throw Object.assign(new Error('audio locked'), { code: 'not-allowed' });
+      if (!unlockAudio.done) {
+        // لم يلمس المستخدم الشاشة بعد: ننتظر لمسته
+        this.allowed = false;
+        throw Object.assign(new Error('audio locked'), { code: 'not-allowed' });
+      }
+      // كان يعمل ثم علق (مكالمة، أو التطبيق في الخلفية): صوت الجهاز الآن، وسياق جديد يُفتح باللمسة التالية
+      resetAudioCtx();
+      throw Object.assign(new Error('audio interrupted'), { code: 'interrupted' });
     }
     this.allowed = true; // الصوت مسموح: الترحيب بدأ فعلاً حتى لو لم يصل الملف الصوتي بعد
     const parts = splitSentences(text);

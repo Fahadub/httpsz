@@ -17,16 +17,20 @@ export PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-6}"
 VOICE_PID=""
 if [ "${BASIR_NO_VOICE:-0}" != "1" ]; then
   if php $PHPARGS -r 'exit(extension_loaded("ffi") ? 0 : 1);'; then
-    php $PHPARGS tools/voices.php install || echo "تعذر تنزيل الأصوات الآن — سيُستخدم صوت الجهاز مؤقتاً."
+    # أولاً ما يكفي ليتكلم بصير فوراً (~140 MB)
+    php $PHPARGS tools/voices.php install --quick || echo "تعذر تنزيل الأصوات الآن — سيُستخدم صوت الجهاز مؤقتاً."
     php $PHPARGS tools/voices.php stop >/dev/null 2>&1
     php $PHPARGS src/voice_daemon.php 2>>data/voice.log &
     VOICE_PID=$!
+    # ثم الصوت الإنجليزي المميز في الخلفية؛ يُستخدم تلقائياً عند اكتماله
+    php $PHPARGS tools/voices.php install --reload >data/voice-install.log 2>&1 &
+    VOICE_PID="$VOICE_PID $!"
   else
     echo "تنبيه: إضافة PHP FFI غير مفعّلة، لذلك سيُستخدم صوت الجهاز بدل الصوت المدمج."
     echo "       (أوبونتو/ديبيان: ثبّت حزمة php-ffi أو فعّل ffi في php.ini)"
   fi
 fi
-trap '[ -n "$VOICE_PID" ] && kill "$VOICE_PID" 2>/dev/null' EXIT INT TERM
+trap '[ -n "$VOICE_PID" ] && kill $VOICE_PID 2>/dev/null' EXIT INT TERM
 
 echo
 echo "بصير يعمل على:"

@@ -224,9 +224,11 @@ C;
     public static function arabicNumbers(string $text): string
     {
         $text = strtr($text, ['٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9', '٫' => '.']);
-        return (string) preg_replace_callback('/\d+(?:[.,]\d+)?/', static function ($m) {
-            $parts = preg_split('/[.,]/', $m[0]);
-            $words = self::intToArabic((int) $parts[0]);
+        // العدد يخالف المعدود في التذكير والتأنيث: «ثلاث خطوات» لكن «ثلاثة أمتار»
+        return (string) preg_replace_callback('/(\d+(?:[.,]\d+)?)(?=(\s*[\x{0600}-\x{06FF}]+)?)/u', static function ($m) {
+            $parts = preg_split('/[.,]/', $m[1]);
+            $fem = !isset($parts[1]) && self::feminineNoun($m[2] ?? '');
+            $words = self::intToArabic((int) $parts[0], $fem);
             if (isset($parts[1]) && $parts[1] !== '') {
                 $words .= ' فاصلة ' . self::intToArabic((int) $parts[1]);
             }
@@ -234,23 +236,33 @@ C;
         }, $text);
     }
 
-    private static function intToArabic(int $n): string
+    /** معدودات مؤنثة شائعة في الإرشاد (الكلمة التي تلي الرقم). */
+    private static function feminineNoun(string $word): bool
+    {
+        $w = preg_replace('/^(?:ال|بال|لل)/u', '', self::stripTashkeel(trim($word)));
+        return (bool) preg_match('/^(?:خطو(?:ة|ات|تين|تان)|دقيق(?:ة|تين|تان)|دقائق|ثاني(?:ة|تين|تان)|ثوان[يٍ]?|درج(?:ة|ات|تين|تان)|مر(?:ة|ات|تين|تان)|ساع(?:ة|ات|تين|تان)|سيار(?:ة|ات|تين|تان)|طاول(?:ة|ات)|بوص(?:ة|ات)|عتب(?:ة|ات))$/u', (string) $w);
+    }
+
+    private static function intToArabic(int $n, bool $fem = false): string
     {
         static $ones = ['صفر', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة'];
         static $teens = ['عشرة', 'أحد عشر', 'اثنا عشر', 'ثلاثة عشر', 'أربعة عشر', 'خمسة عشر', 'ستة عشر', 'سبعة عشر', 'ثمانية عشر', 'تسعة عشر'];
+        // مع المعدود المؤنث
+        static $onesF = ['صفر', 'واحدة', 'اثنتان', 'ثلاث', 'أربع', 'خمس', 'ست', 'سبع', 'ثماني', 'تسع'];
+        static $teensF = ['عشر', 'إحدى عشرة', 'اثنتا عشرة', 'ثلاث عشرة', 'أربع عشرة', 'خمس عشرة', 'ست عشرة', 'سبع عشرة', 'ثماني عشرة', 'تسع عشرة'];
         static $tens = [2 => 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون'];
         static $hundreds = [1 => 'مئة', 'مئتان', 'ثلاثمئة', 'أربعمئة', 'خمسمئة', 'ستمئة', 'سبعمئة', 'ثمانمئة', 'تسعمئة'];
         if ($n < 10) {
-            return $ones[$n];
+            return ($fem ? $onesF : $ones)[$n];
         }
         if ($n < 20) {
-            return $teens[$n - 10];
+            return ($fem ? $teensF : $teens)[$n - 10];
         }
         if ($n < 100) {
-            return ($n % 10 ? $ones[$n % 10] . ' و' : '') . $tens[intdiv($n, 10)];
+            return ($n % 10 ? ($fem ? $onesF : $ones)[$n % 10] . ' و' : '') . $tens[intdiv($n, 10)];
         }
         if ($n < 1000) {
-            return $hundreds[intdiv($n, 100)] . ($n % 100 ? ' و' . self::intToArabic($n % 100) : '');
+            return $hundreds[intdiv($n, 100)] . ($n % 100 ? ' و' . self::intToArabic($n % 100, $fem) : '');
         }
         if ($n < 1000000) {
             $k = intdiv($n, 1000);
@@ -260,7 +272,7 @@ C;
                 $k <= 10 => self::intToArabic($k) . ' آلاف',
                 default => self::intToArabic($k) . ' ألف',
             };
-            return $head . ($n % 1000 ? ' و' . self::intToArabic($n % 1000) : '');
+            return $head . ($n % 1000 ? ' و' . self::intToArabic($n % 1000, $fem) : '');
         }
         return (string) $n;
     }

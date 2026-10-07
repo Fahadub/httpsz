@@ -2,7 +2,10 @@
 /**
  * بصير — تثبيت الأصوات المدمجة وإدارتها (مرة واحدة، ثم تعمل بلا إنترنت).
  *
- *   php tools/voices.php install            يثبّت المحرك والصوت الافتراضي لكل لغة (عربي + إنجليزي)
+ *   php tools/voices.php install            يثبّت المحرك والصوت المختار لكل لغة (عربي + إنجليزي)
+ *   php tools/voices.php install --quick    ما يكفي ليتكلم بصير فوراً (~140 MB): الصوت الكبير المختار
+ *                                           يُستبدل مؤقتاً بالصوت الخفيف حتى يُنزَّل لاحقاً
+ *   php tools/voices.php install --reload   بعد التثبيت يُبلغ خادم الصوت ليستخدم الأصوات الجديدة
  *   php tools/voices.php install --all      يثبّت كل الأصوات المتاحة
  *   php tools/voices.php install ar-kareem  يثبّت أصواتاً محددة (أو نماذج: supertonic3 kokoro kareem)
  *   php tools/voices.php status             ما هو مثبت
@@ -15,8 +18,11 @@ declare(strict_types=1);
 require __DIR__ . '/../src/bootstrap.php';
 require __DIR__ . '/../src/VoiceCatalog.php';
 require __DIR__ . '/../src/SherpaTts.php';
+require __DIR__ . '/../src/Voice.php';
 
 const STATE = 'installed.json';
+// --quick: النماذج الأكبر من هذا تُؤجَّل إلى التنزيل في الخلفية
+const QUICK_MAX_BYTES = 200 * 1048576;
 
 // تنزيل النماذج الكبيرة يحتاج ذاكرة ووقتاً أطول من إعدادات PHP الافتراضية
 ini_set('memory_limit', '512M');
@@ -149,13 +155,15 @@ function install_runtime(array &$state): void
     out("✓ voice engine ready ($platform)");
 }
 
-function install_model(array &$state, string $key): void
+/** @return bool هل نُزِّل الآن (لا كان مثبتاً من قبل) */
+function install_model(array &$state, string $key): bool
 {
     $m = VoiceCatalog::MODELS[$key] ?? null;
     if (!$m) {
         throw new RuntimeException("unknown model $key");
     }
-    if (!VoiceCatalog::modelInstalled($key)) {
+    $fresh = !VoiceCatalog::modelInstalled($key);
+    if ($fresh) {
         $archive = VoiceCatalog::dir() . "/downloads/$key.tar.bz2";
         out(sprintf('Downloading voice model "%s" (%d MB) …', $key, round($m['size'] / 1048576)));
         download(VoiceCatalog::modelUrl($key), $archive, $m['size'], $m['sha256'], $key);
@@ -165,9 +173,10 @@ function install_model(array &$state, string $key): void
     if (!VoiceCatalog::modelInstalled($key)) {
         throw new RuntimeException("voice files missing after extract: " . VoiceCatalog::modelDir($key));
     }
-    $state['models'][$key] = ['installed_at' => gmdate('c')];
+    $state['models'][$key] ??= ['installed_at' => gmdate('c')];
     save_state($state);
     out("✓ voice model $key ready");
+    return $fresh;
 }
 
 /** النماذج اللازمة: أسماء أصوات أو نماذج من سطر الأوامر، أو الأصوات المختارة/الافتراضية لكل لغة. */
@@ -188,8 +197,13 @@ function wanted_models(array $args): array
     }
     if (!$keys) {
         $settings = settings_of(load_config());
+        $quick = in_array('--quick', $args, true);
         foreach (array_keys(VoiceCatalog::VOICES) as $lang) {
-            $keys[] = VoiceCatalog::voice(VoiceCatalog::chosenVoice($lang, $settings))['model'];
+            $key = VoiceCatalog::voice(VoiceCatalog::chosenVoice($lang, $settings))['model'];
+            if ($quick && !VoiceCatalog::modelInstalled($key) && VoiceCatalog::MODELS[$key]['size'] > QUICK_MAX_BYTES) {
+                $key = VoiceCatalog::LIGHT_MODEL;
+            }
+            $keys[] = $key;
         }
     }
     return array_values(array_unique($keys));
@@ -207,8 +221,16 @@ try {
             }
             $state = state();
             install_runtime($state);
+            $fresh = false;
             foreach (wanted_models($args) as $key) {
-                install_model($state, $key);
+                $fresh = install_model($state, $key) || $fresh;
+            }
+            if ($fresh && in_array('--reload', $args, true)) {
+                // خادم الصوت قد يكون ما زال يُحمِّل: نحاول لدقيقة
+                for ($i = 0; $i < 60 && !Voice::reload(); $i++) {
+                    sleep(1);
+                }
+                out($i < 60 ? '✓ voice server now uses the new voices' : 'voice server not reachable; the new voices are used after a restart');
             }
             break;
 

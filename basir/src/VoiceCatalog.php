@@ -15,6 +15,8 @@ final class VoiceCatalog
 {
     public const RUNTIME_VERSION = '1.13.8';
     public const DAEMON_PORT = 7778;
+    /** نموذج خفيف يتكلم العربية والإنجليزية معاً: يكفي ليعمل بصير فوراً ريثما تُنزَّل الأصوات الأكبر. */
+    public const LIGHT_MODEL = 'supertonic3';
 
     private const RELEASES = 'https://github.com/k2-fsa/sherpa-onnx/releases/download';
 
@@ -194,7 +196,10 @@ final class VoiceCatalog
         foreach (array_keys(self::VOICES) as $lang) {
             $ids = array_keys(self::VOICES[$lang]);
             $chosen = self::chosenVoice($lang, $settings);
-            usort($ids, static fn ($a, $b) => ($b === $chosen) <=> ($a === $chosen));
+            // المختار أولاً، ثم صوت مثبت بنفس الجنس (ريثما يُنزَّل المختار)
+            $gender = self::voice($chosen)['gender'] ?? '';
+            $rank = static fn ($id) => ($id === $chosen ? 2 : 0) + (self::VOICES[$lang][$id]['gender'] === $gender ? 1 : 0);
+            usort($ids, static fn ($a, $b) => $rank($b) <=> $rank($a));
             foreach ($ids as $id) {
                 $v = self::voice($id);
                 if (self::modelInstalled($v['model'])) {

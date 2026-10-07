@@ -1,6 +1,6 @@
 // بصير — الشاشة الرئيسية للكفيف: زر ميكروفون واحد يملأ الشاشة، وكل شيء آخر بالصوت.
 import {
-  api, apiBase, tts, stt, Camera, orientation, wakeLock, sounds, beep, vibrate, unlockAudio,
+  api, apiBase, tts, stt, Camera, orientation, wakeLock, sounds, beep, vibrate, unlockAudio, resumeAudio,
   normalizeArabic, speakable, angleDiff, angleName, sleep, store, isNative, dirName,
   setupInstall, registerSW,
 } from './core.js';
@@ -377,6 +377,7 @@ function scheduleCameraOff() {
 
 function onVisibility() {
   if (document.hidden) return;
+  resumeAudio();
   if (state.nav) ensureCamera().catch(() => {});
 }
 
