@@ -1,0 +1,10 @@
+# Used when the whole project is uploaded into public_html (shared hosting).
+# Serves /public as the web root and blocks access to everything else (.env, src, vendor...).
+Options -Indexes
+RewriteEngine On
+
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+RewriteRule ^public/ - [L]
+RewriteRule ^(.*)$ public/$1 [L]
