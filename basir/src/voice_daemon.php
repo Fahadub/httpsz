@@ -112,7 +112,8 @@ while (true) {
                     throw new RuntimeException('empty or too long text');
                 }
                 $wav = $engine->speak($voices[$lang], $text, (float) ($req['speed'] ?? 1.0));
-                fwrite($conn, 'OK ' . strlen($wav) . "\n");
+                // الصوت المستخدم فعلاً، حتى تُحفظ النتيجة باسمه الصحيح
+                fwrite($conn, 'OK ' . strlen($wav) . ' ' . $voices[$lang]['id'] . "\n");
                 fwrite($conn, $wav);
                 break;
             case 'reload':

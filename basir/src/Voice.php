@@ -10,6 +10,7 @@ require_once __DIR__ . '/VoiceCatalog.php';
 final class Voice
 {
     private const CACHE_MAX_FILES = 400;
+    private const CACHE_MAX_BYTES = 150 * 1048576;
 
     /** حالة الأصوات لكل لغة، لواجهة التطبيق وصفحة الإعداد. */
     public static function status(array $settings): array
@@ -22,6 +23,11 @@ final class Voice
         }
         $live = is_array($ping) ? ($ping['voices'] ?? []) : [];
         $out = ['daemon' => is_array($ping), 'engine_installed' => VoiceCatalog::runtime() !== null, 'langs' => []];
+        // تقدم التنزيل في الخلفية (tools/voices.php run) لصفحة الإعداد
+        $progress = read_json(VoiceCatalog::dir() . '/progress.json');
+        if (($progress['stage'] ?? 'done') !== 'done' && ($progress['at'] ?? 0) > time() - 900) {
+            $out['install'] = $progress;
+        }
         foreach (array_keys(VoiceCatalog::VOICES) as $lang) {
             $id = $live[$lang] ?? VoiceCatalog::chosenVoice($lang, $settings);
             $v = $id ? VoiceCatalog::voice($id) : null;
@@ -37,26 +43,35 @@ final class Voice
         if ($text === '') {
             throw new RuntimeException('empty text');
         }
-        $voice = VoiceCatalog::readyVoices($settings)[$lang]['id'] ?? null;
+        // الصوت الذي يستخدمه خادم الصوت الآن (قد يختلف عن المختار ريثما يكتمل تنزيله)
+        $voice = read_json(data_path('voices/daemon.json'))['voices'][$lang]
+            ?? VoiceCatalog::readyVoices($settings)[$lang]['id'] ?? null;
         if (!$voice) {
             throw new RuntimeException("no $lang voice installed");
         }
         $speed = round(max(0.5, min(2.0, $speed)), 2);
         $cacheDir = VoiceCatalog::dir() . '/cache';
-        $file = $cacheDir . '/' . sha1("$voice|$speed|$text") . '.wav';
-        if (is_file($file)) {
+        $cached = static fn (string $v) => $cacheDir . '/' . sha1("$v|$speed|$text") . '.wav';
+        $file = $cached((string) $voice);
+        if (is_file($file) && filesize($file) > 44) {
             @touch($file);
             return (string) file_get_contents($file);
         }
 
-        $wav = self::request(['op' => 'say', 'lang' => $lang, 'text' => $text, 'speed' => $speed], 30.0);
+        $res = self::request(['op' => 'say', 'lang' => $lang, 'text' => $text, 'speed' => $speed], 30.0);
+        $wav = is_array($res) ? ($res['wav'] ?? null) : null;
         if (!is_string($wav) || strlen($wav) < 44) {
             throw new RuntimeException('voice server unavailable');
         }
         try {
             ensure_dir($cacheDir);
-            file_put_contents($file . '.tmp', $wav);
-            rename($file . '.tmp', $file);
+            $file = $cached((string) ($res['voice'] ?? $voice));
+            $tmp = $file . '.' . getmypid() . '.tmp';
+            if (file_put_contents($tmp, $wav) === strlen($wav)) {
+                rename($tmp, $file);
+            } else {
+                @unlink($tmp); // قرص ممتلئ: لا نحفظ ملفاً ناقصاً
+            }
             self::prune($cacheDir);
         } catch (Throwable) {
             // الذاكرة اختيارية
@@ -71,7 +86,7 @@ final class Voice
     }
 
     /**
-     * طلب واحد لخادم الصوت. يُرجع: مصفوفة لردود JSON، أو نص WAV لطلب say، أو null عند الفشل.
+     * طلب واحد لخادم الصوت. يُرجع: مصفوفة لردود JSON، أو ['wav' => ..., 'voice' => ...] لطلب say، أو null عند الفشل.
      */
     private static function request(array $req, float $timeout, ?bool &$reached = null): array|string|null
     {
@@ -93,7 +108,7 @@ final class Voice
             $j = json_decode($head, true);
             return is_array($j) ? $j : null;
         }
-        if (preg_match('/^OK (\d+)/', $head, $m)) {
+        if (preg_match('/^OK (\d+)(?: (\S+))?/', $head, $m)) {
             $len = (int) $m[1];
             $data = '';
             while (strlen($data) < $len && !feof($conn)) {
@@ -111,7 +126,7 @@ final class Voice
             if ($len === 0) {
                 return [];
             }
-            return strlen($data) === $len ? $data : null;
+            return strlen($data) === $len ? ['wav' => $data, 'voice' => $m[2] ?? null] : null;
         }
         fclose($conn);
         return null;
@@ -122,13 +137,29 @@ final class Voice
         if (random_int(1, 20) !== 1) {
             return;
         }
+        foreach (glob($dir . '/*.tmp') ?: [] as $f) {
+            if (filemtime($f) < time() - 600) {
+                @unlink($f); // بقايا كتابة انقطعت
+            }
+        }
         $files = glob($dir . '/*.wav') ?: [];
-        if (count($files) <= self::CACHE_MAX_FILES) {
+        $sizes = array_map('filesize', $files);
+        $total = array_sum($sizes);
+        if (count($files) <= self::CACHE_MAX_FILES && $total <= self::CACHE_MAX_BYTES) {
             return;
         }
-        usort($files, static fn ($a, $b) => filemtime($a) <=> filemtime($b));
-        foreach (array_slice($files, 0, count($files) - self::CACHE_MAX_FILES) as $f) {
-            @unlink($f);
+        // الأقدم استخداماً أولاً، حتى يعود العدد والحجم تحت الحد
+        $by = array_combine($files, $sizes);
+        uksort($by, static fn ($a, $b) => filemtime($a) <=> filemtime($b));
+        $count = count($by);
+        foreach ($by as $f => $size) {
+            if ($count <= self::CACHE_MAX_FILES && $total <= self::CACHE_MAX_BYTES) {
+                break;
+            }
+            if (@unlink($f)) {
+                $count--;
+                $total -= $size;
+            }
         }
     }
 }

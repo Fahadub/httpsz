@@ -5,7 +5,7 @@ import {
   setupInstall, registerSW,
 } from './core.js';
 import { parseCommand } from './commands.js';
-import { t, setLang, getLang, listSep, plain } from './i18n.js';
+import { t, setLang, getLang, listSep, plain, STRINGS } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
 const els = { mic: $('mic'), micText: $('mic-text'), micSub: $('mic-sub'), result: $('result'), meta: $('meta'), video: $('video') };
@@ -73,6 +73,28 @@ function show(text) {
   els.result.textContent = plain(text);
 }
 
+/** اسم الموفر بلغة التطبيق الحالية (قد تتغير بالصوت بعد التحميل). */
+const providerLabel = (p) => (p.labels && p.labels[getLang()]) || p.label;
+
+/** يلغي المهمة الجارية فوراً، ولا ننتظر رد الذكاء الاصطناعي عليها. */
+function cancelTask() {
+  state.cancelTask = true;
+  if (state.taskAbort) state.taskAbort.abort();
+}
+
+/** طلب تحليل يُلغى مع المهمة (navigation: يُلغى عند إيقاف التنقل). */
+function analyze(body, opts = {}, kind = 'task') {
+  const ctrl = new AbortController();
+  state[kind === 'nav' ? 'navAbort' : 'taskAbort'] = ctrl;
+  return api('analyze', body, { ...opts, signal: ctrl.signal });
+}
+
+// عبارات قصيرة ثابتة تُجهَّز مسبقاً بالصوت المدمج لتُسمع فوراً
+const FIXED_PHRASES = ['moment', 'momentRead', 'cancelled', 'navStopped', 'stopped', 'didntHear', 'notUnderstood'];
+function preloadPhrases() {
+  tts.preload(FIXED_PHRASES.map((k) => t(k))).catch(() => {});
+}
+
 function say(text, opts) {
   if (!text) return Promise.resolve();
   state.lastSay = text;
@@ -121,6 +143,7 @@ function switchLanguage(lang) {
   store.set('basir_lang', lang);
   applyLanguage();
   refreshUi();
+  preloadPhrases();
 }
 
 function applySettings(s) {
@@ -133,7 +156,7 @@ function applySettings(s) {
 
 function providerText() {
   const p = state.server.provider;
-  return t('provider', { label: p.label, model: speakable(p.model), hasKey: p.has_key });
+  return t('provider', { label: providerLabel(p), model: speakable(p.model), hasKey: p.has_key });
 }
 
 function devicesText() {
@@ -147,7 +170,7 @@ function devicesText() {
 function welcomeText() {
   const p = state.server.provider;
   const first = !store.get('basir_welcomed');
-  let s = first ? t('welcome.first', { provider: providerText() }) : t('welcome.back', { label: p.label, model: speakable(p.model) });
+  let s = first ? t('welcome.first', { provider: providerText() }) : t('welcome.back', { label: providerLabel(p), model: speakable(p.model) });
   const nodes = state.server.nodes || [];
   if (nodes.length) s += ` ${devicesText()}`;
   if (state.server.memory && first) s += t('welcome.memory');
@@ -164,6 +187,8 @@ async function boot() {
     onInstalled: () => say(t('installed')),
   });
 
+  // قبل أن نعرف إعداد الخادم: لغة آخر اختيار على هذا الجهاز، وإلا لغة الجهاز (لرسائل تعذر الاتصال)
+  setLang(store.get('basir_lang') || (/^en/i.test(navigator.language || '') ? 'en' : 'ar'));
   ui('loading');
   try {
     state.server = await api('status');
@@ -192,6 +217,7 @@ async function boot() {
   // محاولة الترحيب دون لمس (تنجح في تطبيق الجوال وبعض التطبيقات المثبتة)
   if (isNative) state.welcomed = true; // الكلام في تطبيق الجوال لا يحتاج لمسة أولى
   const speaking = say(welcomeText());
+  speaking.finally(preloadPhrases);
   let done = false;
   speaking.then(() => { done = true; });
   // بمجرد أن يبدأ الصوت فعلاً نعتبر الترحيب تم: لمسة أثناءه تعني «أريد التكلم» لا «أعد الترحيب»
@@ -237,7 +263,7 @@ function onMain() {
     return;
   }
   if (state.busy) {
-    state.cancelTask = true;
+    cancelTask();
     say(t('cancelled'));
     return;
   }
@@ -302,7 +328,7 @@ async function runCommand(text) {
   const { cmd, goal, question, lang } = parseCommand(text);
   switch (cmd) {
     case 'stop':
-      state.cancelTask = true;
+      cancelTask();
       if (state.nav) stopNav();
       return say(t('stopped'));
     case 'repeat':
@@ -346,9 +372,13 @@ async function runCommand(text) {
     case 'skip':
       store.set('basir_onboarded', '1');
       return say(t('skipped'));
-    case 'lang':
+    case 'lang': {
+      const from = getLang();
       switchLanguage(lang);
-      return say(t('langSwitched'));
+      say(t('langSwitched'));
+      // كيف يعود من لا يفهم اللغة الجديدة: تلميح بلغته السابقة وصوتها
+      return from === lang ? undefined : tts.speak(STRINGS[from].langBack, { interrupt: false, lang: from });
+    }
     case 'nav':
       return startNav();
     case 'goal':
@@ -427,7 +457,7 @@ async function oneShot(mode, extra = {}) {
       const f = mode === 'read' ? frameOrWarn(1280, 0.85) : frameOrWarn();
       images.push({ data: f.data, label: t('label.main') });
     }
-    const res = await api('analyze', { mode, images, include_nodes: mode !== 'read', lang: getLang(), ...extra });
+    const res = await analyze({ mode, images, include_nodes: mode !== 'read', lang: getLang(), ...extra });
     if (state.cancelTask) return;
     // انتهى العمل: أثناء نطق الجواب، اللمسة تعني سؤالاً جديداً لا «إلغاء»
     state.busy = false;
@@ -466,6 +496,7 @@ async function startNav(goal = '') {
 function stopNav() {
   state.nav = false;
   state.navRun++;
+  if (state.navAbort) state.navAbort.abort();
   state.goal = '';
   wakeLock.release();
   refreshUi();
@@ -482,7 +513,7 @@ async function navLoop() {
       if (camera.stream && !camera.active) await ensureCamera();
       const images = [];
       if (camera.active) images.push({ data: frameOrWarn().data, label: t('label.main') });
-      const res = await api('analyze', { mode: 'navigate', images, include_nodes: true, goal: state.goal, history: state.history, lang: getLang() });
+      const res = await analyze({ mode: 'navigate', images, include_nodes: true, goal: state.goal, history: state.history, lang: getLang() }, {}, 'nav');
       if (!alive() || state.navPaused || state.busy) continue; // المستخدم بدأ يتكلم: نتجاهل الرد القديم
       errors = 0;
       await speakResult(res);
@@ -550,7 +581,7 @@ async function runSurvey(kind, capture) {
     await say(t('survey.analyzing'));
     state.busyKind = kind;
     refreshUi();
-    const res = await api('analyze', { mode: 'survey', images: frames, lang: getLang() }, { timeout: 180000 });
+    const res = await analyze({ mode: 'survey', images: frames, lang: getLang() }, { timeout: 180000 });
     if (state.cancelTask) return;
     store.set('basir_onboarded', '1');
     state.server.memory = { say: res.say, summary: res.memory };
@@ -677,6 +708,7 @@ async function recheckVoices() {
     if (s.voices && (s.voices[getLang()] || {}).ready) {
       state.server.voices = s.voices;
       applyLanguage();
+      preloadPhrases();
     }
   } catch { /* الخادم مشغول */ }
 }

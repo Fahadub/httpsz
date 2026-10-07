@@ -143,7 +143,8 @@ function action_status(): array
         'configured' => $configured,
         'provider' => $configured ? [
             'id' => $cfg['provider'],
-            'label' => $cfg['label'] ?? Providers::preset($cfg['provider'])['label'],
+            'label' => Providers::labels($cfg['provider'], (string) ($cfg['label'] ?? ''))[basir_lang()],
+            'labels' => Providers::labels($cfg['provider'], (string) ($cfg['label'] ?? '')),
             'protocol' => $cfg['protocol'],
             'base_url' => $cfg['base_url'],
             'model' => $cfg['model'],

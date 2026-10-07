@@ -14,23 +14,27 @@ PHPARGS="$(php tools/php_args.php)"
 export PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-6}"
 
 # ── الصوت المدمج: يُنزَّل مرة واحدة ثم يعمل بلا إنترنت ──
+# خدمة الصوت تعمل في الخلفية؛ بصير يبدأ فوراً ويتكلم بصوت الجهاز حتى يجهز الصوت المدمج.
 VOICE_PID=""
 if [ "${BASIR_NO_VOICE:-0}" != "1" ]; then
   if php $PHPARGS -r 'exit(extension_loaded("ffi") ? 0 : 1);'; then
-    # أولاً ما يكفي ليتكلم بصير فوراً (~140 MB)
-    php $PHPARGS tools/voices.php install --quick || echo "تعذر تنزيل الأصوات الآن — سيُستخدم صوت الجهاز مؤقتاً."
     php $PHPARGS tools/voices.php stop >/dev/null 2>&1
-    php $PHPARGS src/voice_daemon.php 2>>data/voice.log &
+    php $PHPARGS tools/voices.php run >data/voice-install.log 2>&1 &
     VOICE_PID=$!
-    # ثم الصوت الإنجليزي المميز في الخلفية؛ يُستخدم تلقائياً عند اكتماله
-    php $PHPARGS tools/voices.php install --reload >data/voice-install.log 2>&1 &
-    VOICE_PID="$VOICE_PID $!"
+    echo "الصوت المدمج يُجهَّز في الخلفية (أول مرة: تنزيل نحو 140 ميغابايت). التقدم في data/voice-install.log"
   else
     echo "تنبيه: إضافة PHP FFI غير مفعّلة، لذلك سيُستخدم صوت الجهاز بدل الصوت المدمج."
     echo "       (أوبونتو/ديبيان: ثبّت حزمة php-ffi أو فعّل ffi في php.ini)"
   fi
 fi
-trap '[ -n "$VOICE_PID" ] && kill $VOICE_PID 2>/dev/null' EXIT INT TERM
+stop_voice() {
+  [ -n "$VOICE_PID" ] || return 0
+  kill "$VOICE_PID" 2>/dev/null
+  php $PHPARGS tools/voices.php stop >/dev/null 2>&1
+  VOICE_PID=""
+}
+trap stop_voice EXIT
+trap 'stop_voice; exit 130' INT TERM
 
 echo
 echo "بصير يعمل على:"

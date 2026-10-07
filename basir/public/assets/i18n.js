@@ -60,6 +60,7 @@ const ar = {
   skipped: 'حَسَنًا. قُلْ ابْدَأْ عِنْدَمَا تُرِيدُ المَشْيَ.',
   notUnderstood: 'لَمْ أَفْهَمْ. قُلْ مُسَاعَدَة لِسَمَاعِ الأَوَامِرِ.',
   langSwitched: 'سَأَتَكَلَّمُ بِالعَرَبِيَّةِ مِنَ الآنَ.',
+  langBack: 'لِلْعَوْدَةِ إِلَى العَرَبِيَّةِ قُلْ: عَرَبِي.',
 
   // الكاميرا والصور
   'cam.notStarted': 'الكَامِيرَا لَمْ تَبْدَأْ بَعْدُ.',
@@ -192,6 +193,7 @@ const en = {
   skipped: 'Okay. Say start when you want to walk.',
   notUnderstood: 'I did not understand. Say help to hear the commands.',
   langSwitched: 'I will speak English from now on.',
+  langBack: 'To go back to English, say: English.',
 
   'cam.notStarted': 'The camera has not started yet.',
   'cam.dark': 'It is too dark, or the camera is covered.',

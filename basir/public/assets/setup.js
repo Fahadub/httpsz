@@ -172,6 +172,12 @@ function fillVoices() {
 
 function voiceStatusText() {
   const st = voiceInfo.status;
+  const inst = st.install;
+  if (inst && !st.daemon) {
+    if (inst.stage === 'download') return [`يُنزَّل الصوت المدمج الآن في الخلفية: ${inst.pct}% من ${inst.mb} ميغابايت. حتى يكتمل يُستخدم صوت الجهاز.`, 'info'];
+    if (inst.stage === 'extract') return ['يُجهَّز الصوت المدمج الآن (فك الضغط)… حتى يكتمل يُستخدم صوت الجهاز.', 'info'];
+    if (inst.stage === 'error') return [`تعذر تنزيل الصوت المدمج الآن (${inst.error}). ستُعاد المحاولة تلقائياً. تأكد من الاتصال بالإنترنت.`, 'err'];
+  }
   if (!st.engine_installed) {
     return ['الأصوات المدمجة لم تُنزَّل بعد. أعد تشغيل بصير عبر start.bat أو start.sh وستُنزَّل تلقائياً مرة واحدة (يحتاج إنترنت أول مرة فقط). حتى ذلك الحين يُستخدم صوت الجهاز.', 'err'];
   }
@@ -179,7 +185,8 @@ function voiceStatusText() {
     return ['خادم الصوت متوقف. شغّل بصير عبر start.bat أو start.sh (وليس php -S مباشرة) ليعمل الصوت المدمج.', 'err'];
   }
   const parts = Object.entries(st.langs).map(([lang, l]) => `${lang === 'ar' ? 'العربي' : 'الإنجليزي'}: ${l.ready ? '✓ ' + l.name : 'غير مثبت'}`);
-  return ['الصوت المدمج يعمل — ' + parts.join(' · '), 'ok'];
+  const more = inst && inst.stage === 'download' ? ` — يُنزَّل صوت إضافي: ${inst.pct}%` : '';
+  return ['الصوت المدمج يعمل — ' + parts.join(' · ') + more, 'ok'];
 }
 
 async function loadVoices() {

@@ -203,6 +203,29 @@ try {
     { cmd: 'repeat' }, { cmd: 'settings' }, { cmd: 'ask', question: 'هل الباب مفتوح؟' }, { cmd: 'install' },
   ]), parsed);
 
+  const parsedEn = await page.evaluate(async () => {
+    const { parseCommand } = await import('./assets/commands.js');
+    return ['Where is the bus stop?', 'Is there enough room to pass?', 'Is there a train coming?', 'Help me find the door',
+      'Which way should I go?', 'Is this Arabic?', 'هل هذا انجليزي', 'stop', 'take me to the bus stop', 'please read this',
+      'تكلم بالعربية', 'speak English please', 'أبطئ']
+      .map((x) => { const r = parseCommand(x); return r.cmd === 'lang' ? 'lang:' + r.lang : r.cmd; });
+  });
+  check('English questions are not taken as commands', JSON.stringify(parsedEn) === JSON.stringify([
+    'ask', 'ask', 'ask', 'ask', 'ask', 'ask', 'ask', 'stop', 'goal', 'read', 'lang:ar', 'lang:en', 'slower',
+  ]), parsedEn);
+  const recovers = await page.evaluate(async () => {
+    const { tts } = await import('./assets/core.js');
+    const saved = tts.serverVoices;
+    tts.serverVoices = { ar: true };
+    tts.serverUnreachable(150);
+    const during = tts.usesServerVoice('ar');
+    await new Promise((r) => setTimeout(r, 300));
+    const after = tts.usesServerVoice('ar');
+    tts.serverVoices = saved;
+    return { during, after };
+  });
+  check('built-in voice comes back after a network failure', recovers.during === false && recovers.after === true, recovers);
+
   console.log('English');
   await page.waitForFunction(() => document.body.dataset.mode === 'idle', null, { timeout: 15000 });
   await sayToApp(page, 'English');

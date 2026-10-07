@@ -223,17 +223,42 @@ C;
     /** يستبدل الأرقام (العربية والهندية، مع الكسور العشرية) بكلمات عربية. */
     public static function arabicNumbers(string $text): string
     {
-        $text = strtr($text, ['٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9', '٫' => '.']);
-        // العدد يخالف المعدود في التذكير والتأنيث: «ثلاث خطوات» لكن «ثلاثة أمتار»
-        return (string) preg_replace_callback('/(\d+(?:[.,]\d+)?)(?=(\s*[\x{0600}-\x{06FF}]+)?)/u', static function ($m) {
-            $parts = preg_split('/[.,]/', $m[1]);
-            $fem = !isset($parts[1]) && self::feminineNoun($m[2] ?? '');
-            $words = self::intToArabic((int) $parts[0], $fem);
-            if (isset($parts[1]) && $parts[1] !== '') {
-                $words .= ' فاصلة ' . self::intToArabic((int) $parts[1]);
+        $text = strtr($text, ['٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9', '٫' => '.', '٬' => ',']);
+        // بالترتيب: عنوان أو إصدار (1.2.3)، رقم بفواصل آلاف (1,250)، رقم عادي مع كسر اختياري (3.05 أو 3,5)؛
+        // ثم الكلمة التالية لمعرفة تذكير المعدود وتأنيثه: «ثلاث خطوات» لكن «ثلاثة أمتار»
+        $re = '/(?:(?<dots>\d+(?:\.\d+){2,})|(?<grp>\d{1,3}(?:,\d{3})+)(?:\.(?<gfrac>\d+))?|(?<int>\d+)(?:[.,](?<frac>\d+))?)(?=(?<next>\s*[\x{0600}-\x{06FF}]+)?)/u';
+        return (string) preg_replace_callback($re, static function ($m) {
+            if (($m['dots'] ?? '') !== '') {
+                return implode(' نقطة ', array_map(static fn ($p) => self::numberOrDigits($p), explode('.', $m['dots'])));
+            }
+            $grouped = ($m['grp'] ?? '') !== '';
+            $int = $grouped ? str_replace(',', '', $m['grp']) : $m['int'];
+            $frac = $grouped ? ($m['gfrac'] ?? '') : ($m['frac'] ?? '');
+            $frac = rtrim($frac, '0') === '' ? '' : $frac; // 1,250.00 = ألف ومئتان وخمسون
+            if (!$grouped && $frac === '' && (strlen($int) >= 7 || ($int[0] === '0' && strlen($int) > 1))) {
+                return self::digits($int); // رقم جوال أو رمز: رقماً رقماً
+            }
+            $fem = $frac === '' && self::feminineNoun($m['next'] ?? '');
+            $words = self::numberOrDigits($int, $fem);
+            if ($frac !== '') {
+                // «3.05» = ثلاثة فاصلة صفر خمسة (الأصفار في أول الكسر تُقرأ)
+                $words .= ' فاصلة ' . ($frac[0] === '0' || strlen($frac) > 2 ? self::digits($frac) : self::intToArabic((int) $frac));
             }
             return $words;
         }, $text);
+    }
+
+    /** عدد بالكلمات، أو رقماً رقماً إن كان أكبر من أن يُقرأ عدداً. */
+    private static function numberOrDigits(string $n, bool $fem = false): string
+    {
+        $n = ltrim($n, '0') === '' ? '0' : $n;
+        return strlen(ltrim($n, '0')) > 9 ? self::digits($n) : self::intToArabic((int) $n, $fem);
+    }
+
+    private static function digits(string $n): string
+    {
+        static $d = ['صفر', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة'];
+        return implode(' ', array_map(static fn ($c) => $d[(int) $c], str_split($n)));
     }
 
     /** معدودات مؤنثة شائعة في الإرشاد (الكلمة التي تلي الرقم). */
@@ -274,7 +299,17 @@ C;
             };
             return $head . ($n % 1000 ? ' و' . self::intToArabic($n % 1000, $fem) : '');
         }
-        return (string) $n;
+        if ($n < 1000000000) {
+            $k = intdiv($n, 1000000);
+            $head = match (true) {
+                $k === 1 => 'مليون',
+                $k === 2 => 'مليونان',
+                $k <= 10 => self::intToArabic($k) . ' ملايين',
+                default => self::intToArabic($k) . ' مليون',
+            };
+            return $head . ($n % 1000000 ? ' و' . self::intToArabic($n % 1000000, $fem) : '');
+        }
+        return self::digits((string) $n);
     }
 
     /** @return array{0:int,1:string} [معدل العينة، بيانات PCM] */

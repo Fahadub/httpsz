@@ -154,11 +154,16 @@ final class VoiceCatalog
         return self::dir() . '/models/' . self::MODELS[$modelKey]['archive'];
     }
 
+    /** كل ملفات النموذج موجودة (فك الضغط يتم في مجلد مؤقت ثم يُنقل كاملاً، فلا يبقى نموذج ناقص). */
     public static function modelInstalled(string $modelKey): bool
     {
-        $m = self::MODELS[$modelKey];
-        $first = $m['files']['model'] ?? reset($m['files']);
-        return is_file(self::modelDir($modelKey) . '/' . $first);
+        $dir = self::modelDir($modelKey);
+        foreach (self::MODELS[$modelKey]['files'] as $f) {
+            if (!file_exists("$dir/$f")) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static function daemonPort(): int

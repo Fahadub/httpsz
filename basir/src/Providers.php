@@ -79,6 +79,19 @@ final class Providers
         return self::PRESETS[$id] ?? self::PRESETS['custom'];
     }
 
+    /** أسماء الموفرين المحليين بالإنجليزية (بقية الأسماء إنجليزية أصلاً). */
+    private const LABELS_EN = ['ollama' => 'Ollama (local)', 'lmstudio' => 'LM Studio (local)', 'custom' => 'Other provider (custom)'];
+
+    /** اسم الموفر بالعربية والإنجليزية: الاسم الذي كتبه المساعد كما هو، وإلا اسم الموفر الجاهز. */
+    public static function labels(string $id, string $saved = ''): array
+    {
+        $preset = self::preset($id)['label'];
+        if ($saved !== '' && $saved !== $preset) {
+            return ['ar' => $saved, 'en' => $saved];
+        }
+        return ['ar' => $preset, 'en' => self::LABELS_EN[$id] ?? $preset];
+    }
+
     /**
      * طلب واحد للنموذج: نص + صور اختيارية. يُرجع النص الخام من النموذج.
      *
@@ -398,9 +411,10 @@ final class Providers
             }
             if ($ca = getenv('BASIR_CA_BUNDLE')) {
                 $opts[CURLOPT_CAINFO] = $ca;
-            } elseif (PHP_OS_FAMILY === 'Windows' && !ini_get('curl.cainfo') && defined('CURLSSLOPT_NATIVE_CA')) {
+            } elseif (PHP_OS_FAMILY === 'Windows' && !ini_get('curl.cainfo')) {
                 // PHP لويندوز غالباً بلا شهادات: نستخدم مخزن شهادات ويندوز نفسه
-                $opts[CURLOPT_SSL_OPTIONS] = CURLSSLOPT_NATIVE_CA;
+                // (PHP 8.1 لا يعرّف الثابت لكن مكتبة curl فيه تدعمه: CURLSSLOPT_NATIVE_CA = 16)
+                $opts[CURLOPT_SSL_OPTIONS] = defined('CURLSSLOPT_NATIVE_CA') ? CURLSSLOPT_NATIVE_CA : 16;
             }
             curl_setopt_array($ch, $opts);
             $raw = curl_exec($ch);

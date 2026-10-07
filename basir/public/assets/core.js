@@ -27,9 +27,11 @@ export class ApiError extends Error {
   constructor(message, status = 0, detail = '') { super(message); this.status = status; this.detail = detail; }
 }
 
-export async function api(action, body = null, { timeout = 90000, base = apiBase() } = {}) {
+export async function api(action, body = null, { timeout = 90000, base = apiBase(), signal } = {}) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeout);
+  // إلغاء من المستخدم (لمسة أثناء الانتظار، أو «توقف»)
+  if (signal) signal.addEventListener('abort', () => ctrl.abort(), { once: true });
   const url = (base ? base + '/' : '') + 'api.php?action=' + encodeURIComponent(action) + '&lang=' + getLang();
   const init = body === null
     ? { cache: 'no-store', signal: ctrl.signal }
@@ -43,6 +45,7 @@ export async function api(action, body = null, { timeout = 90000, base = apiBase
   } catch (e) {
     if (e instanceof ApiError) throw e;
     if (e && e.name === 'AbortError') throw new ApiError(t('net.timeout'), 0);
+    tts.serverUnreachable(); // رسالة «تعذر الاتصال» تُنطق بصوت الجهاز فوراً بدل انتظار الخادم
     throw new ApiError(t('net.unreachable'), 0, String(e));
   } finally {
     clearTimeout(timer);
@@ -160,6 +163,18 @@ export function splitSentences(text, max = 220) {
 
 // ───────────────────────── الكلام ─────────────────────────
 
+/** صوت الجهاز الأنسب للهجة (ar-SA ثم أي عربي). */
+function findDeviceVoice(locale) {
+  if (!('speechSynthesis' in window)) return null;
+  const voices = speechSynthesis.getVoices() || [];
+  const norm = (l) => String(l || '').replace('_', '-').toLowerCase();
+  const want = norm(locale);
+  const base = want.split('-')[0];
+  return voices.find((v) => norm(v.lang) === want)
+    || voices.find((v) => norm(v.lang).startsWith(base + '-') || norm(v.lang) === base)
+    || null;
+}
+
 /**
  * الكلام بالصوت المدمج في خادم بصير (عربي افتراضياً، وإنجليزي) — يعمل على كل الأجهزة حتى التي
  * لا تملك صوتاً عربياً. إذا لم يكن الصوت المدمج متاحاً نستخدم صوت الجهاز احتياطياً.
@@ -180,7 +195,10 @@ export const tts = {
   _cancelAt: 0,
   _source: null,
   _buffers: new Map(),
-  _serverFailures: 0,
+  /** عبارات ثابتة (لحظة، أُلغي، توقفت…) محفوظة دائماً: تُنطق فوراً حتى لو كان الخادم مشغولاً بطلب آخر */
+  _pinned: new Map(),
+  /** بعد تعذر الصوت المدمج نستخدم صوت الجهاز قليلاً ثم نعود إليه */
+  _serverDownUntil: 0,
 
   configure({ lang, locale, rate, serverVoices } = {}) {
     if (lang) this.lang = lang;
@@ -189,25 +207,23 @@ export const tts = {
     if (rate) this.rate = Number(rate) || 1;
     if (serverVoices) {
       this.serverVoices = serverVoices;
-      this._serverFailures = 0;
+      this._serverDownUntil = 0;
     }
     this._pickVoice();
   },
 
-  /** هل نستخدم الصوت المدمج للغة الحالية؟ */
-  usesServerVoice() {
-    return !!this.serverVoices[this.lang] && this._serverFailures < 3 && !!audioCtx();
+  /** هل نستخدم الصوت المدمج لهذه اللغة الآن؟ */
+  usesServerVoice(lang = this.lang) {
+    return !!this.serverVoices[lang] && Date.now() >= this._serverDownUntil && !!audioCtx();
+  },
+
+  /** الخادم لا يرد (انقطاع الشبكة، أو إعادة تشغيل بصير): صوت الجهاز مؤقتاً ثم نعيد المحاولة. */
+  serverUnreachable(ms = 15000) {
+    this._serverDownUntil = Date.now() + ms;
   },
 
   _pickVoice() {
-    if (!('speechSynthesis' in window)) return;
-    const voices = speechSynthesis.getVoices() || [];
-    const norm = (l) => String(l || '').replace('_', '-').toLowerCase();
-    const want = norm(this.locale);
-    const base = want.split('-')[0];
-    this.voice = voices.find((v) => norm(v.lang) === want)
-      || voices.find((v) => norm(v.lang).startsWith(base + '-') || norm(v.lang) === base)
-      || null;
+    this.voice = findDeviceVoice(this.locale);
   },
 
   /** آيفون: أول كلام يجب أن يبدأ داخل لمسة المستخدم مباشرة. نستدعيها بشكل متزامن في معالج اللمس. */
@@ -229,10 +245,10 @@ export const tts = {
   },
 
   /** يتكلم ويُرجع وعداً ينتهي عند انتهاء الكلام. interrupt=false يضيفه للطابور. */
-  speak(text, { interrupt = true } = {}) {
+  speak(text, { interrupt = true, lang } = {}) {
     if (interrupt) this.cancel();
     const gen = this._gen;
-    const run = () => (gen === this._gen ? this._speakNow(text, gen) : undefined);
+    const run = () => (gen === this._gen ? this._speakNow(text, gen, lang || this.lang) : undefined);
     this._queue = this._queue.then(run, run);
     return this._queue;
   },
@@ -250,27 +266,28 @@ export const tts = {
     if ('speechSynthesis' in window) speechSynthesis.cancel();
   },
 
-  async _speakNow(text, gen) {
+  async _speakNow(text, gen, lang) {
     text = String(text || '').trim();
     if (!text) return;
     if (window.__basirSpokenLog) window.__basirSpokenLog.push(text); // للاختبارات فقط
-    if (this.usesServerVoice()) {
+    let rest = text;
+    if (this.usesServerVoice(lang)) {
       try {
-        await this._speakServer(text, gen);
-        this._serverFailures = 0;
+        await this._speakServer(text, gen, lang, (left) => { rest = left; });
         return;
       } catch (e) {
         if (e && e.code === 'not-allowed') return;
-        if (!(e && e.code === 'interrupted')) this._serverFailures++;
+        if (!(e && e.code === 'interrupted')) this.serverUnreachable();
         console.warn('basir voice:', e);
         if (gen !== this._gen) return;
       }
     }
-    await this._speakDevice(text);
+    // صوت الجهاز لما بقي فقط (لا نعيد الجمل التي سُمعت)
+    await this._speakDevice(rest, lang);
   },
 
   /** الصوت المدمج: كل جملة تُطلب من الخادم، وتُجهَّز الجملة التالية أثناء تشغيل الحالية. */
-  async _speakServer(text, gen) {
+  async _speakServer(text, gen, lang, onRest) {
     const ctx = audioCtx();
     if (!(await ensureRunning(ctx))) {
       if (!unlockAudio.done) {
@@ -284,11 +301,12 @@ export const tts = {
     }
     this.allowed = true; // الصوت مسموح: الترحيب بدأ فعلاً حتى لو لم يصل الملف الصوتي بعد
     const parts = splitSentences(text);
-    let next = this._buffer(parts[0]);
+    let next = this._buffer(parts[0], lang);
     for (let i = 0; i < parts.length; i++) {
+      onRest(parts.slice(i).join(' '));
       const buf = await next;
       if (i + 1 < parts.length) {
-        next = this._buffer(parts[i + 1]);
+        next = this._buffer(parts[i + 1], lang);
         next.catch(() => {});
       }
       if (gen !== this._gen) return;
@@ -299,16 +317,34 @@ export const tts = {
   },
 
   /** صوت جملة واحدة (مع ذاكرة للعبارات المتكررة مثل التنبيهات). */
-  _buffer(text) {
-    const key = `${this.lang}|${this.rate}|${text}`;
-    let p = this._buffers.get(key);
+  _buffer(text, lang = this.lang) {
+    const key = `${lang}|${this.rate}|${text}`;
+    let p = this._pinned.get(key) || this._buffers.get(key);
     if (!p) {
-      p = fetchVoice(text, this.lang, this.rate).then((data) => audioCtx().decodeAudioData(data));
+      p = this._fetchBuffer(text, lang);
       p.catch(() => this._buffers.delete(key));
       this._buffers.set(key, p);
       if (this._buffers.size > 60) this._buffers.delete(this._buffers.keys().next().value);
     }
     return p;
+  },
+
+  _fetchBuffer(text, lang) {
+    return fetchVoice(text, lang, this.rate).then((data) => audioCtx().decodeAudioData(data));
+  },
+
+  /** يجهّز العبارات الثابتة مسبقاً، واحدة بعد الأخرى حتى لا يزحم الخادم. */
+  async preload(texts, lang = this.lang) {
+    for (const text of texts) {
+      for (const part of splitSentences(text)) {
+        const key = `${lang}|${this.rate}|${part}`;
+        if (this._pinned.has(key) || !this.usesServerVoice(lang)) continue;
+        const p = this._fetchBuffer(part, lang);
+        this._pinned.set(key, p);
+        try { await p; } catch { this._pinned.delete(key); return; }
+        if (this._pinned.size > 80) this._pinned.delete(this._pinned.keys().next().value);
+      }
+    }
   },
 
   _play(ctx, buffer, gen) {
@@ -325,11 +361,14 @@ export const tts = {
   },
 
   /** الاحتياط: صوت الجهاز (تطبيق الجوال أو المتصفح). */
-  async _speakDevice(text) {
+  async _speakDevice(text, lang = this.lang) {
+    // لغة غير لغة التطبيق (تلميح العودة بعد تبديل اللغة): لهجتها الافتراضية وصوتها
+    const other = lang !== this.lang;
+    const locale = other ? (lang === 'en' ? 'en-US' : 'ar-SA') : this.locale;
     const T = plugins().TextToSpeech;
     if (isNative && T) {
       this.allowed = true;
-      try { await T.speak({ text, lang: this.locale, rate: this.rate, category: 'playback' }); } catch { /* أُلغي */ }
+      try { await T.speak({ text, lang: locale, rate: this.rate, category: 'playback' }); } catch { /* أُلغي */ }
       return;
     }
     if (!('speechSynthesis' in window)) return;
@@ -337,13 +376,14 @@ export const tts = {
     const since = Date.now() - this._cancelAt;
     if (since < 120) await sleep(120 - since);
     if (!this.voice) this._pickVoice();
+    const voice = other ? findDeviceVoice(locale) : this.voice;
     await new Promise((resolve) => {
       let u;
       try {
         u = new SpeechSynthesisUtterance(text);
-        u.lang = this.locale;
+        u.lang = locale;
         u.rate = this.rate;
-        if (this.voice) u.voice = this.voice;
+        if (voice) u.voice = voice;
       } catch {
         if (!u) { resolve(); return; }
       }
