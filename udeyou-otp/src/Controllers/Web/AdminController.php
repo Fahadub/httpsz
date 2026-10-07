@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace Udeyou\Controllers\Web;
 
+use Udeyou\Core\Config;
 use Udeyou\Core\Request;
 use Udeyou\Core\Response;
 use Udeyou\Core\Session;
 use Udeyou\Core\View;
 use Udeyou\Repositories\ClientRepository;
 use Udeyou\Services\CreditService;
+use Udeyou\Services\Mail\MailCarrierFactory;
+use Udeyou\Services\Mail\MailDeliveryException;
+use Udeyou\Services\Mail\MailMessage;
+use Udeyou\Services\OtpTemplate;
 
 /** Platform owner panel: list clients, top up credits, suspend/activate accounts. */
 final class AdminController
@@ -22,6 +27,7 @@ final class AdminController
             'client'  => $admin,
             'clients' => (new ClientRepository())->all(),
             'notice'  => Session::flash('notice'),
+            'error'   => Session::flash('error'),
         ]);
     }
 
@@ -48,6 +54,23 @@ final class AdminController
         if ($target !== null && (int) $target['id'] !== (int) $admin['id']) {
             $repo->setStatus((int) $clientId, $target['status'] === 'active' ? 'suspended' : 'active');
             Session::flash('notice', "تم تغيير حالة العميل #{$clientId}");
+        }
+        Response::redirect('/admin');
+    }
+
+    /** Sends a sample OTP email to the admin to check the SMTP settings in .env (no credits used). */
+    public function testMail(Request $request): void
+    {
+        Session::verifyCsrf($request);
+        $admin = self::requireAdmin();
+
+        $appName = (string) Config::get('APP_NAME', 'Udeyou OTP');
+        $email = OtpTemplate::render('123456', $appName, 300, 'ar', null, null);
+        try {
+            MailCarrierFactory::make()->send(new MailMessage($admin['email'], $appName, $email['subject'], $email['html'], $email['text']));
+            Session::flash('notice', "تم إرسال بريد تجريبي إلى {$admin['email']} — تحقق من الوارد (والـ Spam).");
+        } catch (MailDeliveryException $e) {
+            Session::flash('error', 'فشل الإرسال: ' . $e->getMessage());
         }
         Response::redirect('/admin');
     }

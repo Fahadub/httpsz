@@ -46,6 +46,7 @@ $router->post('/keys/{id}/revoke', [$dash, 'revokeKey']);
 $router->get('/admin', [$admin, 'index']);
 $router->post('/admin/clients/{id}/credits', [$admin, 'addCredits']);
 $router->post('/admin/clients/{id}/toggle', [$admin, 'toggleStatus']);
+$router->post('/admin/test-mail', [$admin, 'testMail']);
 
 $isApi = str_starts_with($request->path, '/api/');
 if (!$isApi) {

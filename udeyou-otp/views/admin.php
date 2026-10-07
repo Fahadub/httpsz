@@ -1,6 +1,14 @@
 <?php use Udeyou\Core\Session; $csrf = e(Session::csrfToken()); ?>
 <h1>إدارة العملاء</h1>
 <?php if ($notice): ?><div class="alert ok"><?= e($notice) ?></div><?php endif; ?>
+<?php if ($error): ?><div class="alert error"><?= e($error) ?></div><?php endif; ?>
+<section class="card">
+  <h2>اختبار إعدادات البريد (SMTP)</h2>
+  <form method="post" action="/admin/test-mail">
+    <input type="hidden" name="_csrf" value="<?= $csrf ?>">
+    <button class="btn">إرسال بريد تجريبي إلى <?= e($client['email']) ?></button>
+  </form>
+</section>
 <section class="card">
   <table>
     <tr><th>#</th><th>الشركة</th><th>البريد</th><th>الرصيد</th><th>المرسلة</th><th>الحالة</th><th>إضافة رصيد</th><th></th></tr>
