@@ -1,0 +1,138 @@
+/* Arabic translation. Keys are the English text used in the code. */
+
+/* Tabs */
+"Apps" = "التطبيقات";
+"Vault" = "الخزنة";
+"Intruders" = "المتسللون";
+"Settings" = "الإعدادات";
+
+/* Lock screen */
+"Draw your pattern" = "ارسم النمط";
+"Enter your PIN" = "أدخل الرمز";
+"AppLock is locked" = "AppLock مقفل";
+"Too many attempts. Try again in %lld s." = "محاولات كثيرة. حاول بعد %lld ث.";
+"Wrong passcode. Attempts: %lld" = "رمز خاطئ. المحاولات: %lld";
+"Unlock AppLock" = "فتح AppLock";
+"Use biometrics" = "استخدام البصمة";
+"Delete" = "حذف";
+"Entered %lld of %lld digits" = "تم إدخال %1$lld من %2$lld أرقام";
+"Pattern grid" = "شبكة النمط";
+
+/* Passcode setup */
+"Create a passcode" = "أنشئ رمز القفل";
+"Confirm your passcode" = "أكّد رمز القفل";
+"Connect at least 4 dots." = "صِل ٤ نقاط على الأقل.";
+"Draw the same pattern again." = "ارسم النمط نفسه مرة أخرى.";
+"You'll use it to open AppLock and your locked apps." = "ستستخدمه لفتح AppLock وتطبيقاتك المقفلة.";
+"Enter the same PIN again." = "أدخل الرمز نفسه مرة أخرى.";
+"They didn't match. Try again." = "غير متطابقين. حاول مرة أخرى.";
+"Lock type" = "نوع القفل";
+"4-digit PIN" = "رمز ٤ أرقام";
+"6-digit PIN" = "رمز ٦ أرقام";
+"Pattern" = "نمط";
+
+/* Onboarding */
+"Lock any app with a PIN or a swipe pattern. Every feature is free." = "اقفل أي تطبيق برمز أو بنمط سحب. كل المميزات مجانية.";
+"Get Started" = "ابدأ";
+"Almost done" = "باقي خطوة";
+"AppLock needs a few permissions to protect your apps." = "يحتاج AppLock بعض الأذونات لحماية تطبيقاتك.";
+"Screen Time" = "مدة استخدام الجهاز";
+"Required to lock other apps. Nothing leaves your device." = "مطلوب لقفل التطبيقات الأخرى. لا شيء يخرج من جهازك.";
+"Notifications" = "الإشعارات";
+"Lets you unlock a locked app from its lock screen." = "يتيح لك فتح التطبيق المقفل من شاشة القفل الخاصة به.";
+"Continue" = "متابعة";
+"Allow" = "سماح";
+"Allowed" = "مسموح";
+
+/* Free features */
+"Face ID and Touch ID" = "Face ID وبصمة الإصبع";
+"Unlock instantly without typing." = "افتح فورًا بدون كتابة الرمز.";
+"Intruder photos" = "صور المتسللين";
+"See who tried to guess your passcode." = "اعرف من حاول تخمين رمزك.";
+"Private photo vault" = "خزنة صور خاصة";
+"Hide photos with AES-256 encryption." = "أخفِ صورك بتشفير AES-256.";
+"Scheduled locking" = "القفل المجدول";
+"Lock apps automatically at set hours." = "اقفل التطبيقات تلقائيًا في أوقات محددة.";
+"Smart relock" = "إعادة القفل الذكية";
+"Unlock an app for a few minutes, then it locks itself." = "افتح التطبيق لدقائق، ثم يُقفل نفسه تلقائيًا.";
+
+/* Apps tab */
+"AppLock" = "AppLock";
+"Screen Time access needed" = "يلزم إذن مدة استخدام الجهاز";
+"AppLock uses Screen Time to lock apps. Nothing leaves your device." = "يستخدم AppLock ميزة مدة استخدام الجهاز لقفل التطبيقات. لا شيء يخرج من جهازك.";
+"Allow access" = "السماح بالوصول";
+"Protection is on" = "الحماية مفعّلة";
+"Protection is off" = "الحماية متوقفة";
+"Protection" = "الحماية";
+"Choose the apps you want to lock." = "اختر التطبيقات التي تريد قفلها.";
+"Locked items: %lld" = "العناصر المقفلة: %lld";
+"Locked items: %lld, on a schedule" = "العناصر المقفلة: %lld، حسب الجدول";
+"Locked apps" = "التطبيقات المقفلة";
+"Choose" = "اختيار";
+"Edit" = "تعديل";
+"No apps selected yet." = "لم تختر أي تطبيق بعد.";
+"And %lld more" = "و%lld غيرها";
+"Relock after" = "إعادة القفل بعد";
+"After you unlock an app" = "بعد فتح أي تطبيق";
+"%lld min" = "%lld د";
+"Schedule" = "الجدول";
+"Always" = "دائمًا";
+"Temporarily unlocked" = "مفتوح مؤقتًا";
+"Until %@" = "حتى %@";
+"Lock now" = "اقفل الآن";
+"Unlocked" = "تم الفتح";
+"Open it from your Home Screen. It locks again in %lld min." = "افتحه من الشاشة الرئيسية. سيُقفل مرة أخرى بعد %lld د.";
+"Done" = "تم";
+"Lock it again now" = "اقفله الآن";
+
+/* Schedule */
+"Lock on a schedule" = "القفل حسب جدول";
+"When this is off, your selected apps stay locked all the time." = "عند إيقاف هذا الخيار تبقى تطبيقاتك المختارة مقفلة طوال الوقت.";
+"Hours" = "الأوقات";
+"Starts" = "يبدأ";
+"Ends" = "ينتهي";
+"Days" = "الأيام";
+"Apps lock automatically at the start time and unlock at the end time, even when AppLock is closed." = "تُقفل التطبيقات تلقائيًا في وقت البداية وتُفتح في وقت النهاية، حتى لو كان AppLock مغلقًا.";
+"Pick at least one day and a window of 15 minutes or more." = "اختر يومًا واحدًا على الأقل ومدة لا تقل عن ١٥ دقيقة.";
+
+/* Vault */
+"Your vault is empty" = "خزنتك فارغة";
+"Photos you add here are encrypted and only open with your passcode." = "الصور التي تضيفها هنا مشفّرة ولا تُفتح إلا برمزك.";
+"Add photos" = "إضافة صور";
+"Encrypted with AES-256 on this device" = "مشفّرة بـ AES-256 على هذا الجهاز";
+"Encrypting" = "جارٍ التشفير";
+"Added to vault" = "أُضيفت إلى الخزنة";
+"OK" = "حسنًا";
+"Photos added: %lld. You can now delete the originals from the Photos app." = "الصور المضافة: %lld. يمكنك الآن حذف الأصل من تطبيق الصور.";
+"Close" = "إغلاق";
+"Share" = "مشاركة";
+"Photo" = "صورة";
+"Delete this photo?" = "حذف هذه الصورة؟";
+"This can't be undone." = "لا يمكن التراجع عن ذلك.";
+
+/* Intruders */
+"Wrong attempts before photo: %lld" = "المحاولات الخاطئة قبل التصوير: %lld";
+"AppLock quietly takes a photo with the front camera when someone enters a wrong passcode in AppLock." = "يلتقط AppLock صورة بالكاميرا الأمامية بهدوء عندما يُدخل أحد رمزًا خاطئًا في AppLock.";
+"No intruders yet" = "لا يوجد متسللون";
+"Photos of anyone who enters a wrong passcode will appear here." = "ستظهر هنا صور أي شخص يُدخل رمزًا خاطئًا.";
+"Recent attempts" = "آخر المحاولات";
+"Failed attempts: %lld" = "المحاولات الفاشلة: %lld";
+"Clear all" = "مسح الكل";
+"Delete all intruder photos?" = "حذف جميع صور المتسللين؟";
+"Delete all" = "حذف الكل";
+"Camera access is off" = "الوصول للكاميرا متوقف";
+"Open Settings" = "فتح الإعدادات";
+"Cancel" = "إلغاء";
+"Allow camera access in Settings to take intruder photos." = "اسمح بالوصول إلى الكاميرا من الإعدادات لالتقاط صور المتسللين.";
+
+/* Settings */
+"Security" = "الأمان";
+"Change passcode" = "تغيير رمز القفل";
+"Photo after wrong attempts" = "التصوير بعد محاولات خاطئة";
+"Turn intruder photos on or off from the Intruders tab." = "شغّل صور المتسللين أو أوقفها من تبويب المتسللون.";
+"On" = "مفعّلة";
+"Turn on notifications" = "تفعيل الإشعارات";
+"When you tap Unlock on a locked app, a notification takes you here to verify it's you." = "عند الضغط على «فتح» في تطبيق مقفل، يصلك إشعار ينقلك إلى هنا للتحقق من هويتك.";
+"Included for free" = "مجانًا بالكامل";
+"Version" = "الإصدار";
+"Passcode changed" = "تم تغيير الرمز";

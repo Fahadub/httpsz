@@ -1,0 +1,6 @@
+"%@ is locked" = "%@ مقفل";
+"This app is locked" = "هذا التطبيق مقفل";
+"Tap the AppLock notification to verify it's you." = "اضغط على إشعار AppLock للتحقق من هويتك.";
+"Enter your passcode in AppLock to open it." = "أدخل رمزك في AppLock لفتحه.";
+"Unlock" = "فتح";
+"Close" = "إغلاق";

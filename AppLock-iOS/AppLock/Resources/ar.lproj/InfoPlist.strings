@@ -1,0 +1,3 @@
+"CFBundleDisplayName" = "AppLock";
+"NSCameraUsageDescription" = "يستخدم AppLock الكاميرا الأمامية لالتقاط صورة عند إدخال رمز خاطئ. تبقى الصور مشفّرة على جهازك.";
+"NSFaceIDUsageDescription" = "استخدم Face ID لفتح AppLock وتطبيقاتك المقفلة.";
