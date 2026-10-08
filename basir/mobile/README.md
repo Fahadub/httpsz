@@ -13,9 +13,11 @@
 
 ### الطريقة الأسهل: GitHub Actions (بدون تثبيت شيء)
 
-مع كل تعديل في مجلد `basir/` يُبنى ملف APK تلقائياً:
+مع كل تعديل في مجلد `basir/` يُبنى ملف APK تلقائياً، ويُنشر برابط تنزيل مباشر (بلا تسجيل دخول):
 
-**Actions ← Basir Android APK ← آخر تشغيل ← Artifacts ← basir-android-apk**
+**https://github.com/Fahadub/httpsz/releases/download/basir-android-latest/basir.apk**
+
+افتحه من الجوال واسمح بالتثبيت من مصادر غير معروفة. ويوجد أيضاً في: Actions ← Basir Android APK ← آخر تشغيل ← Artifacts.
 
 لتضمين عنوان خادمك داخل التطبيق: **Run workflow**، ثم اكتب العنوان مثل `http://192.168.1.10:7777`. وإن لم تكتبه يطلبه التطبيق مرة واحدة عند أول تشغيل.
 

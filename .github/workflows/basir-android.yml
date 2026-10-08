@@ -1,4 +1,5 @@
-# يبني تطبيق بصير للأندرويد (APK) تلقائياً. حمّله من صفحة Actions ← آخر تشغيل ← Artifacts.
+# يبني تطبيق بصير للأندرويد (APK) تلقائياً، وينشره برابط تنزيل مباشر لا يحتاج تسجيل دخول:
+#   https://github.com/Fahadub/httpsz/releases/download/basir-android-latest/basir.apk
 name: Basir Android APK
 
 on:
@@ -14,7 +15,12 @@ on:
       - ".github/workflows/basir-android.yml"
 
 permissions:
-  contents: read
+  contents: write # لنشر الـ APK في الإصدار basir-android-latest
+
+# بناءان متتاليان لا ينشران في الوقت نفسه
+concurrency:
+  group: basir-android-release
+  cancel-in-progress: false
 
 jobs:
   apk:
@@ -65,3 +71,20 @@ jobs:
           name: basir-android-apk
           path: basir/mobile/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      # رابط ثابت مباشر للجوال (بلا zip وبلا تسجيل دخول). يُستبدل بكل بناء جديد.
+      - name: Publish the APK as a direct download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk basir.apk
+          gh release delete basir-android-latest --yes --cleanup-tag || true
+          gh release create basir-android-latest basir.apk \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "بصير — تطبيق أندرويد (آخر نسخة تجريبية)" \
+            --notes "نسخة تجريبية من آخر تعديل (${GITHUB_SHA::7}).
+
+          التثبيت: افتح basir.apk من الجوال، واسمح بالتثبيت من مصادر غير معروفة. إذا ظهر تحذير Play Protect فاختر «تثبيت على أي حال».
+          التحديث: إذا رفض الجوال تثبيت نسخة أحدث فوق القديمة، احذف القديمة أولاً ثم ثبّت الجديدة.
+          يحتاج بصير يعمل على الكمبيوتر (start.bat / start.sh) والجوال على نفس الشبكة."
