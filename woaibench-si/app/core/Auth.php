@@ -102,13 +102,13 @@ final class Auth
     }
 
     /** Session stamp of the admin's current password hash (keyed, so the session file never holds the hash). */
-    public static function passwordStamp(string $passHash): string
+    public static function passwordStamp(#[\SensitiveParameter] string $passHash): string
     {
         return substr(hash_hmac('sha256', 'admin-pw|' . $passHash, app_secret()), 0, 32);
     }
 
     /** Keep the current session valid after its own password change (every other session ends). */
-    public static function refreshPasswordStamp(string $passHash): void
+    public static function refreshPasswordStamp(#[\SensitiveParameter] string $passHash): void
     {
         $_SESSION['admin_pw'] = self::passwordStamp($passHash);
     }
@@ -119,7 +119,7 @@ final class Auth
     }
 
     /** Returns true on success. Caller must enforce rate limiting. */
-    public static function attempt(string $email, string $password): bool
+    public static function attempt(string $email, #[\SensitiveParameter] string $password): bool
     {
         $row = DB::one('SELECT * FROM admins WHERE email = ?', [strtolower(trim($email))]);
         // Constant-ish time: always verify against some hash.

@@ -85,6 +85,7 @@ $csvCols = array_merge(WB\Data\Api::csvColumns(), ['track_<slug>']);
   }
 }</code></pre>
         <p class="t-small t-muted"><?= _e('tools.api_fields_note') ?></p>
+        <p class="t-small t-muted"><?= _e('tools.api_fields_rows') ?></p>
       </article>
 
 <?php foreach ($endpoints as [$id, $path, $descKey, $params, $example]):

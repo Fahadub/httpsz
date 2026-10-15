@@ -149,7 +149,7 @@ $buttons = [
         </ol>
 <?php else: ?>
         <p class="t-muted t-small"><?= _e('arena.top_empty') ?></p>
-        <?php if ($state !== 'disabled' && $state !== 'no_data'): ?><div><a class="btn btn-outline btn-sm" href="#arn-task-title"><?= ui_icon('arena', 15) ?><span><?= _e('arena.top_empty_cta') ?></span></a></div><?php endif; ?>
+        <?php if ($state === 'ready'): ?><div><a class="btn btn-outline btn-sm" href="#arn-task-title"><?= ui_icon('arena', 15) ?><span><?= _e('arena.top_empty_cta') ?></span></a></div><?php endif; ?>
 <?php endif; ?>
       </div>
     </div>

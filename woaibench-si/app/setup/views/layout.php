@@ -70,13 +70,8 @@ $jsStrings = I18n::forJs(['setup.js_', 'setup.strength_', 'setup.api_testing', '
 
 <header class="topbar">
   <a class="brand" href="<?= e(\WB\Setup\Wizard::url(1)) ?>" aria-label="WOAIBench.si">
-    <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">
-      <defs><linearGradient id="g-mark" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F6E3B4"/><stop offset=".55" stop-color="#D9B26A"/><stop offset="1" stop-color="#9C7130"/></linearGradient></defs>
-      <rect x="1.5" y="1.5" width="45" height="45" rx="13" fill="none" stroke="url(#g-mark)" stroke-width="1.6"/>
-      <path d="M13 33V24M20 33V17M27 33V21M34 33V13" stroke="url(#g-mark)" stroke-width="3.4" stroke-linecap="round"/>
-      <circle cx="34" cy="13" r="2.6" fill="#F6E3B4"/>
-    </svg>
-    <span class="brand-word" dir="ltr">WOAIBench<span class="brand-tld">.si</span></span>
+    <?= ui_logo_mark(40) /* the site's own mark (app/core/ui.php), so the installer carries the same identity */ ?>
+    <span class="brand-word" dir="ltr">WOAI<span class="brand-bench">Bench</span><span class="brand-tld">.si</span></span>
     <span class="brand-tag"><?= _e('setup.title') ?></span>
   </a>
   <div class="top-actions">

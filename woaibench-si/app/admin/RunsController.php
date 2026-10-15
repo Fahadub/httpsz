@@ -157,7 +157,7 @@ final class RunsController
         return ($run['status'] ?? '') === 'failed' && method_exists('WB\\Eval\\Pipeline', 'retry');
     }
 
-    /** POST /admin/runs/{id}/action  action=retry|regenerate|rejudge|delete */
+    /** POST /admin/runs/{id}/action  action=retry|regenerate|rejudge|reverify|delete */
     public static function action(int $id): void
     {
         Admin::guardPost();
@@ -203,6 +203,15 @@ final class RunsController
                 DB::exec("UPDATE campaigns SET status = 'running', finished_at = NULL WHERE id = ? AND status = 'done'", [(int) $run['campaign_id']]);
                 \Settings::set('aggregate_dirty', 1);
                 \flash('success', \__('admin.runs.did_rejudge'));
+                break;
+            case 'reverify':
+                // A run waiting for browser evidence after 3 infrastructure failures (note needs_verification):
+                // fresh verification tries, note 'reverified'; a 'done' campaign reopens (Pipeline::reverify).
+                if (!method_exists('WB\\Eval\\Pipeline', 'reverify') || !\WB\Eval\Pipeline::reverify($id)) {
+                    \flash('error', \__('admin.runs.err_reverify_state'));
+                    break;
+                }
+                \flash('success', \__('admin.runs.did_reverify'));
                 break;
             case 'delete':
                 self::deleteShots([$id]);

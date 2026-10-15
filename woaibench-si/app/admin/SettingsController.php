@@ -87,19 +87,19 @@ final class SettingsController
         $raw = is_string($raw) ? trim($raw) : $raw;
         switch ($rule[0]) {
             case 'str':
-                return [is_string($raw) && $raw !== '' && mb_strlen($raw) <= $rule[1], (string) $raw];
+                return [is_string($raw) && $raw !== '' && mb_strlen($raw) <= $rule[1], \as_str($raw)];
             case 'text':
-                return [is_string($raw) && strlen($raw) <= $rule[1], (string) $raw];
+                return [is_string($raw) && strlen($raw) <= $rule[1], \as_str($raw)];
             case 'domain':
-                return [is_string($raw) && (bool) preg_match('/^(?=.{3,190}$)([a-z0-9-]+\.)+[a-z]{2,}$/i', $raw), strtolower((string) $raw)];
+                return [is_string($raw) && (bool) preg_match('/^(?=.{3,190}$)([a-z0-9-]+\.)+[a-z]{2,}$/i', $raw), strtolower(\as_str($raw))];
             case 'email':
-                return [$raw === '' || (is_string($raw) && filter_var($raw, FILTER_VALIDATE_EMAIL) && strlen($raw) <= 190), (string) $raw];
+                return [$raw === '' || (is_string($raw) && filter_var($raw, FILTER_VALIDATE_EMAIL) && strlen($raw) <= 190), \as_str($raw)];
             case 'social':
                 $ok = $raw === '' || (is_string($raw) && strlen($raw) <= 190
                     && (preg_match('#^https://[^\s"<>]+$#', $raw) || preg_match('/^@?[A-Za-z0-9_.\-]{1,60}$/', $raw)));
-                return [(bool) $ok, (string) $raw];
+                return [(bool) $ok, \as_str($raw)];
             case 'enum':
-                return [in_array($raw, $rule[1], true), (string) $raw];
+                return [in_array($raw, $rule[1], true), \as_str($raw)];
             case 'int':
                 $ok = is_numeric($raw) && (int) $raw == $raw && (int) $raw >= $rule[1] && (int) $raw <= $rule[2];
                 return [$ok, $ok ? (int) $raw : $raw];
@@ -115,11 +115,11 @@ final class SettingsController
             case 'bool':
                 return [true, !empty($raw) ? 1 : 0];
             case 'season':
-                return [is_string($raw) && (bool) preg_match('/^[A-Za-z0-9._\-]{1,16}$/', $raw), (string) $raw];
+                return [is_string($raw) && (bool) preg_match('/^[A-Za-z0-9._\-]{1,16}$/', $raw), \as_str($raw)];
             case 'model':
-                return [is_string($raw) && Admin::validOrId($raw), (string) $raw];
+                return [is_string($raw) && Admin::validOrId($raw), \as_str($raw)];
             case 'model_opt':
-                return [$raw === '' || (is_string($raw) && Admin::validOrId($raw)), (string) $raw];
+                return [$raw === '' || (is_string($raw) && Admin::validOrId($raw)), \as_str($raw)];
         }
         return [false, $raw];
     }
@@ -190,7 +190,7 @@ final class SettingsController
         $changes = [];
         switch ($action) {
             case 'key':
-                $key = trim((string) ($_POST['openrouter_key'] ?? ''));
+                $key = trim(as_str($_POST['openrouter_key'] ?? ''));
                 if ($key === '' || strlen($key) > 300 || !preg_match('/^[\x21-\x7E]+$/', $key)) {
                     \flash('error', \__('admin.settings.err_key'));
                     \redirect('/admin/settings#s-secrets');

@@ -89,11 +89,18 @@ final class Pipeline
         return self::verifyMode() !== 'off' && self::hasBrowserChecks($task);
     }
 
-    /** a = tasks.auto_weight ?? tracks.auto_weight, and 1.0 when the task has no rubric. */
+    /**
+     * a = tasks.auto_weight ?? tracks.auto_weight; 1.0 when the task has no rubric, and 0.0 when it has a rubric but
+     * nothing automated could score it (a rubric-only text / html task in a track whose auto weight is 1) — such a
+     * task is judged only, instead of skipping the judges and ending up with no score at all.
+     */
     public static function configuredAutoWeight(array $task): float
     {
         if (!self::rubric($task)) {
             return 1.0;
+        }
+        if (!self::hasAutoChecks($task)) {
+            return 0.0;
         }
         $a = $task['auto_weight'] ?? null;
         if ($a === null || $a === '') {
@@ -106,6 +113,17 @@ final class Pipeline
     public static function needsJudges(array $task): bool
     {
         return self::rubric($task) !== [] && self::configuredAutoWeight($task) < 1.0;
+    }
+
+    /** The task defines automated evidence: an answer spec / agent goals, static checks, or browser checks / tests. */
+    public static function hasAutoChecks(array $task): bool
+    {
+        $type = (string) ($task['output_type'] ?? '');
+        if ($type === 'answer' || $type === 'agent') {
+            return true; // always scored automatically (AnswerCheck / AgentSim goals)
+        }
+        $c = self::checks($task);
+        return !empty($c['static']) || self::hasBrowserChecks($task);
     }
 
     /**

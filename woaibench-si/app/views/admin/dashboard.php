@@ -19,6 +19,9 @@ echo partial('admin/_head', [
 <?php if (!empty($needs_upgrade)): ?>
   <div class="alert alert-warn"><?= ui_icon('database', 16) ?> <span><?= _e('admin.dash.upgrade_needed') ?> <a href="<?= e(url('/admin/settings#s-upgrades')) ?>"><?= _e('admin.dash.upgrade_go') ?></a></span></div>
 <?php endif; ?>
+<?php if (!empty($needs_verify)): ?>
+  <div class="alert alert-warn"><?= ui_icon('shield', 16) ?> <span><?= _e('admin.dash.needs_verify', ['n' => fmt_num($needs_verify)]) ?> <a href="<?= e(url('/admin/runs', ['status' => 'awaiting_verify'])) ?>"><?= _e('admin.dash.needs_verify_go') ?></a></span></div>
+<?php endif; ?>
 <?php if ($missing): ?>
   <div class="alert alert-info"><?= ui_icon('info', 16) ?> <?= _e('admin.dash.engine_partial', ['list' => implode(', ', $missing)]) ?></div>
 <?php endif; ?>

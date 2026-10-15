@@ -43,7 +43,7 @@ final class AccessController
     {
         \csrf_check();
         $email = strtolower(trim(Admin::str('email', '')));
-        $password = (string) ($_POST['password'] ?? '');
+        $password = as_str($_POST['password'] ?? '');
         $client = \ip_hash();
         $ipKey = 'admin_login_ip:' . $client;
         $pairKey = 'admin_login_email:' . $email . ':' . $client;
@@ -87,9 +87,9 @@ final class AccessController
     public static function changePassword(): void
     {
         $user = Admin::guardPost();
-        $current = (string) ($_POST['current'] ?? '');
-        $new = (string) ($_POST['new'] ?? '');
-        $confirm = (string) ($_POST['confirm'] ?? '');
+        $current = as_str($_POST['current'] ?? '');
+        $new = as_str($_POST['new'] ?? '');
+        $confirm = as_str($_POST['confirm'] ?? '');
         $hash = (string) DB::val('SELECT pass_hash FROM admins WHERE id = ?', [(int) $user['id']]);
         if (!\rate_limit('admin_pw:' . $user['id'], 10, 900)) {
             \flash('error', \__('admin.login.too_many'));
@@ -113,7 +113,7 @@ final class AccessController
         Admin::guardPost();
         $email = strtolower(trim(Admin::str('email', '')));
         $name = trim(Admin::str('name', ''));
-        $pass = (string) ($_POST['password'] ?? '');
+        $pass = as_str($_POST['password'] ?? '');
         if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 190) {
             \flash('error', \__('admin.account.err_email'));
         } elseif ($name === '' || mb_strlen($name) > 120) {

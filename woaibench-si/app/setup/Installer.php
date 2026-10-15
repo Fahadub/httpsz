@@ -150,7 +150,7 @@ final class Installer
      * Try a database connection. Returns {ok, error (lang key), params, detail (server message),
      * server, existing_tables, admins, pdo}. Never includes the password.
      */
-    public static function testDb(array $db): array
+    public static function testDb(#[\SensitiveParameter] array $db): array
     {
         $res = ['ok' => false, 'error' => null, 'params' => [], 'detail' => null, 'server' => null, 'existing_tables' => 0, 'admins' => 0, 'pdo' => null];
         if (!extension_loaded('pdo_mysql')) {
@@ -228,7 +228,7 @@ final class Installer
      * admin:{name,email,hash}, openrouter_key}. Idempotent on the database side; the config file and
      * lock are written last. Returns a summary (no secrets).
      */
-    public static function install(array $in): array
+    public static function install(#[\SensitiveParameter] array $in): array
     {
         \wb_time_limit(300);
         $db = $in['db'];
@@ -346,12 +346,12 @@ final class Installer
         return true;
     }
 
-    private static function configArray(array $in): array
+    private static function configArray(#[\SensitiveParameter] array $in): array
     {
         $db = $in['db'];
         return [
             'db' => ['host' => $db['host'], 'port' => (int) $db['port'], 'name' => $db['name'], 'user' => $db['user'], 'pass' => $db['pass']],
-            'openrouter_key' => (string) ($in['openrouter_key'] ?? ''),
+            'openrouter_key' => as_str($in['openrouter_key'] ?? ''),
             'openrouter_base' => (string) (Config::get('openrouter_base') ?: self::DEFAULT_OR_BASE),
             'app_secret' => bin2hex(random_bytes(32)),
             'site_url' => rtrim($in['site']['url'], '/'),
@@ -419,7 +419,7 @@ final class Installer
     }
 
     /** Map a PDO connection error to [lang key, params]. */
-    private static function dbErrorKey(PDOException $e, array $db): array
+    private static function dbErrorKey(PDOException $e, #[\SensitiveParameter] array $db): array
     {
         $code = (int) ($e->errorInfo[1] ?? 0) ?: (int) $e->getCode();
         return match ($code) {
@@ -432,7 +432,7 @@ final class Installer
     }
 
     /** Remove the password (if a driver ever echoes it) and trim a server message for display. */
-    private static function scrub(string $msg, string $pass): string
+    private static function scrub(string $msg, #[\SensitiveParameter] string $pass): string
     {
         if ($pass !== '') {
             $msg = str_replace($pass, '********', $msg);

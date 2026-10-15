@@ -8,6 +8,12 @@ declare(strict_types=1);
 // PHP built-in server: let it serve real static files directly.
 if (PHP_SAPI === 'cli-server') {
     $f = __DIR__ . parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+    // Mirror the .htaccess deny rules (dotfiles, md/sql/log/lock/sh/mjs/ini) so local tests see production behaviour.
+    if (preg_match('#(/\.[^/]*|\.(md|sql|log|lock|sh|mjs|ini))$#i', $f) && is_file($f)) {
+        http_response_code(403);
+        header('Content-Type: text/plain; charset=utf-8');
+        exit('Forbidden');
+    }
     if ($f !== __DIR__ . '/' && is_file($f) && !preg_match('#/(app|config|storage|sql|lang|tools|cron|docs)/#', $f)) {
         if (str_ends_with($f, '.php')) {
             // Allow only the installer to run directly.

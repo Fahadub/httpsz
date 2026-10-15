@@ -158,7 +158,7 @@ final class Wizard
 
     private static function handlePost(): void
     {
-        $action = (string) ($_POST['action'] ?? '');
+        $action = as_str($_POST['action'] ?? '');
         if (!Csrf::valid()) {
             if ($action === 'test_key') {
                 json_out(['ok' => false, 'message' => __('setup.err_csrf')], 419);
@@ -193,7 +193,7 @@ final class Wizard
             self::flash('error', __('setup.err_throttled'));
             self::go(1);
         }
-        if (!Installer::setupTokenValid((string) ($_POST['setup_token'] ?? ''))) {
+        if (!Installer::setupTokenValid(as_str($_POST['setup_token'] ?? ''))) {
             self::flash('error', __('setup.err_token'));
             self::go(1);
         }
@@ -210,11 +210,11 @@ final class Wizard
             self::go(1);
         }
         $db = [
-            'host' => trim((string) ($_POST['db_host'] ?? '')),
+            'host' => trim(as_str($_POST['db_host'] ?? '')),
             'port' => input_int('db_port', 3306, 1, 65535),
-            'name' => trim((string) ($_POST['db_name'] ?? '')),
-            'user' => trim((string) ($_POST['db_user'] ?? '')),
-            'pass' => (string) ($_POST['db_pass'] ?? ''),
+            'name' => trim(as_str($_POST['db_name'] ?? '')),
+            'user' => trim(as_str($_POST['db_user'] ?? '')),
+            'pass' => as_str($_POST['db_pass'] ?? ''),
         ];
         if ($db['pass'] === '' && !empty($S['db']['pass'])) {
             $db['pass'] = $S['db']['pass']; // "leave empty to keep"
@@ -247,17 +247,17 @@ final class Wizard
     {
         $S = &$_SESSION['wbi'];
         $site = [
-            'url' => rtrim(trim((string) ($_POST['site_url'] ?? '')), '/'),
-            'name' => trim((string) ($_POST['site_name'] ?? '')),
+            'url' => rtrim(trim(as_str($_POST['site_url'] ?? '')), '/'),
+            'name' => trim(as_str($_POST['site_name'] ?? '')),
             'lang' => ($_POST['default_lang'] ?? '') === 'en' ? 'en' : 'ar',
         ];
         $admin = [
-            'name' => trim((string) ($_POST['admin_name'] ?? '')),
-            'email' => strtolower(trim((string) ($_POST['admin_email'] ?? ''))),
+            'name' => trim(as_str($_POST['admin_name'] ?? '')),
+            'email' => strtolower(trim(as_str($_POST['admin_email'] ?? ''))),
         ];
-        $pass = (string) ($_POST['admin_pass'] ?? '');
-        $pass2 = (string) ($_POST['admin_pass2'] ?? '');
-        $key = trim((string) ($_POST['openrouter_key'] ?? ''));
+        $pass = as_str($_POST['admin_pass'] ?? '');
+        $pass2 = as_str($_POST['admin_pass2'] ?? '');
+        $key = trim(as_str($_POST['openrouter_key'] ?? ''));
         if ($key !== '' && self::keyFormatOk($key)) {
             $S['key'] = $key; // only well-formed keys are remembered (and later written to the config)
         }
@@ -280,7 +280,7 @@ final class Wizard
     }
 
     /** Field errors as field => lang key. */
-    private static function validateSite(array $site, array $admin, string $pass, string $pass2, string $key): array
+    private static function validateSite(array $site, array $admin, #[\SensitiveParameter] string $pass, #[\SensitiveParameter] string $pass2, #[\SensitiveParameter] string $key): array
     {
         $S = $_SESSION['wbi'];
         $e = [];
@@ -315,13 +315,13 @@ final class Wizard
     }
 
     /** Printable ASCII without spaces, 10–200 characters (OpenRouter keys look like sk-or-v1-<hex>). */
-    private static function keyFormatOk(string $key): bool
+    private static function keyFormatOk(#[\SensitiveParameter] string $key): bool
     {
         return (bool) preg_match('/^[\x21-\x7E]{10,200}$/', $key);
     }
 
     /** Rejects passwords with < 5 distinct characters, or built around the email name / site name. */
-    private static function predictable(string $pass, string $email, string $siteName): bool
+    private static function predictable(#[\SensitiveParameter] string $pass, string $email, string $siteName): bool
     {
         $p = mb_strtolower($pass);
         if (count(array_unique(mb_str_split($p))) < 5) {
@@ -340,13 +340,13 @@ final class Wizard
     private static function postTestKey(): never
     {
         $S = &$_SESSION['wbi'];
-        $key = trim((string) ($_POST['openrouter_key'] ?? '')) ?: (string) ($S['key'] ?? '');
+        $key = trim(as_str($_POST['openrouter_key'] ?? '')) ?: (string) ($S['key'] ?? '');
         $res = self::keyTest($key);
         json_out(['ok' => $res['ok'], 'state' => $res['state'], 'message' => $res['message']]);
     }
 
     /** Run (rate-limited) key test; returns {ok, state, message (translated)}. */
-    private static function keyTest(string $key): array
+    private static function keyTest(#[\SensitiveParameter] string $key): array
     {
         $S = &$_SESSION['wbi'];
         if ($key === '') {

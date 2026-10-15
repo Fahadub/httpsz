@@ -57,6 +57,7 @@ return [
     'setup.req_ext_hint' => 'Enable it in hPanel → Advanced → PHP Configuration → PHP extensions.',
     'setup.req_ext_gd' => 'Used to process screenshots and generated brand images.',
     'setup.req_ext_intl' => 'Used for localised date formatting.',
+    'setup.req_ext_openssl' => 'Usually needed by cURL for the HTTPS connection to OpenRouter.',
     'setup.req_writable' => 'Folder :dir is writable',
     'setup.req_writable_hint' => 'In File Manager, right-click the folder → Permissions → 755.',
     'setup.req_install_dir' => 'Folder :dir is writable (for the lock file)',

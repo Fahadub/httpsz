@@ -151,6 +151,18 @@ function input(string $key, mixed $default = null): mixed
     return is_string($v) ? trim($v) : $v;
 }
 
+/** A scalar request value as a string; arrays (`?x[]=1`) and other non-scalars become $default (no warnings). */
+function as_str(mixed $v, string $default = ''): string
+{
+    return is_string($v) ? $v : (is_int($v) || is_float($v) ? (string) $v : $default);
+}
+
+/** String input (trimmed); '' — or $default — when absent or not a string. */
+function input_str(string $key, string $default = ''): string
+{
+    return as_str(input($key, $default), $default);
+}
+
 /** Integer input with bounds. */
 function input_int(string $key, int $default = 0, ?int $min = null, ?int $max = null): int
 {

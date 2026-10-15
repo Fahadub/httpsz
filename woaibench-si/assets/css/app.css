@@ -1873,7 +1873,9 @@ a.podium-name:hover { color: var(--gold); }
 .duel-body .duel-block { flex: 1; border-radius: 10px; margin-top: 6px; }
 .duel-a .duel-block { background: linear-gradient(135deg, color-mix(in srgb, var(--blue) 30%, transparent), color-mix(in srgb, var(--violet) 22%, transparent)); }
 .duel-b .duel-block { background: linear-gradient(135deg, color-mix(in srgb, var(--gold) 34%, transparent), color-mix(in srgb, var(--red) 18%, transparent)); }
-.duel-vs { position: absolute; top: 50%; left: 50%; z-index: 2; transform: translate(-50%, -60%); display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--gold-grad); color: var(--on-gold); font-family: var(--font-display); font-style: italic; font-size: 20px; box-shadow: var(--shadow), 0 0 0 6px var(--bg-elev); }
+.duel-vs { position: absolute; top: 50%; left: 50%; z-index: 2; transform: translate(-50%, -60%); display: grid; place-items: center; min-width: 46px; height: 46px; padding-inline: 10px; border-radius: 999px; white-space: nowrap; background: var(--gold-grad); color: var(--on-gold); font-family: var(--font-display); font-style: italic; font-size: 20px; box-shadow: var(--shadow), 0 0 0 6px var(--bg-elev); }
+/* Translated label ("مقابل"): the badge grows into a pill instead of overflowing the circle; Arabic has no italic. */
+:lang(ar) .duel-vs { font-style: normal; font-size: 15px; font-weight: 600; padding-inline: 14px; }
 .duel-votes { grid-column: 1 / -1; display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 /* The vote pills in the home illustration are decorative (aria-hidden), not controls. */
 .duel-votes .chip { cursor: default; pointer-events: none; }

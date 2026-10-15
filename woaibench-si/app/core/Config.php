@@ -78,7 +78,7 @@ final class Config
      * Persist config to config/config.local.php (installer + admin settings).
      * Uses var_export so values can never break out of the PHP array literal.
      */
-    public static function write(array $data): bool
+    public static function write(#[\SensitiveParameter] array $data): bool
     {
         $php = "<?php\n// WOAIBench.si local configuration — generated " . gmdate('c') . "\n"
             . "// Contains secrets. Never commit this file. Protected by config/.htaccess.\n"

@@ -223,6 +223,10 @@
   background: var(--surface);
   box-shadow: var(--shadow-lg), var(--glow);
 }
+/* .vs-screen forces direction: ltr for the page under test, so inline-end above resolves to the right even on
+   an Arabic page — where it would cover the admin sidebar. Pin it to the left there (physical, since its own
+   direction is ltr). */
+html[dir="rtl"] .vs-live.is-docked { right: auto; left: 16px; }
 .vs-live-desktop.is-docked { width: min(340px, calc(100vw - 32px)); }
 .vs-live-mobile.is-docked { width: 150px; }
 .vs-live.is-docked .vs-live-label { display: block; }

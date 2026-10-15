@@ -61,8 +61,11 @@ bdi{unicode-bidi:isolate}
 .topbar{width:100%;max-width:1180px;margin:0 auto;padding:22px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
 .brand{display:flex;align-items:center;gap:12px;color:var(--text);text-decoration:none;min-width:0}
 .brand-mark{width:40px;height:40px;flex:none;filter:drop-shadow(0 6px 18px rgba(217,178,106,.25))}
-.brand-word{font-family:"Instrument Serif",Georgia,serif;font-size:26px;letter-spacing:-.01em;line-height:1}
-.brand-tld{background:var(--gold-grad);-webkit-background-clip:text;background-clip:text;color:transparent;font-style:italic}
+.brand-mark .bm-a{stop-color:#F6E4B5}.brand-mark .bm-b{stop-color:#D9B26A}.brand-mark .bm-c{stop-color:#A9803B}
+[data-theme="light"] .brand-mark .bm-a{stop-color:#B8904A}[data-theme="light"] .brand-mark .bm-b{stop-color:#8E6A2B}[data-theme="light"] .brand-mark .bm-c{stop-color:#5F4416}
+.brand-word{font-family:"Instrument Serif",Georgia,serif;font-size:26px;letter-spacing:.01em;line-height:1;white-space:nowrap}
+.brand-bench{font-style:italic;margin-inline-start:.06em;letter-spacing:0}
+.brand-tld{background:var(--gold-grad);-webkit-background-clip:text;background-clip:text;color:transparent;margin-inline-start:.02em}
 .brand-tag{font-size:11.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-ink);
   border:1px solid var(--gold-line);background:var(--gold-soft);padding:3px 10px;border-radius:999px;white-space:nowrap}
 html[lang="ar"] .brand-tag{letter-spacing:0;text-transform:none;font-size:12.5px}

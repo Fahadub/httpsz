@@ -5,7 +5,7 @@
 #
 # Upload the zip to public_html with hPanel → File Manager and extract it there (see docs/DEPLOY.md).
 # Left out on purpose: secrets (config/config.local.php), the install lock, runtime data (storage/,
-# uploads/ contents), dev-only material (tools/dev, docs except DEPLOY.md / SECURITY.md, tests, node_modules,
+# uploads/ contents), dev-only material (tools/dev, docs except DEPLOY.md / SECURITY.md (+ docs/.htaccess), tests, node_modules,
 # VCS files). docs/DEPLOY.md and docs/SECURITY.md ship because the installer and README point to them
 # (docs/ and *.md are denied over the web by .htaccess). Empty runtime folders are kept with their
 # .htaccess / .gitkeep so permissions and deny rules ship.
@@ -27,7 +27,7 @@ mkdir -p "$OUT"
 if command -v rsync >/dev/null 2>&1; then
   rsync -a \
     --exclude '/.git/' --exclude '.gitignore' --exclude '.gitattributes' --exclude '.github/' \
-    --include '/docs/' --include '/docs/DEPLOY.md' --include '/docs/SECURITY.md' --exclude '/docs/*' \
+    --include '/docs/' --include '/docs/.htaccess' --include '/docs/DEPLOY.md' --include '/docs/SECURITY.md' --exclude '/docs/*' \
     --exclude '/dist/' --exclude '/tools/dev/' --exclude '/tools/build-zip.sh' \
     --exclude 'tests/' --exclude 'node_modules/' \
     --exclude '/config/config.local.php' --exclude '/config/config.local.php.*' \
@@ -47,7 +47,7 @@ else
   rm -rf "$OUT/.git" "$OUT/.github" "$OUT/.gitignore" "$OUT/.gitattributes" "$OUT/dist" "$OUT/tools/dev" "$OUT/tools/build-zip.sh" \
     "$OUT/install/install.lock" "$OUT/storage" "$OUT/uploads" "$OUT/.idea" "$OUT/.vscode"
   rm -f "$OUT"/config/config.local.php "$OUT"/config/config.local.php.*
-  find "$OUT/docs" -mindepth 1 ! -name DEPLOY.md ! -name SECURITY.md -exec rm -rf {} + 2>/dev/null || true
+  find "$OUT/docs" -mindepth 1 ! -name DEPLOY.md ! -name SECURITY.md ! -name .htaccess -exec rm -rf {} + 2>/dev/null || true
   find "$OUT" \( -name node_modules -o -name tests \) -type d -prune -exec rm -rf {} +
   find "$OUT" \( -name '.DS_Store' -o -name 'Thumbs.db' -o -name '*.log' -o -name '*.swp' -o -name '.env' -o -name '.env.*' \) -type f -delete
 fi
@@ -71,7 +71,7 @@ fail=0
 for bad in config/config.local.php install/install.lock tools/dev tools/build-zip.sh docs/ARCHITECTURE.md; do
   if [ -e "$OUT/$bad" ]; then echo "✗ must not ship: $bad" >&2; fail=1; fi
 done
-for need in docs/DEPLOY.md docs/SECURITY.md; do
+for need in docs/DEPLOY.md docs/SECURITY.md docs/.htaccess; do
   [ -f "$OUT/$need" ] || { echo "✗ missing from the package: $need (the installer and README link it)" >&2; fail=1; }
 done
 if find "$OUT" -name node_modules -o -name tests -o -name '*.log' -o -name 'sess_*' | grep -q .; then

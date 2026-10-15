@@ -107,6 +107,15 @@ Class autoload: `WB\Eval\Worker` → `app/eval/Worker.php`, `WB\Arena\Arena` →
   `ui_provider_avatar`, `ui_track_badge`, `ui_difficulty`, `ui_heat_cell`, `ui_delta`, `ui_badge`,
   `ui_rank`, `ui_empty`, `ui_stat`, `ui_pagination`, `ui_status`.
 * Logging: `log_error($msg, $ctx)`.
+* Runtime / hosting: `wb_time_limit($seconds)` and `wb_ignore_abort()` (no-ops where the host disables
+  `set_time_limit` / `ignore_user_abort`), `wb_respond_early($data, $code = 200)` (send a JSON answer and close the
+  connection via `fastcgi_finish_request` / `litespeed_finish_request`, then keep working), `is_crawler()`
+  (User-Agent heuristic), `ar_count($n, [one, two, few, many, other])` (Arabic plural forms).
+* Client IP: `client_ip()` (and `ip_hash()`) use `REMOTE_ADDR` unless the request came through a trusted proxy —
+  `trusted_proxies()` from config `trust_proxy` = `false` (default) | `'cloudflare'` (`WB_CLOUDFLARE_IPS`) |
+  `[ip/cidr…]` | `true` (legacy: private ranges `WB_PRIVATE_IPS` only); `ip_in_ranges($ip, $cidrs)`.
+* Rate limits: `rate_limit($key, $max, $windowSec)` is atomic — it reserves the slot *before* the action (no
+  parallel-request bypass); `RateLimit::reset($key, $windowSec)` clears a key (e.g. after a successful login).
 
 ### Rules for every module
 1. **No inline event handlers** (`onclick=`…) and no inline `<script>` without `<?= nonce_attr() ?>` —
@@ -223,7 +232,8 @@ verification failed 3× for infrastructure reasons (verify_mode required) → st
 * "needs browser" = output_type `html` or `js` **and** the task has `browser` checks or `tests`
   **and** `setting('verify_mode') !== 'off'`. In `optional` mode runs older than
   `verify_wait_minutes` in `awaiting_verify` proceed unverified.
-* "judges needed" = task has a non-empty rubric **and** effective auto_weight < 1.
+* "judges needed" = task has a non-empty rubric **and** effective auto_weight < 1 (`Pipeline::configuredAutoWeight`;
+  a rubric-only task is always judged, even in a track whose auto weight is 1, so it never ends up without a score).
 * Leases: claim with `UPDATE … SET status=?, locked_until=NOW()+INTERVAL n SECOND, lock_token=? WHERE id=? AND status=? AND (locked_until IS NULL OR locked_until < NOW())`
   and proceed only if rowCount = 1. Expired leases are reclaimable (crash safety).
 * Generation result with no extractable code → still scored (it is the model's failure): auto checks
@@ -238,7 +248,8 @@ auto_score   = 100 × Σ(w·score_i) / Σw   over static checks + browser checks
 judge_i      = 10 × Σ(w_c·crit_c) / Σw_c          (crit 0..10)  → 0..100
 judge_score  = median(judge_i) (≥3 judges) | mean (2) | value (1)
 judge_spread = max(judge_i) − min(judge_i)
-a            = tasks.auto_weight ?? tracks.auto_weight     (1.0 when there is no rubric)
+a            = tasks.auto_weight ?? tracks.auto_weight     (1.0 when there is no rubric; 0.0 when there is a rubric
+               but no automated evidence at all — no static / browser checks, tests, answer or agent goals)
 final        = a·auto_score + (1−a)·judge_score
 if output_type in (html) and there is no code, or the browser check 'loads' or 'nonblank' failed
              → final × render_fail_factor (0.5)
@@ -456,7 +467,10 @@ Route files: `app/routes/20_engine.php` (worker step, web tick, verifier API), `
 * `POST /admin/api/step` (admin + CSRF; releases the session lock first) → `Worker::step(20)` +
   `{"spent_usd", "step_spent_usd", "campaigns":[progress…], "ok":true}`.
 * `GET /worker/tick?key=<config cron_key>` → `Worker::step(50)` under the worker lock →
-  `{"ok", "busy", "units", "idle", "spent", "counts", "ms"}` (404 for a missing/wrong key).
+  `{"ok", "busy", "units", "idle", "spent", "counts", "ms"}` (404 for a missing/wrong key). When the SAPI can finish
+  a response early (`fastcgi_finish_request` / `litespeed_finish_request`) it answers `{"ok":true,"accepted":true}` at
+  once (`wb_respond_early`) and then runs the step, so a web-cron client's ~30 s timeout never cuts a unit;
+  `.htaccess` sets LiteSpeed `noabort` / `noconntimeout` for `/worker/tick` and `/admin/api/step`.
 * CLI `php cron/worker.php --seconds=55` (Hostinger cron every minute). Invocations serialise on the file lock
   `storage/cache/worker.lock`: an overlapping invocation exits at once; leases keep the admin console safe too.
 * **Verifier API** (auth: admin session + `X-CSRF-Token`, **or** `Authorization: Bearer <api token scope verifier>`;
@@ -681,9 +695,15 @@ hero/og) · requests · changelog · API tokens (create/revoke verifier tokens) 
   hold-out) or the task editor (visibility *Hold-out*); never export them into `sql/seed/` or commit them. The
   Seeder only upserts the slugs it ships, so it never touches them. See docs/DEPLOY.md §8.
 * Installer `install/index.php` → `WB\Setup\Wizard` / `Installer`; refuses when `install/install.lock`
-  or a working `config/config.local.php` exists. Writes config via `Config::write` (fresh `app_secret`,
+  or a working `config/config.local.php` exists. Step 1 asks for the **setup token**: a one-time file
+  `storage/cache/setup-token.txt` (32 hex, created on the first visit by `Installer::ensureSetupToken()`, checked by
+  `setupTokenValid()`, deleted after installation) proves the visitor controls the hosting account, so nobody can
+  take over a freshly uploaded site. Writes config via `Config::write` (fresh `app_secret`,
   `cron_key`), runs `WB\Setup\Migrator::run()` (sql/schema.sql, sql/schema-*.sql, then
-  `sql/migrations/NNN_*.sql` once each) and `WB\Setup\Seeder::run($updateExisting = false)`
+  `sql/migrations/NNN_*.sql` once each, then the one-off PHP upgrade steps `Migrator::STEPS` — e.g.
+  `shots_unguessable`, which renames legacy guessable screenshot files — recorded in `schema_version.steps`;
+  `Migrator::status()` reports `pending_steps`, and `needs_upgrade` includes them) and
+  `WB\Setup\Seeder::run($updateExisting = false)`
   (tracks, `sql/seed/tasks/*.json`, `sql/seed/gpus.json`; idempotent upserts by slug/name; admin-edited
   rows are kept unless `$updateExisting`).
 * Admin JSON (module setup, `app/routes/80_setup.php`): `POST /admin/api/migrate`,
@@ -692,8 +712,20 @@ hero/og) · requests · changelog · API tokens (create/revoke verifier tokens) 
   `installed_version`.
 * `app/routes/70_tools.php` owns every `/api/v1/*` route including an OPTIONS catch-all and a GET 404
   catch-all — any future `/api/v1` route must live there (or in a route file that sorts before it).
-* Stateless paths (no session cookie): `/api/v1/*`, `/badge/*`, `/embed/*`, `/export/*`, `/sitemap.xml`,
-  `/robots.txt`, `/healthz`, `/site.webmanifest` (see bootstrap).
+* **Sessions are lazy** (`Auth::wantsSession($path)`, called by the bootstrap), so crawlers, cookieless visitors and
+  bot 404s never create session files (inode quota on shared hosting):
+  * always stateless (`Auth::STATELESS_RE`, even with a cookie): `/api/v1/*`, `/badge/*`, `/embed/*`, `/export/*`,
+    `/sitemap.xml`, `/robots.txt`, `/healthz`, `/site.webmanifest`, `/worker/tick`;
+  * a client that already holds the `wb_sess` cookie keeps its session everywhere else;
+  * without the cookie a session starts only on `/admin*`, `/install*`, `/request`, `/arena`, `/arena/next` and
+    `/arena/vote` (not for crawlers on `/arena`, which get the page without a pair); `/render/*`, `/arena/frame/*` and
+    `/api/verifier/*` never start one.
+  * Caching: session-less GET/HEAD pages send `Cache-Control: public, max-age=60` + `Vary: Cookie, Accept-Language`
+    (`Http::publicCacheHeaders`; `private` for `?lang=` switches and `/arena`); non-admin pages with a session send
+    `private, no-cache` (`Http::sessionCacheHeaders`). `abort()` sends `no-store` for codes other than 404.
+  * The CSRF `<meta>` is only rendered when a session exists.
+* Admin sessions carry a password stamp (`Auth::passwordStamp(pass_hash)`): changing a password signs out every other
+  session of that admin (`Auth::refreshPasswordStamp`), removing an admin ends theirs; 12 h idle timeout.
 * Arena settings: `arena_last_recompute`, `arena_votes_at_recompute`; `Arena::maybeRecompute()` is
   called by the Worker on each step and after votes.
 * Writing config from the admin: pass `Config::write()` the **raw file array** merged with changes
@@ -714,4 +746,3 @@ hero/og) · requests · changelog · API tokens (create/revoke verifier tokens) 
   failures (allocation errors, `metrics.oom`, `test.oom`) destroy the frame, wait 6 s and release the run
   while `attempt < max_attempts`; on the last try the run is submitted as the output's failure with
   `metrics.oom = 1` — the same rule as `tools/verifier-node/verify.mjs`.
-* Sessions are not started for cookieless requests to `/render/*`, `/arena/frame/*`, `/api/verifier/*`.

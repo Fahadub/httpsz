@@ -236,7 +236,7 @@ final class CampaignsController
         ]);
     }
 
-    /** POST /admin/campaigns/{id}/action  action=pause|resume|cancel|retry_failed|include|exclude|delete */
+    /** POST /admin/campaigns/{id}/action  action=pause|resume|cancel|retry_failed|reverify|include|exclude|delete */
     public static function action(int $id): void
     {
         Admin::guardPost();
@@ -270,6 +270,17 @@ final class CampaignsController
                     \Settings::set('aggregate_dirty', 1);
                 }
                 $msg = \__('admin.campaigns.did_retry', ['n' => $n]);
+                break;
+            case 'reverify':
+                // Runs whose required browser verification failed 3× for infrastructure reasons (needs_verification)
+                // get fresh verification tries; Pipeline::reverify reopens a 'done' campaign.
+                $n = 0;
+                if (method_exists('WB\\Eval\\Pipeline', 'needsVerificationIds')) {
+                    foreach (\WB\Eval\Pipeline::needsVerificationIds($id) as $rid) {
+                        $n += \WB\Eval\Pipeline::reverify($rid) ? 1 : 0;
+                    }
+                }
+                $msg = \__('admin.campaigns.did_reverify', ['n' => $n]);
                 break;
             case 'include':
             case 'exclude':

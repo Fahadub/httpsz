@@ -87,7 +87,8 @@ main#main { overflow-x: clip; }
   .pub-collapse-body { grid-column: 1 / -1; }
   .js .pub-collapse-body:not(.is-open) { display: none; }
   /* KPIs become one compact strip; the tie connector (and its legend entry) does not exist on cards. */
-  .pub-kpis { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+  /* gap stays 1px: the kpi-row draws its hairline dividers with the container background showing through. */
+  .pub-kpis { display: flex; gap: 1px; overflow-x: auto; scrollbar-width: none; }
   .pub-kpis .stat { flex: 1 0 auto; gap: 2px; padding: 10px 14px; }
   .pub-kpis .stat-icon, .pub-kpis .stat-hint { display: none; }
   .pub-kpis .stat-value { font-size: 22px; }

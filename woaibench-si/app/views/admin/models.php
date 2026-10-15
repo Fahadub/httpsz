@@ -13,6 +13,10 @@ $vendorsJ = array_unique(array_column($judges, 'provider'));
 <?php if ($judges && count($vendorsJ) < 3): ?>
   <div class="alert alert-warn"><?= ui_icon('scale', 16) ?> <?= _e('admin.models.judge_vendors', ['n' => count($vendorsJ)]) ?></div>
 <?php endif; ?>
+<?php $judge_gaps = $judge_gaps ?? []; ?>
+<?php if ($judges && $judge_gaps): ?>
+  <div class="alert alert-warn"><?= ui_icon('scale', 16) ?> <span><?= _e('admin.models.judge_gaps', ['n' => count($judge_gaps), 'need' => max(1, (int) setting('judge_count')) + 1]) ?></span></div>
+<?php endif; ?>
 <form class="admin-filters card card-pad" method="get" action="<?= e(url('/admin/models')) ?>">
   <div class="field">
     <label class="label" for="f-q"><?= _e('common.search') ?></label>
@@ -70,7 +74,7 @@ $vendorsJ = array_unique(array_column($judges, 'provider'));
       <tbody>
       <?php foreach ($models as $m): $api = url('/admin/api/models/' . $m['id']); ?>
         <tr class="<?= (int) $m['is_active'] ? '' : 'is-muted' ?>">
-          <td data-value="<?= e($m['name']) ?>"><a class="admin-model-cell" href="<?= e(url('/admin/models/' . $m['id'])) ?>"><?= ui_model_chip($m, false) ?></a><div class="t-mono t-xs t-muted admin-orid" dir="ltr"><?= e($m['or_id']) ?></div></td>
+          <td data-value="<?= e($m['name']) ?>"><a class="admin-model-cell" href="<?= e(url('/admin/models/' . $m['id'])) ?>"><?= ui_model_chip($m, false) ?></a><div class="t-mono t-xs t-muted admin-orid" dir="ltr"><?= e($m['or_id']) ?></div><?php if ($judges && isset($judge_gaps[(int) $m['id']])): ?><span class="t-xs" data-tip="<?= _e('admin.models.judge_gap_tip', ['n' => (int) $judge_gaps[(int) $m['id']]]) ?>"><?= ui_badge(__('admin.models.judge_gap_badge'), 'gold') ?></span><?php endif; ?></td>
           <td class="num t-num" data-value="<?= e((string) ($m['price_in'] ?? -1)) ?>"><bdi><?= e(fmt_price($m['price_in'])) ?></bdi></td>
           <td class="num t-num" data-value="<?= e((string) ($m['price_out'] ?? -1)) ?>"><bdi><?= e(fmt_price($m['price_out'])) ?></bdi></td>
           <td class="num t-num" data-value="<?= e((string) ($m['context_length'] ?? 0)) ?>"><?= e(fmt_tokens($m['context_length'])) ?></td>

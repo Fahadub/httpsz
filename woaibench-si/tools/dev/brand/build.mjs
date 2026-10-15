@@ -136,7 +136,7 @@ ${font('Sans', 'inter-latin-wght-normal.woff2', 'font-weight:100 900;')}
 ${font('Mono', 'jetbrains-mono-latin-wght-normal.woff2', 'font-weight:100 800;')}
 html,body{margin:0;width:1200px;height:630px;overflow:hidden;background:#07080B;color:${p.text}}
 body{position:relative;background:radial-gradient(900px 520px at 88% 30%,rgba(217,178,106,.16),transparent 60%),radial-gradient(700px 500px at 0% 100%,rgba(217,178,106,.07),transparent 60%),#07080B}
-.dial{position:absolute;right:-170px;top:-150px;width:860px;height:860px;opacity:.9}
+.dial{position:absolute;right:-550px;top:-550px;width:900px;height:900px;opacity:.9}
 .frame{position:absolute;inset:28px;border:1px solid rgba(236,228,210,.10);border-radius:28px}
 .wrap{position:absolute;left:84px;top:92px;right:200px}
 .row{display:flex;align-items:center;gap:26px}

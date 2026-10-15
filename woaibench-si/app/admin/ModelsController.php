@@ -123,7 +123,7 @@ final class ModelsController
     private static function validate(array $in, ?int $id): array
     {
         $e = [];
-        $str = static fn(string $k, int $max) => mb_substr(trim((string) ($in[$k] ?? '')), 0, $max);
+        $str = static fn(string $k, int $max) => mb_substr(trim(\as_str($in[$k] ?? '')), 0, $max);
         $data = [
             'name' => $str('name', 190),
             'slug' => strtolower($str('slug', 160)),
@@ -156,7 +156,7 @@ final class ModelsController
             'price_out' => [0, 100000, false], 'judge_order' => [-1000, 1000, true],
         ];
         foreach ($nums as $k => [$min, $max, $int]) {
-            $raw = trim((string) ($in[$k] ?? ''));
+            $raw = trim(\as_str($in[$k] ?? ''));
             if ($raw === '') {
                 $data[$k] = $k === 'judge_order' ? 0 : null;
                 continue;
@@ -167,7 +167,7 @@ final class ModelsController
             }
             $data[$k] = $int ? (int) $raw : (float) $raw;
         }
-        $date = trim((string) ($in['release_date'] ?? ''));
+        $date = trim(\as_str($in['release_date'] ?? ''));
         if ($date === '') {
             $data['release_date'] = null;
         } elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !checkdate((int) substr($date, 5, 2), (int) substr($date, 8, 2), (int) substr($date, 0, 4))) {
@@ -175,7 +175,7 @@ final class ModelsController
         } else {
             $data['release_date'] = $date;
         }
-        $color = trim((string) ($in['color'] ?? ''));
+        $color = trim(\as_str($in['color'] ?? ''));
         if ($color === '') {
             $data['color'] = null;
         } elseif (!preg_match('/^#[0-9A-Fa-f]{6}$/', $color)) {
@@ -183,7 +183,7 @@ final class ModelsController
         } else {
             $data['color'] = strtoupper($color);
         }
-        $gp = trim((string) ($in['gen_params'] ?? ''));
+        $gp = trim(\as_str($in['gen_params'] ?? ''));
         if ($gp === '') {
             $data['gen_params'] = null;
         } else {

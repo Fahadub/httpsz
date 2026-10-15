@@ -22,7 +22,7 @@ final class OpenRouter implements ChatClient
     private string $base;
 
     /** Defaults come from Config (openrouter_key / openrouter_base). */
-    public function __construct(?string $key = null, ?string $base = null)
+    public function __construct(#[\SensitiveParameter] ?string $key = null, ?string $base = null)
     {
         $this->key = trim((string) ($key ?? \Config::get('openrouter_key', '')));
         $base = trim((string) ($base ?? \Config::get('openrouter_base', self::DEFAULT_BASE)));

@@ -513,6 +513,14 @@ $s = Scorer::compute(Pipeline::loadTask($ids['agent']), ['agent_json' => to_json
 T::ok($s['auto'] === 62.5 && $s['final'] === 62.5, 'agent task: auto = simulator goal score');
 $s = Scorer::compute($taskH, $runH, []);
 T::ok($s['auto_weight'] === 1.0 && abs($s['final'] - 60.0) < 0.01, 'zero judges → auto weight 1');
+// A rubric-only task (no automated checks) in a track whose auto weight is 1 must still be judged.
+$textTask = ['output_type' => 'text', 'rubric_json' => to_json([['key' => 'clarity', 'weight' => 1]]), 'checks_json' => '{}',
+    'auto_weight' => null, 'track_auto_weight' => 1.0];
+T::ok(Pipeline::configuredAutoWeight($textTask) === 0.0 && Pipeline::needsJudges($textTask), 'rubric-only text task in an auto-weight-1 track → judged only (a = 0), never left without a score');
+$s = Scorer::compute($textTask, ['code' => 'memo', 'static_json' => '[]'], [70, 80, 90]);
+T::ok($s['auto'] === null && $s['final'] === 80.0, 'rubric-only task: final = judge median', $s);
+$checkedText = ['checks_json' => to_json(['static' => [['id' => 'len', 'type' => 'min_bytes', 'value' => 10, 'weight' => 1]]])] + $textTask;
+T::ok(Pipeline::configuredAutoWeight($checkedText) === 1.0 && !Pipeline::needsJudges($checkedText), 'same task with a static check → track auto weight 1, no judges');
 $j = Scorer::judgeStats([20, 80, 85, 90]);
 T::ok(abs($j['score'] - 82.5) < 0.001 && $j['spread'] === 70.0 && !$j['contested'], 'after tie-break: median of 4 = 82.5; outlier arbitrated → not contested', $j);
 $j = Scorer::judgeStats([10, 30, 50, 90]);

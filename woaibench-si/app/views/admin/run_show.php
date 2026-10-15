@@ -16,7 +16,9 @@ $errorText = \WB\Admin\Admin::errorText($r['error']);
 $notes = $notes ?? [];
 $goals = $goals ?? [];
 // Required verification failed for infrastructure reasons: the run waits (unscored) until an admin re-verifies it.
-$needsVerify = $r['status'] === 'awaiting_verify' && in_array('needs_verification', array_column($notes, 'code'), true);
+// (no verification tries left — after a re-verification the run has fresh tries and the button hides again).
+$needsVerify = $r['status'] === 'awaiting_verify' && in_array('needs_verification', array_column($notes, 'code'), true)
+    && (!array_key_exists('verify_tries', $r) || (int) $r['verify_tries'] >= \WB\Eval\Pipeline::MAX_TRIES);
 echo partial('admin/_head', [
     'back' => url('/admin/runs', ['campaign' => $r['campaign_id']]),
     'eyebrow' => $r['campaign'] . ' · ' . __('admin.runs.attempt_n', ['n' => (int) $r['attempt']]),

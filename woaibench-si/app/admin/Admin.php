@@ -147,7 +147,22 @@ final class Admin
                 \log_error('Campaign::progress failed', ['id' => $id, 'error' => $e->getMessage()]);
             }
         }
-        return self::normalizeProgress($p, $campaign);
+        $out = self::normalizeProgress($p, $campaign);
+        $out['needs_verify'] = ($out['counts']['awaiting_verify'] ?? 0) > 0 ? self::needsVerifyCount($id) : 0;
+        return $out;
+    }
+
+    /** Runs waiting for an admin re-verification (needs_verification; WB\Eval\Pipeline::needsVerificationIds). */
+    public static function needsVerifyCount(?int $campaignId = null): int
+    {
+        if (!method_exists('WB\\Eval\\Pipeline', 'needsVerificationIds')) {
+            return 0;
+        }
+        try {
+            return count(\WB\Eval\Pipeline::needsVerificationIds($campaignId));
+        } catch (Throwable $e) {
+            return 0;
+        }
     }
 
     /** Fill missing keys of a progress array: total, done, pct, counts, spent, name, status. */
@@ -204,7 +219,7 @@ final class Admin
     }
 
     /** Mask a secret: "••••abcd". */
-    public static function mask(?string $secret): string
+    public static function mask(#[\SensitiveParameter] ?string $secret): string
     {
         $secret = (string) $secret;
         if ($secret === '') {
@@ -242,7 +257,7 @@ final class Admin
     }
 
     /** Persist config changes; returns false when the file is not writable. */
-    public static function writeConfig(array $changes): bool
+    public static function writeConfig(#[\SensitiveParameter] array $changes): bool
     {
         $file = WB_CONFIG_FILE;
         $dir = dirname($file);
@@ -293,9 +308,18 @@ final class Admin
         if (!self::engine('Judge')) {
             return [];
         }
+        $out = [];
+        if (method_exists('WB\\Eval\\Judge', 'panelHealth')) {
+            // One source of truth with the engine's panel selection (Judge::panelHealth).
+            foreach (\WB\Eval\Judge::panelHealth($models) as $id => $h) {
+                if (empty($h['tiebreak'])) {
+                    $out[(int) $id] = (int) $h['eligible'];
+                }
+            }
+            return $out;
+        }
         $judges = DB::all('SELECT id, provider, or_id FROM models WHERE is_judge = 1');
         $need = max(1, (int) \setting('judge_count')) + 1;
-        $out = [];
         foreach ($models as $m) {
             $vendor = \WB\Eval\Judge::vendor($m);
             $n = count(array_filter($judges, static fn(array $j): bool => (int) $j['id'] !== (int) $m['id']

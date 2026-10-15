@@ -34,6 +34,7 @@ final class DashboardController
         }
         Admin::render('dashboard', [
             'needs_upgrade' => $needsUpgrade,
+            'needs_verify' => Admin::needsVerifyCount(),
             'title' => \__('admin.nav.dashboard'),
             'nav_active' => 'dashboard',
             'user' => $user,

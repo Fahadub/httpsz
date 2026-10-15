@@ -108,7 +108,7 @@ Router::get('/advisor', static function (): void {
 
 Router::get('/api-docs', static function (): void {
     $rows = Leaderboard::rows();
-    $badgeSlug = (string) input('badge', '');
+    $badgeSlug = input_str('badge');
     $badgeRow = null;
     foreach ($rows as $r) {
         if ($r['slug'] === $badgeSlug || ($badgeSlug === '' && $badgeRow === null)) {
@@ -175,7 +175,7 @@ Router::get('/api/v1/leaderboard', static function (): void {
         Api::error(404, 'unknown_track', 'Unknown track slug. See /api/v1/tracks.');
     }
     $inc = input('include_provisional');
-    $include = $inc === null || !in_array(strtolower((string) $inc), ['0', 'false', 'no'], true);
+    $include = $inc === null || !in_array(strtolower(as_str($inc)), ['0', 'false', 'no'], true);
     Api::send(Api::envelope(Api::leaderboard($season, $track, $include), $season, ['track' => $track, 'include_provisional' => $include, 'seasons' => Catalog::seasons()]));
 });
 

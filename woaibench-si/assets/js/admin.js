@@ -157,10 +157,14 @@
       else if (!Array.isArray(tt.cases) || !tt.cases.length) out.push(['checks.tests.cases', 'list']);
       else {
         let needsEntry = false;
+        const names = Object.create(null);
         tt.cases.forEach((cs, i) => {
           const p = 'checks.tests.cases[' + i + ']';
           if (!isObj(cs)) { out.push([p, 'object']); return; }
           if (typeof cs.name !== 'string' || !cs.name.trim()) out.push([p + '.name', 'required']);
+          // An error, as on the server: verifier results are matched to cases by name.
+          else if (names[cs.name]) out.push([p + '.name', 'duplicate', { v: cs.name }]);
+          else names[cs.name] = 1;
           const a = 'args' in cs;
           const s = 'script' in cs;
           if (a === s) out.push([p, 'args_or_script']);

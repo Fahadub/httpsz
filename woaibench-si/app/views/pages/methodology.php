@@ -165,6 +165,7 @@ $verifyMode = (string) setting('verify_mode', 'required');
       <h2 id="failures"><?= _e('pub.meth.fail.h') ?></h2>
       <?= $p('pub.meth.fail.p1') ?>
       <?= $p('pub.meth.fail.p2') ?>
+      <?= $p('pub.meth.fail.p3') ?>
 
       <h2 id="cost"><?= _e('pub.meth.cost.h') ?></h2>
       <?= $p('pub.meth.cost.p1') ?>
@@ -186,7 +187,7 @@ $verifyMode = (string) setting('verify_mode', 'required');
 
       <h2 id="limitations"><?= _e('pub.meth.lim.h') ?></h2>
       <ul>
-        <?php for ($i = 1; $i <= 6; $i++): ?><li><?= pub_rich('pub.meth.lim.l' . $i, $n) ?></li><?php endfor; ?>
+        <?php for ($i = 1; $i <= 7; $i++): ?><li><?= pub_rich('pub.meth.lim.l' . $i, $n) ?></li><?php endfor; ?>
       </ul>
 
       <h2 id="versioning"><?= _e('pub.meth.ver.h') ?></h2>

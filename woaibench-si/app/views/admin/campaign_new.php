@@ -12,6 +12,8 @@ echo partial('admin/_head', [
 ?>
 <?php if (!$engine): ?><div class="alert alert-warn"><?= _e('admin.engine_missing', ['c' => 'WB\\Eval\\Campaign']) ?></div><?php endif; ?>
 <?php if ($judges < 3): ?><div class="alert alert-warn"><?= ui_icon('scale', 16) ?> <?= _e('admin.campaigns.few_judges', ['n' => $judges]) ?> <a href="<?= e(url('/admin/models', ['judge' => 1])) ?>"><?= _e('admin.nav.models') ?></a></div><?php endif; ?>
+<?php $judge_gaps = $judge_gaps ?? []; ?>
+<?php if ($judges > 0 && $judge_gaps): ?><div class="alert alert-warn"><?= ui_icon('scale', 16) ?> <span><?= _e('admin.models.judge_gaps', ['n' => count($judge_gaps), 'need' => max(1, (int) setting('judge_count')) + 1]) ?> <a href="<?= e(url('/admin/models', ['judge' => 1])) ?>"><?= _e('admin.nav.models') ?></a></span></div><?php endif; ?>
 <form class="form admin-split" method="post" action="<?= e(url('/admin/campaigns/new')) ?>" data-campaign-form data-estimate-url="<?= e(url('/admin/api/estimate')) ?>">
   <?= csrf_field() ?>
   <div class="stack-lg">
@@ -36,6 +38,7 @@ echo partial('admin/_head', [
             <span class="admin-pick-body">
               <?= ui_model_chip($m, false) ?>
               <span class="t-xs t-muted t-num"><bdi><?= e(fmt_price($m['price_in'])) ?></bdi> · <bdi><?= e(fmt_price($m['price_out'])) ?></bdi><?= (int) $m['is_judge'] ? ' · ' . _e('admin.models.judge') : '' ?></span>
+              <?php if ($judges > 0 && isset($judge_gaps[(int) $m['id']])): ?><span class="t-xs" data-tip="<?= _e('admin.models.judge_gap_tip', ['n' => (int) $judge_gaps[(int) $m['id']]]) ?>"><?= ui_badge(__('admin.models.judge_gap_badge'), 'gold') ?></span><?php endif; ?>
             </span>
           </label>
         <?php endforeach; ?>

@@ -223,6 +223,7 @@ return [
     'tools.api_envelope' => 'Response envelope',
     'tools.api_envelope_text' => 'Every endpoint returns the same envelope: the payload in data and provenance in meta.',
     'tools.api_fields_note' => 'Scores are 0–100 with two decimals; ci_low and ci_high are the 95% bootstrap interval. rank is the position among non-provisional models; stat_rank counts only models that are better beyond the margin of error. Costs are USD, prices are USD per million tokens, latency is in milliseconds.',
+    'tools.api_fields_rows' => 'n_failed counts the model’s runs that were excluded from its score (infrastructure failures after all retries, and attempts that could not be scored fairly). Each entry of tracks has score, ci_low, ci_high, n_tasks, n_runs, coverage and provisional (true while the model covers too few of that track’s tasks). With ?track=, every row also gets a track object with the same fields plus rank and stat_rank within the track — both null while the model is provisional in that track.',
     'tools.api_open' => 'Open',
     'tools.api_param' => 'Parameter',
     'tools.api_desc' => 'Description',
