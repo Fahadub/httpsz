@@ -347,6 +347,16 @@ numbers: tabular mono.
 Theme: `<html data-theme="dark|light">` (default dark, remembers choice), `dir="rtl|ltr"`. Use logical
 CSS properties (`margin-inline-start`, `inset-inline-end`, …) so RTL works automatically.
 
+**CSS custom properties (tokens)** — defined on `:root` / `[data-theme]` in app.css; module CSS must use
+these instead of hard-coded colours:
+`--bg` `--bg-elev` `--surface` `--surface-2` `--surface-3` `--glass` `--border` `--border-strong`
+`--text` `--text-muted` `--text-faint` `--gold` `--gold-2` `--gold-soft` (translucent gold) `--gold-grad`
+(gradient) `--accent` `--green` `--red` `--blue` `--violet` `--amber` `--green-soft` `--red-soft`
+`--blue-soft` `--violet-soft` `--focus` `--radius-sm` `--radius` `--radius-lg` `--radius-xl`
+`--shadow-sm` `--shadow` `--shadow-lg` `--font-display` `--font-body` `--font-mono` `--ease`
+`--dur` `--header-h` `--container` `--gap` `--s1`…`--s8` (spacing scale 4,8,12,16,24,32,48,64 px)
+and `--heat-0`…`--heat-10` (score colour ramp). Chart colours come from `WB.palette(i)` / `WB.colors()`.
+
 **Class vocabulary** (implemented in app.css; pages must use these):
 * Layout: `container` `container-wide` `container-narrow` `section` `section-head` `eyebrow`
   `section-title` `section-sub` `grid` `grid-2` `grid-3` `grid-4` `stack` `stack-sm` `stack-lg`
