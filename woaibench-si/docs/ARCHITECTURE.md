@@ -1,0 +1,436 @@
+# WOAIBench.si — Architecture & Module Contracts
+
+> This file is the single source of truth every module is built against. If you change a contract,
+> update this file in the same change.
+
+## 0. Product in one paragraph
+
+WOAIBench.si ("**SI = Scientific Index**") is a bilingual (Arabic RTL / English) benchmark site that
+ranks AI models on practical coding work. It competes with woaibench.ai by being **more accurate and
+more transparent**:
+
+| Accuracy / trust feature | How |
+|---|---|
+| Repeated attempts | every model × task is run N times (default 3) → mean and variance |
+| 95% confidence intervals | stratified bootstrap over tasks and attempts (1000 resamples) |
+| Statistical rank | rank = 1 + number of models whose CI lower bound is above this model's CI upper bound |
+| Multi-vendor judge panel | 3 judges from **different vendors**, median score, judges never grade their own vendor |
+| Adaptive tie-break | if judge spread > 25 points an extra judge is added automatically |
+| Blind judging | judges never see the model's name |
+| Criterion-level rubrics | judges score 4–6 weighted criteria (0–10) with calibration anchors, not one holistic number |
+| Hybrid scoring | deterministic automated checks (static + real-browser + unit tests) blended with judge scores |
+| Real browser checks | outputs are executed in a sandboxed browser (admin "Verification Station" or headless Playwright) — JS errors, rendering, FPS, responsiveness, interactivity, unit tests, screenshots |
+| Deterministic tracks | algorithms, reasoning and agentic tasks are graded by tests / exact answers / simulated-environment state, no LLM opinion |
+| Contamination control | public task set + private **hold-out** set + Task Forge for fresh tasks each season |
+| Infrastructure ≠ model failure | API/provider errors are retried and excluded; only real model failures score 0 |
+| Full transparency | every output, screenshot, check result and judge rationale is public (public tasks) |
+| Cost & latency | tokens, $ and seconds per task; price-performance Pareto frontier |
+| Human Arena | blind pairwise votes → Bradley–Terry ratings with CIs |
+
+Unique extras vs the competitor: Arabic UI + an **Arabic & RTL** track, free full leaderboard,
+personal **Advisor** (custom-weighted ranking), **Local Fit Lab** (will an open model run on my
+hardware + how good is it), Compare (up to 4 models), score history, public JSON API + CSV,
+embeddable SVG badges, model request form.
+
+## 1. Stack & constraints
+
+* PHP **8.1+** (no Composer, no build step) + MySQL/MariaDB. Target host: Hostinger shared hosting
+  (Apache/LiteSpeed, `.htaccess`, cron jobs, ~300 s max execution, no Node, no Chromium).
+* Front-end: hand-written CSS/JS. Vendor libs are **self-hosted** in `assets/vendor/`
+  (Chart.js 4, html2canvas). Fonts self-hosted in `assets/fonts/`. No external CDNs on site pages.
+* All files are uploaded into `public_html/`. Internal folders are blocked by `.htaccess`
+  (`app config storage sql lang tools cron docs`) and every PHP file in `app/` starts with
+  `defined('WB') || exit;`.
+* Secrets live only in `config/config.local.php` (gitignored, written by the installer).
+* The repository is public: never commit secrets, never hard-code the API key.
+
+## 2. Directory layout
+
+```
+index.php                 front controller (all routes)
+.htaccess                 rewrites + deny rules
+install/index.php         web installer (locks itself with install/install.lock)
+app/bootstrap.php         loads core, config, session, i18n
+app/core/                 helpers.php Config DB Settings I18n Csrf Auth RateLimit Router View Http ui.php
+app/eval/                 benchmark engine (namespace WB\Eval)            — module: engine
+app/render/               rendering untrusted outputs + probe injection   — module: verifier
+app/arena/                arena pairs, votes, Bradley–Terry               — module: arena
+app/data/                 read-side queries for public pages              — module: public
+app/routes/*.php          route registrations, one file per module (auto-loaded, sorted by name)
+app/views/layout.php      public layout;  app/views/admin/_layout.php admin layout
+app/views/partials/       header.php footer.php …
+app/views/pages/          public pages;  app/views/admin/ admin pages;  app/views/errors/
+lang/{ar,en}/<module>.php string tables (one file per module, merged at runtime)
+assets/css/app.css        design system (all shared components)
+assets/css/<module>.css   optional page-specific styles (add via $page_css)
+assets/js/app.js          global behaviours (WB namespace)
+assets/js/<module>.js     page scripts (add via $page_js)
+assets/vendor/            chart.umd.min.js, html2canvas.min.js
+assets/img/               logo.svg logo-mark.svg icons.svg favicons og.png
+uploads/shots/            screenshots (run_<id>_desktop.png / _mobile.png)
+uploads/brand/            generated brand images
+storage/logs, storage/cache, storage/sessions
+cron/worker.php           CLI worker:  php cron/worker.php --seconds=55
+sql/schema.sql            schema;  sql/seed/*.json seed data
+tools/verifier-node/      optional headless Playwright verifier (runs on any machine)
+tools/dev/                dev-only scripts (task validation, mock OpenRouter)
+docs/                     this file, DEPLOY.md, METHODOLOGY.md
+```
+
+Class autoload: `WB\Eval\Worker` → `app/eval/Worker.php`, `WB\Arena\Arena` → `app/arena/Arena.php`
+(namespace segments lower-cased as directories, class name = file name). Core classes are global
+(`DB`, `Config`, `Settings`, `I18n`, `Auth`, `Csrf`, `Router`, `View`, `Http`, `RateLimit`).
+
+## 3. Core API (app/core) — use these, don't reinvent
+
+* Escaping: `e($s)` for HTML; `js_json($v)` inside `<script>`; never echo raw user/model data.
+* JSON: `json_arr($text, $default=[])`, `to_json($v)`.
+* DB (PDO, prepared statements only): `DB::all/one/val/col/keyed/exec/insert/upsert/update/tx/in`.
+  `DB::update($table, $data, 'id = ?', [$id])` (positional where params).
+  IN lists: `DB::all('... WHERE id IN (' . DB::in($ids) . ')', $ids)`.
+* Settings: `setting('key')`, `Settings::set('key', $v)`. Defaults in `Settings::defaults()`.
+* Config (secrets): `Config::get('openrouter_key')`, `Config::get('openrouter_base')`, `Config::write($array)`.
+* URLs: `url('/path', ['q'=>1], $absolute=false)`, `asset('css/app.css')`, `upload_url('shots/x.png')`,
+  `current_path()`, `redirect('/x')`, `redirect_back()`, `base_path()`, `site_origin()`.
+* Requests: `is_post()`, `input('k')`, `input_int('k', 0, min, max)`, `json_body()`.
+* Responses: `view('pages/x', $vars)`, `view('admin/x', $vars, 'admin')`, `json_out($data, $code)`, `abort(404)`.
+* Security: `csrf_field()`, `csrf_check()` (aborts 419), `require_admin()`, `Auth::apiToken('verifier')`,
+  `rate_limit($key, $max, $windowSec)`, `ip_hash()`, `random_token()`, `nonce_attr()`,
+  `Http::sandboxHeaders()` for untrusted output, `Http::corsPublic()` for public API.
+* i18n: `__('key', ['n'=>3])`, `_e('key')` (escaped), `L($row,'title')` picks `title_ar|title_en`,
+  `tr('عربي','English')`, `lang()`, `is_rtl()`, `text_dir()`, `lang_url('en')`, `I18n::forJs(['arena.'])`.
+* Formatting: `fmt_score`, `fmt_num`, `fmt_money`, `fmt_price` (per 1M tokens), `fmt_ms`, `fmt_tokens`,
+  `fmt_date($dt, 'date'|'datetime'|'relative')`.
+* Stats: `mean`, `median`, `stddev`, `percentile`, `clamp`.
+* Flash: `flash('success', __('...'))`, `flashes()` (rendered by layouts).
+* UI fragments (app/core/ui.php): `ui_icon`, `ui_score`, `ui_scorebar`, `ui_model_chip`,
+  `ui_provider_avatar`, `ui_track_badge`, `ui_difficulty`, `ui_heat_cell`, `ui_delta`, `ui_badge`,
+  `ui_rank`, `ui_empty`, `ui_stat`, `ui_pagination`, `ui_status`.
+* Logging: `log_error($msg, $ctx)`.
+
+### Rules for every module
+1. **No inline event handlers** (`onclick=`…) and no inline `<script>` without `<?= nonce_attr() ?>` —
+   the site CSP blocks them. Pass data to JS with `<script type="application/json" id="x-data">` +
+   `js_json()`, or `data-*` attributes.
+2. Every POST from a browser: `csrf_check()` first. Every admin route: `require_admin()` first.
+3. All visible text through `__()` with keys in your module's lang files (both `ar` and `en`).
+4. Use design-system classes (§7). Page-specific CSS goes in `assets/css/<module>.css`.
+5. Times are UTC in the DB; format with `fmt_date`.
+6. Model output is **untrusted**: only ever display it escaped, or render it via `/render/...`
+   in `<iframe sandbox="allow-scripts">` (never `allow-same-origin`).
+7. PHP 8.1 compatible (no readonly classes, no `true` type, no DNF types).
+8. Keep functions small and well-named; one short docblock per class/public method.
+
+## 4. Database (sql/schema.sql)
+
+Key tables: `settings, admins, rate_limits, api_tokens, models, tracks, tasks, campaigns, runs,
+judgments, model_scores, score_history, arena_pairs, arena_votes, arena_ratings, model_requests,
+brand_assets, changelog, gpus`. Read the schema file for columns. Notes:
+
+* `models.provider` = vendor key = the part of `or_id` before `/` (e.g. `anthropic`). Used for
+  judge self-exclusion and colours. Prices are USD per **1M** tokens.
+* `tasks.visibility`: `public` | `holdout` (hold-out prompts/outputs are never exposed publicly).
+* `tasks.output_type`: `html` | `js` | `answer` | `agent` | `text`.
+* `runs.status` state machine (§5.2). `runs.final_score` 0–100.
+* `model_scores.scope`: `overall` or `track:<slug>`; `season` = `setting('season')`.
+
+## 5. Benchmark engine (module: engine, app/eval, namespace WB\Eval)
+
+### 5.1 Task definition formats
+
+`rubric_json` — array of criteria (weights are relative):
+```json
+[{"key":"visual","label_en":"Visual polish","label_ar":"الإتقان البصري","weight":3,
+  "guide":"Cohesive palette, typography, spacing; looks professionally designed."}]
+```
+
+`checks_json` — object; every key optional:
+```json
+{
+  "static":  [ {"id":"viewport","type":"contains","pattern":"<meta[^>]+viewport","regex":true,"weight":1,
+                "label_en":"Has viewport meta","label_ar":"..."} ],
+  "browser": [ {"id":"no_errors","type":"no_errors","weight":2,"label_en":"No JS errors","label_ar":"..."} ],
+  "tests":   {"entry":"solve","timeout_ms":2000,"cases":[{"name":"basic","args":[[3,1,2]],"expect":[1,2,3],"cmp":"deep"}]},
+  "answer":  {"type":"number","value":42,"tolerance":0.001},
+  "agent":   { ... see §5.6 ... }
+}
+```
+
+**Static check types** (evaluated in PHP on the extracted code, `app/eval/StaticChecks.php`):
+`contains` {pattern, regex?, ci?} · `not_contains` {pattern, regex?, ci?} · `selector` {sel, min?, max?}
+(simple CSS: `tag`, `#id`, `.class`, `[attr]`, `[attr=val]`, `tag.class`) · `max_bytes` {value} ·
+`min_bytes` {value} · `no_external` {allow:[hosts]} (no src/href to other hosts) · `viewport` ·
+`lang_attr` {value?} · `dir_rtl` · `html_parses` (DOMDocument error count ≤ threshold) ·
+`single_file` (no relative src/href to local files) · `regex_count` {pattern, min} ·
+`js_parses` — heuristic for `js` outputs (balanced braces/brackets/parens outside strings/comments).
+
+**Browser check types** (evaluated by the probe in a real browser, module verifier):
+`loads` · `no_errors` · `nonblank` · `selector` {sel, min?} · `text` {contains, ci?} ·
+`animates` (pixels/DOM change over 1 s) · `fps` {min} · `responsive` (no horizontal overflow at 390 px) ·
+`keyboard` {keys:[...]} (state changes after key events) · `click` {sel?} (state changes after click) ·
+`rtl` · `a11y_basic` (img alt, labelled inputs, named buttons, lang attr) · `canvas` (a non-empty canvas exists).
+Each result: `{"id","type","pass":bool,"score":0..1,"detail":"..."}`.
+
+**JS tests** (`output_type = js`, executed by the verifier's harness in a sandboxed Worker):
+case = `{"name", "args":[...], "expect":..., "cmp":"deep|approx|set|sorted|truthy", "tol":1e-6}` (calls
+`entry(...args)`) **or** `{"name","script":"const c = new LRU(2); c.put(1,1); return c.get(1);","expect":1}`
+(runs the snippet after the model code). Per-case timeout `timeout_ms`.
+Result: `{"name","pass","ms","got"?: <json, truncated>, "error"?: "..."}`.
+
+**Answer** (`output_type = answer`): the prompt asks for `<answer>…</answer>`. Types:
+`exact` {value, ci?} · `number` {value, tolerance} · `regex` {pattern} · `set` {value:[...], ci?}
+(comma/newline separated, order-insensitive) · `json` {value} (deep equal) · `one_of` {values:[...]}.
+
+### 5.2 Run state machine
+
+```
+queued ──generate──▶ (needs browser?) ──yes──▶ awaiting_verify ──verifier claims──▶ verifying ──submit──▶ judging|scoring
+                      │no                                                                   ▲
+                      └──────────────────────────────▶ judging (if judges needed) ─────────┘──▶ scoring ──▶ scored
+any step: infrastructure error → tries++ → retry (back to previous waiting state) ; tries ≥ 3 → failed (excluded)
+```
+* "needs browser" = output_type `html` or `js` **and** the task has `browser` checks or `tests`
+  **and** `setting('verify_mode') !== 'off'`. In `optional` mode runs older than
+  `verify_wait_minutes` in `awaiting_verify` proceed unverified.
+* "judges needed" = task has a non-empty rubric **and** effective auto_weight < 1.
+* Leases: claim with `UPDATE … SET status=?, locked_until=NOW()+INTERVAL n SECOND, lock_token=? WHERE id=? AND status=? AND (locked_until IS NULL OR locked_until < NOW())`
+  and proceed only if rowCount = 1. Expired leases are reclaimable (crash safety).
+* Generation result with no extractable code → still scored (it is the model's failure): auto checks
+  fail, judges see the raw text.
+
+### 5.3 Scoring
+
+```
+auto_score   = 100 × Σ(w·score_i) / Σw   over static checks + browser checks (+ tests: pass fraction × tests weight)
+               tests weight = checks.tests.weight ?? 6 ; answer tasks: auto_score = 100 or 0 ; agent: goal checks
+judge_i      = 10 × Σ(w_c·crit_c) / Σw_c          (crit 0..10)  → 0..100
+judge_score  = median(judge_i) (≥3 judges) | mean (2) | value (1)
+judge_spread = max(judge_i) − min(judge_i)        → contested = spread > judge_tiebreak_spread (after tie-break)
+a            = tasks.auto_weight ?? tracks.auto_weight     (1.0 when there is no rubric)
+final        = a·auto_score + (1−a)·judge_score
+if output_type in (html) and the browser check 'loads' or 'nonblank' failed → final × render_fail_factor (0.5)
+```
+Aggregation (`WB\Eval\Aggregator::recompute(?string $season = null)`), per model, season, using runs
+with status `scored` from campaigns with `include_in_scores = 1` and active tasks:
+```
+task_score   = mean(final over attempts)
+track_score  = mean(task_score over tasks in track)
+overall      = mean(track_score over tracks)          ← equal weight per track
+coverage     = scored tasks / active tasks            ; provisional = coverage < min_coverage
+CI           = stratified bootstrap (resample tasks within each track, then attempts within each task),
+               bootstrap_iters iterations, 2.5/97.5 percentiles, deterministic seed (mt_srand(1337))
+consistency  = 100 − mean over tasks of stddev(attempts)   (higher = more consistent)
+rank_pos     = order by overall desc among non-provisional models
+stat_rank    = 1 + #models whose ci_low > this ci_high
+```
+Writes `model_scores` (scope `overall` and `track:<slug>`; track rows also get CI) and one
+`score_history` row per model per day (upsert). Sets `settings.aggregate_last`.
+
+### 5.4 Judges
+
+* Judge pool: `models WHERE is_judge = 1 ORDER BY judge_order`. Per run choose the first
+  `judge_count` judges whose `provider` ≠ run model's provider. Extra tie-break judge = next eligible.
+* Prompt: system prompt with calibration anchors (0–2 broken · 3–4 poor · 5–6 adequate · 7–8 strong ·
+  9–10 exceptional/rare; "most competent outputs land at 5–7"), the task prompt, rubric (with guides),
+  automated check summary, the code (truncated to ~60k chars, head+tail), and screenshots (desktop +
+  mobile as `image_url` data URLs) when the judge `supports_vision` and screenshots exist.
+  Never reveal the model name. Temperature `judge_temperature`. `response_format: json_object`.
+* Expected judge JSON: `{"criteria":{"<key>":0-10,...},"summary":"…","strengths":["…"],"weaknesses":["…"]}`.
+  Parse robustly (first balanced `{…}`), clamp to 0..10, missing criterion → retry once, then 0.
+
+### 5.5 OpenRouter client (`WB\Eval\OpenRouter`)
+
+* Base `Config::get('openrouter_base', 'https://openrouter.ai/api/v1')`, key `Config::get('openrouter_key')`.
+  Headers: `Authorization: Bearer`, `HTTP-Referer: site_origin()`, `X-Title: WOAIBench.si`.
+* `chat(array $payload, int $timeout): array` → normalized
+  `{ok, content, reasoning, tool_calls, finish_reason, usage:{prompt_tokens, completion_tokens, reasoning_tokens, cost}, provider, id, ms, error, status, retryable}`.
+  Request `usage: {include: true}` so cost comes back; fallback cost = tokens × model prices.
+  `retryable` = network error, 408, 429, 5xx, or provider error codes.
+* `models(): array` (GET /models) for catalog sync; `images(prompt, model, size): array` — tries
+  `POST /images/generations` (OpenAI style: `data[0].b64_json|url`), falls back to chat completions
+  with `modalities: ["image","text"]` (`choices[0].message.images[0].image_url.url` data URL).
+  Returns `{ok, bytes, mime, error}`.
+
+### 5.6 Agentic simulator (`WB\Eval\AgentSim`)
+
+Multi-turn loop with **native tool calling** when `models.supports_tools`, otherwise a JSON text
+protocol (model replies with a fenced ```json {"tool":"…","args":{…}}``` block per step).
+`checks.agent`:
+```json
+{
+  "max_steps": 12,
+  "tools": ["list_dir","read_file","write_file","append_file","delete_file","move_file","search_files",
+            "http_get","query_records","update_record","send_email","calendar_list","calendar_add","calc","finish"],
+  "env": {
+    "files":    {"/inbox/a.txt":"…"},
+    "http":     {"https://api.example.test/rates?base=USD":{"status":200,"body":"{…}"}},
+    "records":  {"orders":[{"id":1,"status":"open","total":12.5}]},
+    "calendar": [{"title":"Standup","start":"2026-10-20T09:00","end":"2026-10-20T09:15"}],
+    "now":      "2026-10-19T08:00"
+  },
+  "goal_checks": [
+    {"type":"file_equals","path":"/out/x.txt","value":"…","trim":true,"weight":2},
+    {"type":"file_contains","path":"/out/x.txt","value":"…","ci":true},
+    {"type":"file_json_equals","path":"/out/x.json","value":{}},
+    {"type":"file_exists","path":"…"}, {"type":"file_absent","path":"…"},
+    {"type":"record_equals","table":"orders","id":1,"field":"status","value":"shipped"},
+    {"type":"email_sent","to":"a@b.test","subject_contains":"…","body_contains":["…"]},
+    {"type":"email_count","max":1},
+    {"type":"calendar_has","title_contains":"…","start":"2026-10-21T10:00"},
+    {"type":"answer_contains","value":"…","ci":true}, {"type":"answer_number","value":3,"tolerance":0},
+    {"type":"tool_not_called","tool":"delete_file"},
+    {"type":"no_write_outside","prefix":"/out/"},
+    {"type":"max_steps","value":8}
+  ]
+}
+```
+Tool semantics: paths are absolute strings; `list_dir(path)` lists direct children; `search_files(query)`
+case-insensitive substring over contents → paths; `http_get(url)` only from `env.http` (others → 404);
+`query_records(table, where?:{field:value}, sort?, limit?)`; `update_record(table,id,fields)`;
+`send_email(to,subject,body)` appends to an outbox; `calendar_add(title,start,end)`; `calc(expression)`
+safe arithmetic (+ − × ÷ ^ parentheses, decimals) — **no eval**; `finish(answer)` ends the episode.
+Transcript stored in `runs.agent_json`. auto_score = weighted goal checks (auto_weight 1.0).
+
+### 5.7 Worker & entry points (engine owns these routes in app/routes/engine.php)
+
+* `WB\Eval\Worker::step(float $budgetSeconds = 25.0): array` — loops: claim & process one unit at a
+  time (generate → judge → finalize → optional-mode timeouts → aggregation when `aggregate_dirty` and
+  ≥ 60 s since last, or when nothing else to do) until the budget is used or nothing is actionable.
+  Returns `{"did":[{"kind":"generate","run_id":1,"model":"…","task":"…","ok":true,"ms":1234}], "counts":{status:n}, "idle":bool}`.
+* `WB\Eval\Campaign::create(string $name, array $modelIds, array $taskIds, int $runsPerTask, array $genParams = []): int`
+  (inserts runs), `::estimate(array $modelIds, array $taskIds, int $runsPerTask): array`
+  (`{runs, gen_cost, judge_cost, total, per_model:[...]}` using model prices and per-output-type token
+  assumptions), `::progress(int $id): array`, `::pause/resume/cancel(int $id)`.
+* `POST /admin/api/step` (admin + CSRF) → `Worker::step(20)` JSON + `{"spent_usd", "campaigns":[progress…]}`.
+* `GET /worker/tick?key=<config cron_key>` → `Worker::step(50)` (for external web-cron).
+* CLI `php cron/worker.php --seconds=55` (Hostinger cron every minute).
+* **Verifier API** (auth: admin session + `X-CSRF-Token`, **or** `Authorization: Bearer <api token scope verifier>`):
+  * `POST /api/verifier/next` → `{"run":null}` or
+    `{"run":{"id","lock_token","output_type","render_url","viewports":[{"name":"desktop","w":1280,"h":800},{"name":"mobile","w":390,"h":844}],"checks":[…browser checks…],"tests":{…}|null,"timeout_ms":15000,"task":{"slug","title"}}}`.
+    `render_url` = absolute URL `/render/<id>?verify=1&vt=<hmac>` (see §6).
+  * `POST /api/verifier/submit` body
+    `{"run_id","lock_token","agent":"station|playwright","results":{"checks":[…],"tests":[…],"errors":["…"],"metrics":{"load_ms","fps","js_errors","console_errors"}},"screenshots":{"desktop":"data:image/png;base64,…","mobile":"…"}}`
+    → stores `browser_json`, screenshots (validated image, ≤ 4 MB each, saved as PNG/WebP in `uploads/shots/`),
+    `verified=1`, `verified_by`, then advances the state machine. → `{"ok":true,"next_status":"judging"}`.
+  * `POST /api/verifier/release` `{"run_id","lock_token","error"}` → infrastructure problem; back to
+    `awaiting_verify` (verify_tries++; after 3 → proceed unverified with a note).
+
+## 6. Rendering untrusted output (module: verifier, app/render)
+
+* `GET /render/{id}` — serves the run's code as a full HTML document with `Http::sandboxHeaders()`.
+  * `html` outputs: the extracted HTML document.
+  * `js` outputs: a harness page showing the code (escaped) and a "Run tests" UI.
+  * Hold-out tasks: require admin session or a valid `vt` token.
+  * `?verify=1&vt=<token>`: injects (as the first elements of `<head>`)
+    `<script>window.__WB_PROBE_CFG={…}</script><script src="/assets/js/probe.js"></script>` and, for
+    screenshot capture, `assets/vendor/html2canvas.min.js` (station mode). `vt` = HMAC(app_secret,
+    run_id|lock_token|expiry) issued by `/api/verifier/next`, valid 15 min.
+  * `wb_render_vt(int $runId, string $lockToken): string` and `wb_render_vt_valid(int $runId, string $vt): bool`
+    in `app/render/render.php`.
+* `function wb_render_document(array $run, array $task, array $opts = []): void` in
+  `app/render/render.php` (sends headers + body; `$opts['verify']`, `$opts['vt']`, `$opts['embed']`).
+  Used by `/render/{id}` and by the arena (`/arena/frame/{token}/{side}`).
+* `assets/js/probe.js` — runs inside the sandboxed document, executes browser checks / tests, posts
+  `{"type":"wb-probe", …}` to `parent` and exposes `window.__WB_PROBE_RESULT` (for Playwright).
+* `assets/js/verifier.js` — `window.WBVerifier.start(containerEl, {concurrency:2, onLog(fn), onStats(fn)})`,
+  `.stop()`. Uses the verifier API above with `WB.fetchJSON` (CSRF). Admin page `/admin/verify`.
+* `tools/verifier-node/` — `node verify.mjs --site https://woaibench.si --token <api token>` using
+  Playwright Chromium; same API; real screenshots via `page.screenshot`.
+
+## 7. Design system (module: design — assets/css/app.css, assets/js/app.js, layouts)
+
+**Identity:** "Obsidian & Champagne" — deep ink-black surfaces, champagne-gold accent, ivory text,
+precise hairline borders, glass panels, generous whitespace. Light theme = ivory paper + ink text.
+Display type: serif (Latin) / Arabic display face; body: Inter (Latin) / IBM Plex Sans Arabic;
+numbers: tabular mono.
+
+Theme: `<html data-theme="dark|light">` (default dark, remembers choice), `dir="rtl|ltr"`. Use logical
+CSS properties (`margin-inline-start`, `inset-inline-end`, …) so RTL works automatically.
+
+**Class vocabulary** (implemented in app.css; pages must use these):
+* Layout: `container` `container-wide` `container-narrow` `section` `section-head` `eyebrow`
+  `section-title` `section-sub` `grid` `grid-2` `grid-3` `grid-4` `stack` `stack-sm` `stack-lg`
+  `cluster` `split` `sidebar-layout`
+* Surfaces: `card` `card-pad` `card-glass` `card-hover` `card-head` `card-title` `card-body` `card-foot` `panel`
+* Type: `t-display` `t-h1` `t-h2` `t-h3` `t-lead` `t-muted` `t-small` `t-xs` `t-mono` `t-num` `t-gold`
+  (gold gradient text) `t-center` `t-balance`
+* Buttons: `btn` `btn-primary` `btn-ghost` `btn-outline` `btn-danger` `btn-sm` `btn-lg` `btn-icon` `btn-block`
+* Forms: `form` `field` `label` `input` `select` `textarea` `checkbox` `switch` `help` `form-row`
+  `form-actions` `range` `input-group`
+* Tables: `table-wrap` `table` `table-compact` `th[data-sort]` (sortable) `td.num` `tr.is-provisional`
+  `tr.is-highlight`
+* Badges: `badge` + `badge-gold|green|red|blue|violet|muted`, `chip` `chip.active` `pill`
+* Data: `score score-sm|md|lg|xl` `score-ci` `scorebar` `scorebar-fill` `scorebar-ci` (uses `--bar`)
+  `heat heat-0…heat-10 heat-na` `stat` `stat-value` `stat-label` `stat-hint` `stat-icon` `kpi-row`
+  `rank rank-1|2|3` `delta delta-up|down|flat` `difficulty` `track-badge` (uses `--track`)
+  `avatar` (uses `--av`, `--size`) `model-chip` `legend` `legend-item` `chart-box` (fixed-height chart container)
+* Nav/chrome: `site-header` `nav` `nav-link` `.active` `lang-switch` `theme-toggle` `site-footer`
+  `breadcrumbs` `tabs` `tab` `.active` (+ `[data-tabs]` / `[data-tab-panel]`), `pagination` `page`
+* Feedback: `alert alert-success|error|warn|info` `empty-state` `skeleton` `spinner` `progress`
+  `progress-bar` `toast` (JS) `[data-tip]` tooltips `kbd` `divider`
+* Content: `prose` (long-form text), `code-block` (pre), `render-frame` (iframe shell with
+  `render-toolbar`), `device-toggle`, `hero`, `hero-art`, `reveal` (scroll-in animation)
+* Admin: `admin-shell` `admin-sidebar` `admin-main` `admin-topbar` `admin-nav-link`
+
+**JS (`assets/js/app.js`, global `window.WB`):** `WB.fetchJSON(url, {method, body})` (adds CSRF +
+JSON), `WB.toast(msg, type)`, `WB.t(key)` (strings from `<script type="application/json" id="wb-i18n">`),
+`WB.colors()` (resolved CSS tokens), `WB.palette(i)` (categorical colours), `WB.chart(canvas, config)`
+(Chart.js with theme defaults; requires `vendor/chart.umd.min.js` in `$page_js`),
+`WB.debounce(fn, ms)`, `WB.fmt.score(n)`, `WB.fmt.money(n)`. Declarative behaviours:
+`[data-theme-toggle]`, `[data-copy="text"]`, `table[data-sortable]`, `[data-filter-input="#tableId"]`,
+`[data-tabs]`, `[data-countup]`, `.reveal`, `[data-confirm="message"]` (forms & buttons),
+`[data-nav-toggle]`, `[data-autosubmit]` (select change submits form).
+
+**Icons:** sprite `assets/img/icons.svg`, `<symbol id="i-<name>">`, 24×24, stroke `currentColor`.
+Required names: trophy chart arena cpu compass book flask code eye check x alert arrow-up
+arrow-down arrow-right arrow-left external download copy sun moon globe menu close search filter
+star shield bolt cube gamepad palette bug robot brain lock accessibility type layers clock coin
+gauge sparkles settings users play pause refresh trash edit plus logout image list grid info link
+github x-social target scale timer database server key mail calendar file terminal wand medal
+crown fire heart thumbs-up equal dice api badge history.
+
+## 8. Public pages (module: public) — routes in app/routes/public.php
+
+| Route | View | Notes |
+|---|---|---|
+| `/` | pages/home | hero, live KPIs, top-10 with CI bars, why-we're-more-accurate, tracks grid, arena teaser, value teaser, changelog |
+| `/leaderboard` | pages/leaderboard | full table, track filter (`?track=`), provider/open-weights filters, sort, heatmap of tracks, CSV/JSON links, statistical-tie shading |
+| `/model/{slug}` | pages/model | score card, radar by track, history chart, per-task table, outputs gallery, cost/latency, judge agreement |
+| `/compare` | pages/compare | `?m=slug1,slug2,…` up to 4; radar overlay, per-track bars, head-to-head per task |
+| `/tasks` `/task/{slug}` | pages/tasks, pages/task | public tasks only; holdout count shown, prompts hidden |
+| `/run/{id}` | pages/run | output in sandboxed iframe, code, checks, judges, cost (public tasks only) |
+| `/methodology` | pages/methodology | the full scoring method (from this doc), FAQ |
+| `/value` | pages/value | price-performance scatter + Pareto frontier |
+| `/changelog` `/about` `/request` | … | request-a-model form (rate-limited) |
+Data access helpers in `app/data/` (`WB\Data\Leaderboard`, `WB\Data\Models` …).
+
+## 9. Arena & tools (module: arena / tools)
+
+* `/arena` blind pairwise duel of two rendered outputs for the same public task
+  (`/arena/frame/{token}/{a|b}` → `wb_render_document`), vote `a|b|tie|both_bad` (CSRF + rate limit
+  `arena_votes_per_hour`), reveal after vote. `/arena/leaderboard` Bradley–Terry (MM algorithm, ties =
+  half win, both_bad = tie) scaled to Elo-like `1000 + 400·log10`, bootstrap CI (200 resamples).
+* `/hardware` Local Fit Lab: pick an open-weight model (or enter params), quantization (FP16, Q8, Q6,
+  Q5, Q4, Q3), context length, GPU(s) from `gpus` (multi-GPU, Apple unified memory, CPU RAM) →
+  memory needed (weights + KV cache + overhead), verdict, est. tokens/s (bandwidth ÷ bytes per token),
+  and "best benchmarked models that fit your machine".
+* `/advisor` custom weighting: sliders per track, budget per task, open-weights only, min context →
+  personal ranking computed client-side, shareable URL.
+* Public API (if `api_public`): `/api/v1/leaderboard[?track=&season=]`, `/api/v1/models`,
+  `/api/v1/models/{slug}`, `/api/v1/tracks`, `/api/v1/tasks`, `/api/v1/arena`; `/export/leaderboard.csv`;
+  docs page `/api-docs`. CORS `*`, rate limit 120/min/IP.
+* `/badge/{slug}.svg` embeddable badge; `/embed/leaderboard` compact widget (frame-ancestors *).
+* `/sitemap.xml`, `/robots.txt`, JSON-LD (`Dataset` on leaderboard).
+
+## 10. Admin (module: admin) — `/admin/*`, layout `admin`
+
+login/logout (rate limited) · dashboard (queue counts, spend, recent failures, worker heartbeat) ·
+models (OpenRouter catalog sync with search, enable/disable, judge flag + order, edit metadata incl.
+open weights/params for the Fit Lab) · tracks (names, colours, auto weight) · tasks (CRUD with JSON
+validation + preview, import/export JSON) · Task Forge (LLM drafts new tasks → review → activate as
+hold-out) · campaigns (create with model/task pickers + live cost estimate, list, progress, pause/
+resume/cancel, include-in-scores toggle) · console (`/admin/console`: runs `POST /admin/api/step` in a
+loop **and** embeds the Verification Station so one open tab drives everything) · runs explorer
+(filter, retry failed, view details) · settings (site, season, judging, verification, arena, API key
+update → `Config::write`) · Brand Studio (image generation via OpenRouter, gallery, set active logo/
+hero/og) · requests · changelog · API tokens (create/revoke verifier tokens) · recompute scores.

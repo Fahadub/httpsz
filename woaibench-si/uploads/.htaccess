@@ -1,0 +1,14 @@
+# Uploaded/generated media only — never execute scripts here.
+Options -Indexes -ExecCGI
+<FilesMatch "\.(php|phtml|php[0-9]|phar|pl|py|cgi|sh|html?|svg|js)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+</FilesMatch>
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set Content-Security-Policy "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox"
+</IfModule>

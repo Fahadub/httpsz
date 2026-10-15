@@ -10,3 +10,19 @@ dist/
 venv/
 *.log
 .DS_Store
+
+# WOAIBench.si (PHP site) — secrets and runtime data
+woaibench-si/config/config.local.php
+woaibench-si/config/*.tmp*
+woaibench-si/install/install.lock
+woaibench-si/storage/logs/*
+woaibench-si/storage/cache/*
+woaibench-si/storage/sessions/
+woaibench-si/uploads/shots/*
+woaibench-si/uploads/brand/*
+!woaibench-si/storage/logs/.gitkeep
+!woaibench-si/storage/cache/.gitkeep
+!woaibench-si/uploads/shots/.gitkeep
+!woaibench-si/uploads/brand/.gitkeep
+woaibench-si/tools/verifier-node/node_modules/
+node_modules/
