@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<!-- WB-ORACLE reference — ec-fixture-cafe-menu (engine-core test fixture) -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurora Café — Menu</title>
+<style>
+  :root { --ink: #1d1a16; --paper: #faf6ee; --gold: #b8892e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, "Segoe UI", Tahoma, sans-serif; background: var(--paper); color: var(--ink); }
+  header { padding: 32px 20px 12px; text-align: center; }
+  h1 { margin: 0; font-size: clamp(28px, 6vw, 44px); letter-spacing: -0.5px; }
+  main { max-width: 720px; margin: 0 auto; padding: 12px 20px 40px; display: grid; gap: 12px; }
+  .item { display: flex; justify-content: space-between; padding: 14px 16px; border: 1px solid #e6dcc8; border-radius: 12px; background: #fff; }
+  .item[hidden] { display: none; }
+  .price { font-variant-numeric: tabular-nums; color: var(--gold); font-weight: 600; }
+  button { justify-self: center; padding: 10px 18px; border-radius: 999px; border: 1px solid var(--gold); background: transparent; color: var(--ink); cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--gold); color: #fff; }
+</style>
+</head>
+<body>
+<header><h1>Aurora Café</h1><p>Seasonal coffee &amp; small plates</p></header>
+<main>
+  <button type="button" id="veg" aria-pressed="false">Vegetarian only</button>
+  <div class="item" data-veg="1"><span>Cardamom latte</span><span class="price">€4.20</span></div>
+  <div class="item" data-veg="1"><span>Za'atar flatbread</span><span class="price">€6.50</span></div>
+  <div class="item" data-veg="0"><span>Lamb kofta wrap</span><span class="price">€9.80</span></div>
+  <div class="item" data-veg="1"><span>Date &amp; walnut cake</span><span class="price">€5.10</span></div>
+</main>
+<script>
+  const btn = document.getElementById('veg');
+  btn.addEventListener('click', () => {
+    const on = btn.getAttribute('aria-pressed') !== 'true';
+    btn.setAttribute('aria-pressed', String(on));
+    document.querySelectorAll('.item').forEach((el) => { el.hidden = on && el.dataset.veg !== '1'; });
+  });
+</script>
+</body>
+</html>

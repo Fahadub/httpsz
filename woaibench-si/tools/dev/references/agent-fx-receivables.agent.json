@@ -1,0 +1,58 @@
+{
+  "steps": [
+    {
+      "tool": "read_file",
+      "args": {
+        "path": "/wiki/fx.md"
+      }
+    },
+    {
+      "tool": "query_records",
+      "args": {
+        "table": "invoices",
+        "where": {
+          "status": "unpaid"
+        }
+      }
+    },
+    {
+      "tool": "http_get",
+      "args": {
+        "url": "https://fx.corvina.test/v2/rates?base=USD&date=2026-09-30"
+      }
+    },
+    {
+      "tool": "calc",
+      "args": {
+        "expression": "9180 / 3.6725"
+      }
+    },
+    {
+      "tool": "calc",
+      "args": {
+        "expression": "15000.00 + 10500.00 + 4820.40 + 2762.50 + 2499.66 + 1646.08"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "/reports/receivables-2026-09.csv",
+        "content": "invoice_id,client,currency,amount_usd\n1041,Halvorsen Marine,EUR,15000.00\n1044,Takeda Precision,JPY,10500.00\n1043,Okonkwo Logistics,USD,4820.40\n1048,Lindqvist Design,CHF,2762.50\n1046,Al-Rawabi Trading,AED,2499.66\n1049,Quillfeather Studio,GBP,1646.08\nTOTAL,,,37228.64\n"
+      }
+    },
+    {
+      "tool": "send_email",
+      "args": {
+        "to": "finance@corvina.test",
+        "subject": "Receivables 2026-09",
+        "body": "Hi team,\n\nTotal unpaid September 2026 receivables: 37228.64 USD (6 invoices, converted at the 2026-09-30 month-end rates).\nReport: /reports/receivables-2026-09.csv\n\nThanks"
+      }
+    },
+    {
+      "tool": "finish",
+      "args": {
+        "answer": "37228.64"
+      }
+    }
+  ]
+}

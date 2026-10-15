@@ -1,0 +1,1121 @@
+[
+  {
+    "slug": "a11y-modal-dialog",
+    "track": "a11y",
+    "title_en": "Accessible modal dialog",
+    "title_ar": "نافذة حوار منبثقة ميسّرة الوصول",
+    "summary_en": "A hand-built modal following the ARIA Authoring Practices: focus moves in, is trapped, Escape closes, focus returns, background is inert, errors and success are announced.",
+    "summary_ar": "نافذة حوار مبنية يدويًا وفق ممارسات ARIA: ينتقل التركيز إليها ويُحصر داخلها، ويغلقها مفتاح Escape، ويعود التركيز إلى موضعه، وتُعطَّل الخلفية، وتُعلَن الأخطاء ورسائل النجاح.",
+    "prompt": "Build a \"Team settings\" page for a fictional SaaS product called Lumen Ledger. It lists the current team members (name, email, role) and has an \"Invite teammate\" button that opens a modal dialog. Build the dialog yourself — do not use the native <dialog> element — so that every behaviour below is implemented explicitly.\n\nRequirements:\n1. The opener is a <button id=\"open-invite\">Invite teammate</button>.\n2. The dialog container has role=\"dialog\", aria-modal=\"true\", aria-labelledby pointing to its visible heading and aria-describedby pointing to a short description.\n3. Opening moves focus to the email field. Everything outside the dialog becomes inert (use the inert attribute, with aria-hidden as a fallback) and the page behind does not scroll.\n4. Focus is trapped: Tab and Shift+Tab cycle through the dialog's focusable elements only.\n5. Escape, a \"Cancel\" button, a close button (an icon button whose accessible name is \"Close\") and a click on the backdrop all close the dialog. On close, focus returns to the element that opened it.\n6. Inside: an email field (type=\"email\", autocomplete=\"email\", required), a role select (Viewer, Editor, Admin) and an optional message textarea, each with a <label for>. \"Send invite\" validates the email: an invalid value shows an inline error linked with aria-describedby, sets aria-invalid=\"true\" and keeps focus on the field.\n7. A valid invite closes the dialog, adds the person to the member list as \"Invited\" and announces \"Invitation sent to <email>\" through a polite live region (role=\"status\") that exists in the page from the start.\n8. Opening/closing animations are disabled under prefers-reduced-motion.\n\nGeneral requirements: one self-contained HTML document (inline CSS/JS, no external fonts, scripts, images or links), `<html lang=\"en\">`, a responsive layout from 390 px to 1440 px without horizontal scrolling, visible focus indicators with at least 3:1 contrast, text contrast of at least 4.5:1, honour `prefers-reduced-motion`, and no console errors. Use semantic HTML first and ARIA only where native semantics are insufficient. Return one complete HTML document.",
+    "output_type": "html",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "apg",
+        "label_en": "APG dialog conformance",
+        "label_ar": "المطابقة لنمط الحوار في APG",
+        "weight": 3,
+        "guide": "role=\"dialog\", aria-modal, labelled and described; focus moves to the first field; Tab/Shift+Tab wrap inside; Escape, Cancel, Close and backdrop close it; focus returns to the opener."
+      },
+      {
+        "key": "focus",
+        "label_en": "Focus management & inertness",
+        "label_ar": "إدارة التركيز وتعطيل الخلفية",
+        "weight": 3,
+        "guide": "Background truly inert (inert/aria-hidden), scroll locked, no focus leaks to the page or lost focus after closing; validation keeps focus on the invalid field."
+      },
+      {
+        "key": "announce",
+        "label_en": "Announcements & errors",
+        "label_ar": "الإعلانات ورسائل الخطأ",
+        "weight": 2,
+        "guide": "Inline error wired with aria-describedby + aria-invalid, live region present from load and used for the success message, member list updated."
+      },
+      {
+        "key": "visual",
+        "label_en": "Visual design & contrast",
+        "label_ar": "التصميم البصري والتباين",
+        "weight": 2,
+        "guide": "Polished, coherent design; text contrast ≥ 4.5:1 (3:1 for large text and UI boundaries); focus indicators clearly visible in every state; works at 390 px and 1440 px."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Clean, robust JS (no duplicate listeners on reopen, works repeatedly), semantic markup, reduced-motion handled."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "lang",
+          "type": "lang_attr",
+          "weight": 1,
+          "label_en": "Document language set",
+          "label_ar": "تحديد لغة المستند"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta",
+          "label_ar": "وسم viewport"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 1,
+          "label_en": "Self-contained file",
+          "label_ar": "ملف مستقل"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 1,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "parses",
+          "type": "html_parses",
+          "weight": 1,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "HTML سليم البنية"
+        },
+        {
+          "id": "focus_styles",
+          "type": "contains",
+          "pattern": ":focus",
+          "ci": true,
+          "weight": 1,
+          "label_en": "Custom focus styles",
+          "label_ar": "أنماط تركيز مخصّصة"
+        },
+        {
+          "id": "opener",
+          "type": "selector",
+          "sel": "#open-invite",
+          "weight": 1,
+          "label_en": "#open-invite opener",
+          "label_ar": "زر الفتح #open-invite"
+        },
+        {
+          "id": "role_dialog",
+          "type": "selector",
+          "sel": "[role=dialog]",
+          "weight": 2,
+          "label_en": "role=\"dialog\"",
+          "label_ar": "الدور dialog"
+        },
+        {
+          "id": "aria_modal",
+          "type": "selector",
+          "sel": "[aria-modal=true]",
+          "weight": 2,
+          "label_en": "aria-modal=\"true\"",
+          "label_ar": "السمة aria-modal=\"true\""
+        },
+        {
+          "id": "labelledby",
+          "type": "selector",
+          "sel": "[aria-labelledby]",
+          "weight": 1,
+          "label_en": "Dialog labelled by its heading",
+          "label_ar": "الحوار مُسمّى بعنوانه"
+        },
+        {
+          "id": "describedby",
+          "type": "contains",
+          "pattern": "aria-describedby",
+          "ci": true,
+          "weight": 1,
+          "label_en": "Uses aria-describedby",
+          "label_ar": "استخدام aria-describedby"
+        },
+        {
+          "id": "labels",
+          "type": "selector",
+          "sel": "[for]",
+          "min": 2,
+          "weight": 1,
+          "label_en": "Labelled form fields",
+          "label_ar": "حقول نموذج مُسمّاة"
+        },
+        {
+          "id": "live_region",
+          "type": "contains",
+          "pattern": "role\\s*=\\s*[\"']?status|aria-live",
+          "regex": true,
+          "ci": true,
+          "weight": 1,
+          "label_en": "Live region for announcements",
+          "label_ar": "منطقة حيّة للإعلانات"
+        },
+        {
+          "id": "escape",
+          "type": "contains",
+          "pattern": "Escape|keyCode\\s*===?\\s*27",
+          "regex": true,
+          "weight": 1,
+          "label_en": "Handles Escape",
+          "label_ar": "معالجة مفتاح Escape"
+        },
+        {
+          "id": "inert",
+          "type": "contains",
+          "pattern": "inert|aria-hidden",
+          "regex": true,
+          "weight": 1,
+          "label_en": "Background made inert",
+          "label_ar": "تعطيل الخلفية"
+        },
+        {
+          "id": "reduced_motion",
+          "type": "contains",
+          "pattern": "prefers-reduced-motion",
+          "ci": true,
+          "weight": 1,
+          "label_en": "Reduced-motion support",
+          "label_ar": "دعم تقليل الحركة"
+        },
+        {
+          "id": "no_native_dialog",
+          "type": "not_contains",
+          "pattern": "<dialog[\\s>]",
+          "regex": true,
+          "ci": true,
+          "weight": 1,
+          "label_en": "Custom dialog (no native <dialog>)",
+          "label_ar": "حوار مبني يدويًا دون <dialog>"
+        }
+      ],
+      "browser": [
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders content",
+          "label_ar": "يعرض محتوى"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JS errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 2,
+          "label_en": "Basic accessibility (alt, labels, names, lang)",
+          "label_ar": "أساسيات الوصول (بدائل الصور والتسميات والأسماء واللغة)"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند ٣٩٠ بكسل"
+        },
+        {
+          "id": "opens",
+          "type": "click",
+          "sel": "#open-invite",
+          "weight": 2,
+          "label_en": "Clicking the opener shows the dialog",
+          "label_ar": "النقر على زر الفتح يُظهر الحوار"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "a11y-combobox-autocomplete",
+    "track": "a11y",
+    "title_en": "APG combobox with autocomplete",
+    "title_ar": "مربع تحرير وسرد مع إكمال تلقائي وفق APG",
+    "summary_en": "An airport picker implementing the ARIA combobox pattern: list autocomplete, aria-activedescendant, full keyboard model, diacritic-insensitive matching and live result counts.",
+    "summary_ar": "منتقي مطارات يطبّق نمط combobox في ARIA: إكمال بالقائمة، وaria-activedescendant، ونموذج لوحة مفاتيح كامل، ومطابقة لا تتأثر بعلامات التشكيل اللاتينية، وإعلان حيّ لعدد النتائج.",
+    "prompt": "Build a single-purpose \"Find your departure airport\" screen for a fictional airline, Saffron Air. Its centrepiece is an editable combobox with a listbox popup following the WAI-ARIA Authoring Practices combobox pattern (list autocomplete with manual selection).\n\nData (IATA code, airport name, city, country): AMS Amsterdam Schiphol (Amsterdam, Netherlands); ATH Athens International (Athens, Greece); AUH Zayed International (Abu Dhabi, United Arab Emirates); BCN Barcelona–El Prat (Barcelona, Spain); BOM Chhatrapati Shivaji Maharaj International (Mumbai, India); CAI Cairo International (Cairo, Egypt); CDG Paris Charles de Gaulle (Paris, France); CMN Mohammed V International (Casablanca, Morocco); CPH Copenhagen Kastrup (Copenhagen, Denmark); DOH Hamad International (Doha, Qatar); DXB Dubai International (Dubai, United Arab Emirates); FCO Rome Fiumicino (Rome, Italy); GVA Geneva (Genève, Switzerland); HEL Helsinki-Vantaa (Helsinki, Finland); IST Istanbul (Istanbul, Türkiye); JED King Abdulaziz International (Jeddah, Saudi Arabia); KRK Kraków John Paul II (Kraków, Poland); LIS Humberto Delgado (Lisbon, Portugal); MAD Adolfo Suárez Madrid–Barajas (Madrid, Spain); MCT Muscat International (Muscat, Oman); MUC Munich (München, Germany); NCE Nice Côte d'Azur (Nice, France); OSL Oslo Gardermoen (Oslo, Norway); RUH King Khalid International (Riyadh, Saudi Arabia); SVQ Seville (Sevilla, Spain); TUN Tunis–Carthage (Tunis, Tunisia); VIE Vienna International (Wien, Austria); ZRH Zürich (Zürich, Switzerland).\n\nRequirements:\n1. A visible <label for> \"Departure airport\" tied to an <input> with role=\"combobox\", aria-autocomplete=\"list\", aria-expanded, aria-controls pointing to the listbox, and autocomplete=\"off\". The input is the first focusable element on the page and has the autofocus attribute (this screen exists only for this search).\n2. The popup is an element with role=\"listbox\" containing role=\"option\" elements, each with a unique id. The highlighted option is referenced by aria-activedescendant on the input and marked with aria-selected=\"true\"; DOM focus never leaves the input.\n3. Filtering matches the start of any word in the city, airport name or the IATA code, case-insensitively and ignoring Latin diacritics (\"zur\" finds Zürich, \"sevi\" finds Seville/Sevilla, \"geneve\" finds Genève). The matched part is visually emphasised (e.g. <mark>).\n4. Keyboard: ArrowDown/ArrowUp open the popup if needed and move the highlight (wrapping at the ends); Alt+ArrowDown opens without moving; Enter selects the highlighted option, closes the popup and puts the full name in the input; Escape closes the popup, and a second Escape clears the input; Tab closes the popup without changing the value; Home/End keep their normal text-editing behaviour.\n5. Mouse/touch: clicking an option selects it; clicking outside closes the popup. The highlighted option is kept scrolled into view.\n6. A polite live region announces the number of results (\"5 airports found\", \"1 airport found\", \"No airports found\") after typing settles, and the selection.\n7. When nothing matches, show a non-selectable \"No airports found\" message.\n8. Under the field, a summary card shows the selected airport (\"Departing from Zürich (ZRH), Switzerland\").\n\nGeneral requirements: one self-contained HTML document (inline CSS/JS, no external fonts, scripts, images or links), `<html lang=\"en\">`, a responsive layout from 390 px to 1440 px without horizontal scrolling, visible focus indicators with at least 3:1 contrast, text contrast of at least 4.5:1, honour `prefers-reduced-motion`, and no console errors. Use semantic HTML first and ARIA only where native semantics are insufficient. Return one complete HTML document.",
+    "output_type": "html",
+    "difficulty": 4,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "apg",
+        "label_en": "APG combobox conformance",
+        "label_ar": "المطابقة لنمط combobox في APG",
+        "weight": 3,
+        "guide": "Correct roles and states (combobox, listbox, option, aria-expanded, aria-controls, aria-autocomplete, aria-activedescendant, aria-selected) kept in sync at all times."
+      },
+      {
+        "key": "keyboard",
+        "label_en": "Keyboard model",
+        "label_ar": "نموذج لوحة المفاتيح",
+        "weight": 3,
+        "guide": "Arrow keys with wrapping, Alt+ArrowDown, Enter, double Escape, Tab, Home/End behave exactly as specified; DOM focus stays in the input."
+      },
+      {
+        "key": "matching",
+        "label_en": "Matching & feedback",
+        "label_ar": "المطابقة والتغذية الراجعة",
+        "weight": 2,
+        "guide": "Word-start, case- and diacritic-insensitive matching on all three fields; highlighted matches; debounced, correctly pluralised live announcements; empty state not selectable."
+      },
+      {
+        "key": "visual",
+        "label_en": "Visual design & contrast",
+        "label_ar": "التصميم البصري والتباين",
+        "weight": 2,
+        "guide": "Polished, coherent design; text contrast ≥ 4.5:1 (3:1 for large text and UI boundaries); focus indicators clearly visible in every state; works at 390 px and 1440 px."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Data-driven rendering, no duplicated ids, robust event handling (no blur races), works on touch."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "lang",
+          "type": "lang_attr",
+          "weight": 1,
+          "label_en": "Document language set",
+          "label_ar": "تحديد لغة المستند"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta",
+          "label_ar": "وسم viewport"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 1,
+          "label_en": "Self-contained file",
+          "label_ar": "ملف مستقل"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 1,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "parses",
+          "type": "html_parses",
+          "weight": 1,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "HTML سليم البنية"
+        },
+        {
+          "id": "focus_styles",
+          "type": "contains",
+          "pattern": ":focus",
+          "ci": true,
+          "weight": 1,
+          "label_en": "Custom focus styles",
+          "label_ar": "أنماط تركيز مخصّصة"
+        },
+        {
+          "id": "role_combobox",
+          "type": "selector",
+          "sel": "[role=combobox]",
+          "weight": 2,
+          "label_en": "role=\"combobox\" input",
+          "label_ar": "حقل بالدور combobox"
+        },
+        {
+          "id": "role_listbox",
+          "type": "contains",
+          "pattern": "role\\s*=\\s*[\"']?listbox",
+          "regex": true,
+          "weight": 2,
+          "label_en": "role=\"listbox\" popup",
+          "label_ar": "قائمة منبثقة بالدور listbox"
+        },
+        {
+          "id": "role_option",
+          "type": "contains",
+          "pattern": "role\\s*=\\s*\\\\?[\"']?option|[\"']role[\"']\\s*,\\s*[\"']option|\\.role\\s*=\\s*[\"']option",
+          "regex": true,
+          "weight": 1,
+          "label_en": "Options rendered with role=\"option\"",
+          "label_ar": "خيارات بالدور option"
+        },
+        {
+          "id": "aria_expanded",
+          "type": "selector",
+          "sel": "[aria-expanded]",
+          "weight": 1,
+          "label_en": "aria-expanded state",
+          "label_ar": "الحالة aria-expanded"
+        },
+        {
+          "id": "aria_controls",
+          "type": "selector",
+          "sel": "[aria-controls]",
+          "weight": 1,
+          "label_en": "aria-controls reference",
+          "label_ar": "المرجع aria-controls"
+        },
+        {
+          "id": "aria_autocomplete",
+          "type": "selector",
+          "sel": "[aria-autocomplete=list]",
+          "weight": 1,
+          "label_en": "aria-autocomplete=\"list\"",
+          "label_ar": "السمة aria-autocomplete=\"list\""
+        },
+        {
+          "id": "activedescendant",
+          "type": "contains",
+          "pattern": "aria-activedescendant",
+          "weight": 2,
+          "label_en": "Uses aria-activedescendant",
+          "label_ar": "استخدام aria-activedescendant"
+        },
+        {
+          "id": "label_for",
+          "type": "selector",
+          "sel": "[for]",
+          "weight": 1,
+          "label_en": "Visible label tied to the input",
+          "label_ar": "تسمية مرئية مرتبطة بالحقل"
+        },
+        {
+          "id": "live_region",
+          "type": "contains",
+          "pattern": "role\\s*=\\s*[\"']?status|aria-live",
+          "regex": true,
+          "ci": true,
+          "weight": 1,
+          "label_en": "Live region for result counts",
+          "label_ar": "منطقة حيّة لعدد النتائج"
+        },
+        {
+          "id": "diacritics",
+          "type": "contains",
+          "pattern": "normalize\\(|\\\\u0300|\\\\p\\{(M|Diacritic)",
+          "regex": true,
+          "weight": 1,
+          "label_en": "Diacritic-insensitive matching",
+          "label_ar": "مطابقة لا تتأثر بالعلامات"
+        }
+      ],
+      "browser": [
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders content",
+          "label_ar": "يعرض محتوى"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JS errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 2,
+          "label_en": "Basic accessibility (alt, labels, names, lang)",
+          "label_ar": "أساسيات الوصول (بدائل الصور والتسميات والأسماء واللغة)"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند ٣٩٠ بكسل"
+        },
+        {
+          "id": "arrow_opens",
+          "type": "keyboard",
+          "keys": [
+            "ArrowDown"
+          ],
+          "weight": 2,
+          "label_en": "ArrowDown in the focused combobox opens the list",
+          "label_ar": "السهم السفلي يفتح القائمة"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "a11y-sortable-table",
+    "track": "a11y",
+    "title_en": "Sortable data table for screen readers",
+    "title_ar": "جدول بيانات قابل للفرز يُعلَن لقارئات الشاشة",
+    "summary_en": "A semantic data table whose column headers are real buttons, with aria-sort, type-aware sorting (numbers, dates, accented text), live announcements and a keyboard-scrollable region on mobile.",
+    "summary_ar": "جدول بيانات دلالي ترويساته أزرار حقيقية، مع aria-sort وفرز يراعي نوع البيانات (أرقام وتواريخ ونص بعلامات) وإعلانات حيّة ومنطقة قابلة للتمرير بلوحة المفاتيح على الجوال.",
+    "prompt": "Build an \"Observatory inventory\" page for a fictional research consortium, showing this data in an accessible, sortable table:\n\nName | Site | Commissioned | Aperture (m) | Budget (USD M)\nHalcyon | Atacama Ridge, Chile | 2019-03-14 | 8.4 | 1,240\nMeridian South | Karoo Plateau, South Africa | 2011-09-02 | 11.0 | 420\nTern | Mauna Crest, USA | 2024-06-21 | 3.6 | 96\nAurelia | La Palma Heights, Spain | 2007-07-30 | 10.4 | 175\nCorvid Array | Pilbara Flats, Australia | 2022-11-08 | 6.5 | 2,050\nIshtar | Wadi Rum Field, Jordan | 2016-01-19 | 4.1 | 88\nNimbus | Hanle Valley, India | 2001-08-25 | 2.0 | 12\nSaltire | Isle of Lewis, UK | 1998-05-11 | 2.5 | 9.5\nÖvergård | Abisko Fell, Sweden | 2013-03-03 | 1.8 | 14\nZephyr | Atacama Ridge, Chile | 2025-02-27 | 25.4 | 3,900\nAlbedo | Sutherland, South Africa | 2005-10-12 | 9.2 | 36\nÉbène | Pic du Midi, France | 2009-04-04 | 2.0 | 21\n\nRequirements:\n1. A real <table> with a <caption> (title plus a short visually-subtle note that column headers are sortable), <thead> with <th scope=\"col\"> for every column and the telescope name as a row header (<th scope=\"row\">).\n2. Every column header contains a native <button> holding the column name (the <th> itself is not the click target). Give the Aperture header button id=\"sort-aperture\".\n3. Activating a header button sorts by that column: first activation ascending, the next one descending, toggling after that. The active <th> carries aria-sort=\"ascending\" or \"descending\"; other headers carry no aria-sort. A sort-direction icon is shown and hidden from assistive technology (aria-hidden=\"true\").\n4. Sorting is type-aware: numeric columns numerically (ignoring thousands separators: 1,240 > 420 > 96), dates chronologically, text with Intl.Collator so accented names (Övergård, Ébène) sort naturally. Ties keep the previous order (stable sort).\n5. After each sort, a polite live region announces e.g. \"Sorted by Aperture (m), descending\".\n6. Numbers are right-aligned with tabular figures; the page also shows a total budget under the table.\n7. On narrow screens the table scrolls horizontally inside a container with role=\"region\", tabindex=\"0\" and aria-labelledby pointing to the caption — the page itself never scrolls horizontally.\n\nGeneral requirements: one self-contained HTML document (inline CSS/JS, no external fonts, scripts, images or links), `<html lang=\"en\">`, a responsive layout from 390 px to 1440 px without horizontal scrolling, visible focus indicators with at least 3:1 contrast, text contrast of at least 4.5:1, honour `prefers-reduced-motion`, and no console errors. Use semantic HTML first and ARIA only where native semantics are insufficient. Return one complete HTML document.",
+    "output_type": "html",
+    "difficulty": 2,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "semantics",
+        "label_en": "Table semantics",
+        "label_ar": "دلالات الجدول",
+        "weight": 3,
+        "guide": "caption, thead/tbody, scope on column and row headers, buttons inside headers, aria-sort only on the sorted column, decorative icons hidden."
+      },
+      {
+        "key": "sorting",
+        "label_en": "Sorting correctness",
+        "label_ar": "صحة الفرز",
+        "weight": 3,
+        "guide": "Numbers with separators, dates and accented text all sort correctly in both directions; stable; toggling works from any column."
+      },
+      {
+        "key": "announce",
+        "label_en": "Announcements & keyboard",
+        "label_ar": "الإعلانات ولوحة المفاتيح",
+        "weight": 2,
+        "guide": "Polite live announcement after every sort, keyboard-operable headers with visible focus, focusable scroll region with an accessible name."
+      },
+      {
+        "key": "visual",
+        "label_en": "Visual design & contrast",
+        "label_ar": "التصميم البصري والتباين",
+        "weight": 2,
+        "guide": "Polished, coherent design; text contrast ≥ 4.5:1 (3:1 for large text and UI boundaries); focus indicators clearly visible in every state; works at 390 px and 1440 px."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Data-driven, no hard-coded orderings, numeric parsing robust."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "lang",
+          "type": "lang_attr",
+          "weight": 1,
+          "label_en": "Document language set",
+          "label_ar": "تحديد لغة المستند"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta",
+          "label_ar": "وسم viewport"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 1,
+          "label_en": "Self-contained file",
+          "label_ar": "ملف مستقل"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 1,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "parses",
+          "type": "html_parses",
+          "weight": 1,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "HTML سليم البنية"
+        },
+        {
+          "id": "focus_styles",
+          "type": "contains",
+          "pattern": ":focus",
+          "ci": true,
+          "weight": 1,
+          "label_en": "Custom focus styles",
+          "label_ar": "أنماط تركيز مخصّصة"
+        },
+        {
+          "id": "caption",
+          "type": "selector",
+          "sel": "caption",
+          "weight": 1,
+          "label_en": "Table has a caption",
+          "label_ar": "للجدول عنوان caption"
+        },
+        {
+          "id": "scope_col",
+          "type": "selector",
+          "sel": "[scope=col]",
+          "min": 5,
+          "weight": 1,
+          "label_en": "Column headers with scope",
+          "label_ar": "ترويسات أعمدة بالسمة scope"
+        },
+        {
+          "id": "scope_row",
+          "type": "selector",
+          "sel": "[scope=row]",
+          "min": 1,
+          "weight": 1,
+          "label_en": "Row headers",
+          "label_ar": "ترويسات صفوف"
+        },
+        {
+          "id": "header_buttons",
+          "type": "selector",
+          "sel": "button",
+          "min": 5,
+          "weight": 1,
+          "label_en": "Header buttons",
+          "label_ar": "أزرار في الترويسات"
+        },
+        {
+          "id": "sort_hook",
+          "type": "selector",
+          "sel": "#sort-aperture",
+          "weight": 1,
+          "label_en": "#sort-aperture button",
+          "label_ar": "الزر #sort-aperture"
+        },
+        {
+          "id": "aria_sort",
+          "type": "contains",
+          "pattern": "aria-sort",
+          "weight": 2,
+          "label_en": "Uses aria-sort",
+          "label_ar": "استخدام aria-sort"
+        },
+        {
+          "id": "live_region",
+          "type": "contains",
+          "pattern": "role\\s*=\\s*[\"']?status|aria-live",
+          "regex": true,
+          "ci": true,
+          "weight": 1,
+          "label_en": "Live region for sort announcements",
+          "label_ar": "منطقة حيّة لإعلان الفرز"
+        },
+        {
+          "id": "scroll_region",
+          "type": "contains",
+          "pattern": "role\\s*=\\s*[\"']?region",
+          "regex": true,
+          "ci": true,
+          "weight": 1,
+          "label_en": "Named scroll region",
+          "label_ar": "منطقة تمرير مُسمّاة"
+        },
+        {
+          "id": "collator",
+          "type": "contains",
+          "pattern": "Intl.Collator|localeCompare",
+          "regex": true,
+          "weight": 1,
+          "label_en": "Locale-aware text sorting",
+          "label_ar": "فرز نصي يراعي اللغة"
+        }
+      ],
+      "browser": [
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders content",
+          "label_ar": "يعرض محتوى"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JS errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 2,
+          "label_en": "Basic accessibility (alt, labels, names, lang)",
+          "label_ar": "أساسيات الوصول (بدائل الصور والتسميات والأسماء واللغة)"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند ٣٩٠ بكسل"
+        },
+        {
+          "id": "sort_click",
+          "type": "click",
+          "sel": "#sort-aperture",
+          "weight": 2,
+          "label_en": "Sorting by aperture changes the table",
+          "label_ar": "الفرز حسب الفتحة يغيّر الجدول"
+        },
+        {
+          "id": "caption_text",
+          "type": "text",
+          "contains": "Halcyon",
+          "weight": 1,
+          "label_en": "Data rendered",
+          "label_ar": "عرض البيانات"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "a11y-form-validation",
+    "track": "a11y",
+    "title_en": "Accessible form validation & error summary",
+    "title_ar": "تحقق ميسّر الوصول من النماذج مع ملخص للأخطاء",
+    "summary_en": "A registration form with an error summary that takes focus, linked inline errors, conditional fields, grouped radios, a character counter and an \"Error:\" title prefix — the patterns real screen-reader users rely on.",
+    "summary_ar": "نموذج تسجيل بملخص أخطاء يستقبل التركيز، ورسائل خطأ مرتبطة بحقولها، وحقول شرطية، وأزرار راديو مجمّعة، وعدّاد أحرف، وبادئة «خطأ:» في العنوان — وهي الأنماط التي يعتمد عليها مستخدمو قارئات الشاشة فعلًا.",
+    "prompt": "Build the registration form for a fictional conference, \"Northlight Dev Summit 2026\", with validation that works for keyboard and screen-reader users.\n\nFields:\n- Full name (required, autocomplete=\"name\").\n- Email (required, must be a valid address, autocomplete=\"email\").\n- Phone (optional, autocomplete=\"tel\", hint text \"Include your country code\").\n- Ticket type (required): a radio group \"Standard\", \"Student\", \"Workshop bundle\" inside a <fieldset> with a <legend>.\n- Student ID (required only when \"Student\" is selected; revealed under that option, format two letters followed by six digits, e.g. NL123456).\n- Accessibility requirements (optional textarea, maximum 200 characters, with a live character counter \"N characters remaining\" announced politely and not on every keystroke).\n- \"I agree to the code of conduct\" checkbox (required).\n- Submit button with id=\"register-submit\".\n\nRequirements:\n1. Use <form novalidate> and implement validation yourself. Validate on submit; after the first submit, re-validate a field when it loses focus.\n2. On a failed submit: show an error summary at the top (heading \"There is a problem\", a list of links — one per error, in field order — each moving focus to its field), give it focus (tabindex=\"-1\") and prefix the document title with \"Error: \".\n3. Each invalid field gets aria-invalid=\"true\" and an inline message directly above or below it, starting with visually-hidden \"Error:\", connected with aria-describedby together with any hint (aria-describedby=\"hint-id error-id\"). For the radio group and checkbox, wire the error to the fieldset/checkbox appropriately.\n4. Error messages are specific (\"Enter an email address in the correct format, like name@example.com\"), not generic.\n5. Required fields are indicated in text, not only by colour or an asterisk.\n6. On success, replace the form with a confirmation panel whose heading receives focus and that repeats the attendee's name and ticket type.\n\nGeneral requirements: one self-contained HTML document (inline CSS/JS, no external fonts, scripts, images or links), `<html lang=\"en\">`, a responsive layout from 390 px to 1440 px without horizontal scrolling, visible focus indicators with at least 3:1 contrast, text contrast of at least 4.5:1, honour `prefers-reduced-motion`, and no console errors. Use semantic HTML first and ARIA only where native semantics are insufficient. Return one complete HTML document.",
+    "output_type": "html",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "summary",
+        "label_en": "Error summary & focus",
+        "label_ar": "ملخص الأخطاء والتركيز",
+        "weight": 3,
+        "guide": "Summary appears on failed submit, receives focus, links focus the right fields in order, title gets the \"Error:\" prefix; success panel heading focused."
+      },
+      {
+        "key": "wiring",
+        "label_en": "Error wiring & semantics",
+        "label_ar": "ربط الأخطاء والدلالات",
+        "weight": 3,
+        "guide": "aria-invalid and aria-describedby (hint + error) correct for text fields, the radio fieldset and the checkbox; visually-hidden \"Error:\" prefix; fieldset/legend; autocomplete tokens."
+      },
+      {
+        "key": "logic",
+        "label_en": "Validation logic",
+        "label_ar": "منطق التحقق",
+        "weight": 2,
+        "guide": "Specific messages, conditional Student ID with format check, blur re-validation after first submit, polite and throttled character counter."
+      },
+      {
+        "key": "visual",
+        "label_en": "Visual design & contrast",
+        "label_ar": "التصميم البصري والتباين",
+        "weight": 2,
+        "guide": "Polished, coherent design; text contrast ≥ 4.5:1 (3:1 for large text and UI boundaries); focus indicators clearly visible in every state; works at 390 px and 1440 px."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Single source of truth for rules, no duplicated messages, progressive enhancement."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "lang",
+          "type": "lang_attr",
+          "weight": 1,
+          "label_en": "Document language set",
+          "label_ar": "تحديد لغة المستند"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta",
+          "label_ar": "وسم viewport"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 1,
+          "label_en": "Self-contained file",
+          "label_ar": "ملف مستقل"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 1,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "parses",
+          "type": "html_parses",
+          "weight": 1,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "HTML سليم البنية"
+        },
+        {
+          "id": "focus_styles",
+          "type": "contains",
+          "pattern": ":focus",
+          "ci": true,
+          "weight": 1,
+          "label_en": "Custom focus styles",
+          "label_ar": "أنماط تركيز مخصّصة"
+        },
+        {
+          "id": "form",
+          "type": "selector",
+          "sel": "form",
+          "weight": 1,
+          "label_en": "Has a form",
+          "label_ar": "وجود نموذج"
+        },
+        {
+          "id": "novalidate",
+          "type": "selector",
+          "sel": "[novalidate]",
+          "weight": 1,
+          "label_en": "Custom validation (novalidate)",
+          "label_ar": "تحقق مخصّص (novalidate)"
+        },
+        {
+          "id": "fieldset",
+          "type": "selector",
+          "sel": "fieldset",
+          "min": 1,
+          "weight": 1,
+          "label_en": "Grouped radios in a fieldset",
+          "label_ar": "تجميع أزرار الراديو في fieldset"
+        },
+        {
+          "id": "legend",
+          "type": "selector",
+          "sel": "legend",
+          "min": 1,
+          "weight": 1,
+          "label_en": "Fieldset has a legend",
+          "label_ar": "للمجموعة عنوان legend"
+        },
+        {
+          "id": "labels",
+          "type": "selector",
+          "sel": "[for]",
+          "min": 5,
+          "weight": 1,
+          "label_en": "Labelled fields",
+          "label_ar": "حقول مُسمّاة"
+        },
+        {
+          "id": "submit_hook",
+          "type": "selector",
+          "sel": "#register-submit",
+          "weight": 1,
+          "label_en": "#register-submit button",
+          "label_ar": "الزر #register-submit"
+        },
+        {
+          "id": "aria_invalid",
+          "type": "contains",
+          "pattern": "aria-invalid",
+          "weight": 2,
+          "label_en": "Uses aria-invalid",
+          "label_ar": "استخدام aria-invalid"
+        },
+        {
+          "id": "aria_describedby",
+          "type": "contains",
+          "pattern": "aria-describedby",
+          "weight": 2,
+          "label_en": "Uses aria-describedby",
+          "label_ar": "استخدام aria-describedby"
+        },
+        {
+          "id": "autocomplete",
+          "type": "contains",
+          "pattern": "autocomplete\\s*=\\s*[\"']?email",
+          "regex": true,
+          "ci": true,
+          "weight": 1,
+          "label_en": "autocomplete tokens",
+          "label_ar": "رموز autocomplete"
+        },
+        {
+          "id": "live",
+          "type": "contains",
+          "pattern": "role\\s*=\\s*[\"']?(alert|status)|aria-live",
+          "regex": true,
+          "ci": true,
+          "weight": 1,
+          "label_en": "Announcements (alert/status/live)",
+          "label_ar": "إعلانات (alert/status/live)"
+        }
+      ],
+      "browser": [
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders content",
+          "label_ar": "يعرض محتوى"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JS errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 2,
+          "label_en": "Basic accessibility (alt, labels, names, lang)",
+          "label_ar": "أساسيات الوصول (بدائل الصور والتسميات والأسماء واللغة)"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند ٣٩٠ بكسل"
+        },
+        {
+          "id": "submit_validates",
+          "type": "click",
+          "sel": "#register-submit",
+          "weight": 2,
+          "label_en": "Submitting empty form shows errors",
+          "label_ar": "إرسال نموذج فارغ يُظهر الأخطاء"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "a11y-tabbed-carousel",
+    "track": "a11y",
+    "title_en": "Auto-rotating carousel with tabs",
+    "title_ar": "عرض شرائح دوّار بعلامات تبويب",
+    "summary_en": "The hardest APG widget to get right: an auto-rotating carousel with a rotation control, slide-picker tabs with roving tabindex, live-region switching and genuine reduced-motion support.",
+    "summary_ar": "أصعب أنماط APG إتقانًا: عرض شرائح يدور تلقائيًا مع زر للتحكم بالدوران، وعلامات تبويب لاختيار الشريحة بتركيز متنقل، وتبديل المنطقة الحيّة، ودعم حقيقي لتقليل الحركة.",
+    "prompt": "Build the hero section of a fictional botanical garden, \"Saltmarsh Botanical Garden\", as an auto-rotating carousel that follows the WAI-ARIA Authoring Practices \"auto-rotating image carousel with tabs for slide control\".\n\nContent: 5 slides (Spring Tulip Walk, Summer Night Blooms, Autumn Maple Trail, Winter Glasshouse, Family Seed Library), each with a heading, one sentence, a \"Plan your visit\" link and decorative artwork built with CSS gradients or inline SVG (no external images; decorative art hidden from assistive technology).\n\nRequirements:\n1. The carousel container is a <section> with aria-roledescription=\"carousel\" and an aria-label. Each slide has role=\"tabpanel\", aria-roledescription=\"slide\" and an aria-label like \"1 of 5\"; inactive slides are hidden from everyone.\n2. Controls, in this order: the rotation control, then the slide-picker tabs, then previous/next buttons (give the next button id=\"carousel-next\").\n3. Rotation control: a button whose accessible name says what it will do (\"Stop automatic slide show\" / \"Start automatic slide show\"), with an icon that changes.\n4. The slides advance every 6 seconds. Rotation pauses while the pointer is over the carousel or keyboard focus is inside it; once a user explicitly stops it, it never restarts on its own. If prefers-reduced-motion is set, rotation is stopped on load and slide transitions are instant.\n5. Slide picker: role=\"tablist\" with an aria-label; each tab has role=\"tab\", aria-selected, aria-controls and an accessible name like \"Slide 3: Autumn Maple Trail\". Use a roving tabindex: only the selected tab is in the Tab sequence; ArrowRight/ArrowLeft move to and select the next/previous tab (wrapping), Home/End select the first/last.\n6. The slides container uses aria-live=\"off\" while rotating and aria-live=\"polite\" when rotation is stopped, so manual changes are announced but automatic ones are not.\n7. Previous/next buttons have accessible names, work in both rotation states, and keep the tabs in sync.\n\nGeneral requirements: one self-contained HTML document (inline CSS/JS, no external fonts, scripts, images or links), `<html lang=\"en\">`, a responsive layout from 390 px to 1440 px without horizontal scrolling, visible focus indicators with at least 3:1 contrast, text contrast of at least 4.5:1, honour `prefers-reduced-motion`, and no console errors. Use semantic HTML first and ARIA only where native semantics are insufficient. Return one complete HTML document.",
+    "output_type": "html",
+    "difficulty": 4,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "apg",
+        "label_en": "APG carousel conformance",
+        "label_ar": "المطابقة لنمط عرض الشرائح في APG",
+        "weight": 3,
+        "guide": "aria-roledescription on carousel and slides, slide labels, rotation control first with accurate name, tablist/tab/tabpanel wiring, hidden inactive slides."
+      },
+      {
+        "key": "rotation",
+        "label_en": "Rotation & motion behaviour",
+        "label_ar": "سلوك الدوران والحركة",
+        "weight": 3,
+        "guide": "Pauses on hover and focus, explicit stop is permanent, reduced-motion stops rotation and animation, aria-live toggles between off and polite."
+      },
+      {
+        "key": "keyboard",
+        "label_en": "Keyboard model",
+        "label_ar": "نموذج لوحة المفاتيح",
+        "weight": 2,
+        "guide": "Roving tabindex, Arrow/Home/End on tabs with wrapping, prev/next in sync, visible focus everywhere."
+      },
+      {
+        "key": "visual",
+        "label_en": "Visual design & contrast",
+        "label_ar": "التصميم البصري والتباين",
+        "weight": 2,
+        "guide": "Polished, coherent design; text contrast ≥ 4.5:1 (3:1 for large text and UI boundaries); focus indicators clearly visible in every state; works at 390 px and 1440 px."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Single state source, timers cleaned up, no layout shift between slides."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "lang",
+          "type": "lang_attr",
+          "weight": 1,
+          "label_en": "Document language set",
+          "label_ar": "تحديد لغة المستند"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta",
+          "label_ar": "وسم viewport"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 1,
+          "label_en": "Self-contained file",
+          "label_ar": "ملف مستقل"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 1,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "parses",
+          "type": "html_parses",
+          "weight": 1,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "HTML سليم البنية"
+        },
+        {
+          "id": "focus_styles",
+          "type": "contains",
+          "pattern": ":focus",
+          "ci": true,
+          "weight": 1,
+          "label_en": "Custom focus styles",
+          "label_ar": "أنماط تركيز مخصّصة"
+        },
+        {
+          "id": "roledescription",
+          "type": "contains",
+          "pattern": "aria-roledescription",
+          "weight": 2,
+          "label_en": "Uses aria-roledescription",
+          "label_ar": "استخدام aria-roledescription"
+        },
+        {
+          "id": "tablist",
+          "type": "selector",
+          "sel": "[role=tablist]",
+          "weight": 1,
+          "label_en": "role=\"tablist\"",
+          "label_ar": "الدور tablist"
+        },
+        {
+          "id": "tabs",
+          "type": "contains",
+          "pattern": "role\\s*=\\s*[\"']?tab[\"'\\s>]",
+          "regex": true,
+          "weight": 1,
+          "label_en": "role=\"tab\" controls",
+          "label_ar": "عناصر بالدور tab"
+        },
+        {
+          "id": "tabpanels",
+          "type": "contains",
+          "pattern": "tabpanel",
+          "weight": 1,
+          "label_en": "role=\"tabpanel\" slides",
+          "label_ar": "شرائح بالدور tabpanel"
+        },
+        {
+          "id": "aria_selected",
+          "type": "contains",
+          "pattern": "aria-selected",
+          "weight": 1,
+          "label_en": "Uses aria-selected",
+          "label_ar": "استخدام aria-selected"
+        },
+        {
+          "id": "next_hook",
+          "type": "selector",
+          "sel": "#carousel-next",
+          "weight": 1,
+          "label_en": "#carousel-next button",
+          "label_ar": "الزر #carousel-next"
+        },
+        {
+          "id": "live",
+          "type": "contains",
+          "pattern": "aria-live",
+          "weight": 1,
+          "label_en": "aria-live switching",
+          "label_ar": "تبديل aria-live"
+        },
+        {
+          "id": "reduced_motion",
+          "type": "contains",
+          "pattern": "prefers-reduced-motion",
+          "ci": true,
+          "weight": 2,
+          "label_en": "Reduced-motion support",
+          "label_ar": "دعم تقليل الحركة"
+        },
+        {
+          "id": "arrows",
+          "type": "contains",
+          "pattern": "ArrowRight|ArrowLeft",
+          "regex": true,
+          "weight": 1,
+          "label_en": "Arrow-key handling",
+          "label_ar": "معالجة مفاتيح الأسهم"
+        }
+      ],
+      "browser": [
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders content",
+          "label_ar": "يعرض محتوى"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JS errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 2,
+          "label_en": "Basic accessibility (alt, labels, names, lang)",
+          "label_ar": "أساسيات الوصول (بدائل الصور والتسميات والأسماء واللغة)"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند ٣٩٠ بكسل"
+        },
+        {
+          "id": "next_click",
+          "type": "click",
+          "sel": "#carousel-next",
+          "weight": 2,
+          "label_en": "Next button changes the slide",
+          "label_ar": "زر «التالي» يغيّر الشريحة"
+        }
+      ]
+    }
+  }
+]

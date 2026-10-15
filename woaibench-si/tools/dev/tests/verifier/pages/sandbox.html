@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Sandbox escape attempts</title></head>
+<body><h1>Escape attempts</h1><pre id="out"></pre>
+<script>
+  // Every attempt below must FAIL inside the sandbox. Results go to window.__SANDBOX and the page.
+  const R = window.__SANDBOX = { done: false };
+  const t = (name, fn) => { try { R[name] = 'allowed:' + String(fn()); } catch (e) { R[name] = 'blocked:' + (e && e.name); } };
+  t('cookie', () => document.cookie);
+  t('domain', () => { document.domain = document.domain; return document.domain; });
+  t('localStorage', () => localStorage.getItem('x'));
+  t('origin', () => self.origin);
+  t('parentDoc', () => window.parent.document.title);
+  t('topLocationRead', () => window.top.location.href);
+  t('openPopup', () => { const w = window.open('https://example.com/'); return w === null ? null : 'window'; });
+  try { window.top.location.href = 'https://example.com/escaped'; R.topNav = 'no-throw'; } catch (e) { R.topNav = 'blocked:' + e.name; }
+  const site = (document.currentScript && document.currentScript.dataset.site) || '';
+  fetch('/admin', { credentials: 'include' }).then(r => r.text()).then(x => { R.fetchAdmin = 'allowed:' + x.length; }, e => { R.fetchAdmin = 'blocked:' + e.name; }).finally(() => {
+    const x = new XMLHttpRequest();
+    try { x.open('GET', '/api/verifier/next'); x.onload = () => { R.xhr = 'allowed:' + x.status; fin(); }; x.onerror = () => { R.xhr = 'blocked:error'; fin(); }; x.send(); } catch (e) { R.xhr = 'blocked:' + e.name; fin(); }
+  });
+  function fin() { R.done = true; document.getElementById('out').textContent = JSON.stringify(R, null, 2); try { parent.postMessage({ type: 'sandbox-report', r: R }, '*'); } catch (e) {} }
+</script>
+</body></html>

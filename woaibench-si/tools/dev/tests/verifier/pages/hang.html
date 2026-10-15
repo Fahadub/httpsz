@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Hang</title></head>
+<body><h1>Simulation</h1><p>Starting…</p>
+<script>
+  // Infinite loop shortly after load: the main thread never returns.
+  window.addEventListener('load', () => setTimeout(() => { let i = 0; while (true) { i++; } }, 50));
+</script>
+</body></html>

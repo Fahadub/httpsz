@@ -1,0 +1,1518 @@
+[
+  {
+    "slug": "arabic-normalize-text",
+    "track": "arabic",
+    "title_en": "Arabic text normaliser",
+    "title_ar": "مُطبِّع النص العربي",
+    "summary_en": "Configurable normalisation for Arabic search: NFC first, tashkeel and Quranic marks, tatweel, alef/yaa/taa/hamza folding and digit systems — without damaging Latin text. Prompt written in Arabic.",
+    "summary_ar": "تطبيع قابل للضبط لأغراض البحث العربي: NFC أولًا، ثم التشكيل والعلامات القرآنية والتطويل وتوحيد الألف والياء والتاء والهمزة وأنظمة الأرقام، دون إفساد النص اللاتيني. نص المهمة بالعربية.",
+    "prompt": "اكتب دالة JavaScript باسم `normalizeArabic(text, options)` تُطبِّع النص العربي لأغراض البحث والمقارنة.\n\nالمعامل `options` كائن اختياري، وكل مفتاح لا يُمرَّر يأخذ قيمته الافتراضية:\n\n| المفتاح | الافتراضي | السلوك |\n|---|---|---|\n| `diacritics` | `true` | حذف علامات التشكيل والعلامات القرآنية، أي كل محرف في النطاقات: U+0610–U+061A و U+064B–U+065F و U+0670 (الألف الخنجرية) و U+06D6–U+06DC و U+06DF–U+06E4 و U+06E7–U+06E8 و U+06EA–U+06ED |\n| `tatweel` | `true` | حذف التطويل (الكشيدة) U+0640 |\n| `alef` | `true` | توحيد أشكال الألف «أ إ آ ٱ» إلى «ا» |\n| `yaa` | `false` | تحويل الألف المقصورة «ى» إلى «ي» |\n| `taaMarbuta` | `false` | تحويل التاء المربوطة «ة» إلى «ه» |\n| `hamza` | `false` | تحويل «ؤ» إلى «و» و«ئ» إلى «ي» |\n| `digits` | `\"keep\"` | `\"western\"`: تحويل الأرقام العربية المشرقية (٠–٩) والفارسية (۰–۹) إلى 0–9؛ `\"arabic\"`: تحويل 0–9 والأرقام الفارسية إلى ٠–٩؛ `\"keep\"`: دون تغيير |\n| `whitespace` | `true` | استبدال كل سلسلة متتالية من المسافات البيضاء (ومنها المسافة غير الفاصلة U+00A0 والسطر الجديد ومحرف الجدولة) بمسافة واحدة، ثم حذف المسافات من طرفي النص |\n\nقواعد إلزامية:\n1. طبِّق أولًا تطبيع يونيكود NFC على النص كاملًا، ثم نفِّذ الخطوات بهذا الترتيب: التشكيل، ثم التطويل، ثم تحويلات الحروف، ثم الأرقام، ثم المسافات.\n2. لا تمسّ أي محرف آخر: تبقى الحروف اللاتينية وعلاماتها (مثل é) وعلامات الترقيم العربية (، ؛ ؟) كما هي.\n3. لا تعدِّل كائن الخيارات المُمرَّر، وأعِد دائمًا نصًّا (string)؛ والنص الفارغ يُعيد نصًّا فارغًا.\n\nأمثلة:\n- `normalizeArabic(\"السَّلَامُ عَلَيْكُمْ\")` ← `\"السلام عليكم\"`\n- `normalizeArabic(\"مستشفى الجامعة\", { yaa: true, taaMarbuta: true })` ← `\"مستشفي الجامعه\"`\n\nأعِد ملف JavaScript واحدًا يعرّف الدالة في النطاق العام (من دون import أو export، ومن دون الاعتماد على DOM أو Node).",
+    "output_type": "js",
+    "difficulty": 2,
+    "visibility": "public",
+    "auto_weight": 0.85,
+    "rubric": [
+      {
+        "key": "correctness",
+        "label_en": "Correctness & edge cases",
+        "label_ar": "الصحة والحالات الحدّية",
+        "weight": 3,
+        "guide": "Judge against the specification and the unit-test results shown: every rule implemented exactly, edge cases (empty input, boundaries, option defaults) handled, no hard-coding of test values."
+      },
+      {
+        "key": "unicode",
+        "label_en": "Unicode rigour",
+        "label_ar": "الدقة في يونيكود",
+        "weight": 2,
+        "guide": "Uses exact code-point ranges from the spec, applies NFC first and in the specified order, never strips non-Arabic combining marks, handles Persian digits and NBSP."
+      },
+      {
+        "key": "robustness",
+        "label_en": "Robustness & performance",
+        "label_ar": "المتانة والأداء",
+        "weight": 1,
+        "guide": "Linear-time processing of long strings, no catastrophic regexes, sensible handling of unexpected input (non-string, missing options) without throwing, deterministic output independent of the host locale. 9-10 = production-ready utility; 5-6 = works on the happy path only; 0-3 = fragile or environment-dependent."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, small functions, named constants for code points/ranges, no needless dependencies, no mutation of inputs, no global side effects beyond the requested functions."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "parses",
+          "type": "js_parses",
+          "weight": 1,
+          "label_en": "JavaScript parses",
+          "label_ar": "شيفرة JavaScript سليمة البنية"
+        },
+        {
+          "id": "size",
+          "type": "max_bytes",
+          "value": 60000,
+          "weight": 1,
+          "label_en": "Reasonable size (≤ 60 KB)",
+          "label_ar": "حجم معقول (٦٠ ك.ب كحدّ أقصى)"
+        },
+        {
+          "id": "entry",
+          "type": "contains",
+          "pattern": "normalizeArabic",
+          "weight": 1,
+          "label_en": "Defines normalizeArabic",
+          "label_ar": "تعريف normalizeArabic"
+        }
+      ],
+      "tests": {
+        "entry": "normalizeArabic",
+        "timeout_ms": 2000,
+        "weight": 8,
+        "cases": [
+          {
+            "name": "tashkeel_default",
+            "args": [
+              "السَّلَامُ عَلَيْكُمْ"
+            ],
+            "expect": "السلام عليكم",
+            "cmp": "deep"
+          },
+          {
+            "name": "tatweel",
+            "args": [
+              "مـــرحـبـــا بـكـم"
+            ],
+            "expect": "مرحبا بكم",
+            "cmp": "deep"
+          },
+          {
+            "name": "alef_forms",
+            "args": [
+              "إسلام أحمد آمنة ٱلقلم"
+            ],
+            "expect": "اسلام احمد امنة القلم",
+            "cmp": "deep"
+          },
+          {
+            "name": "defaults_keep_yaa_taa",
+            "args": [
+              "مستشفى الجامعة"
+            ],
+            "expect": "مستشفى الجامعة",
+            "cmp": "deep"
+          },
+          {
+            "name": "yaa_taa_on",
+            "args": [
+              "مستشفى الجامعة",
+              {
+                "yaa": true,
+                "taaMarbuta": true
+              }
+            ],
+            "expect": "مستشفي الجامعه",
+            "cmp": "deep"
+          },
+          {
+            "name": "hamza_on",
+            "args": [
+              "مسؤول شؤون الهيئة",
+              {
+                "hamza": true
+              }
+            ],
+            "expect": "مسوول شوون الهيية",
+            "cmp": "deep"
+          },
+          {
+            "name": "digits_western",
+            "args": [
+              "رقم الطلب ١٢٣٤٥ والفرع ۷۸",
+              {
+                "digits": "western"
+              }
+            ],
+            "expect": "رقم الطلب 12345 والفرع 78",
+            "cmp": "deep"
+          },
+          {
+            "name": "digits_arabic",
+            "args": [
+              "Order 2026 / ۱۵",
+              {
+                "digits": "arabic"
+              }
+            ],
+            "expect": "Order ٢٠٢٦ / ١٥",
+            "cmp": "deep"
+          },
+          {
+            "name": "digits_keep_default",
+            "args": [
+              "الصفحة ١٢ من 30"
+            ],
+            "expect": "الصفحة ١٢ من 30",
+            "cmp": "deep"
+          },
+          {
+            "name": "whitespace_collapse",
+            "args": [
+              "  نصٌّ  مع   مسافات\n\tكثيرة  "
+            ],
+            "expect": "نص مع مسافات كثيرة",
+            "cmp": "deep"
+          },
+          {
+            "name": "whitespace_off",
+            "args": [
+              "  أ  ب  ",
+              {
+                "whitespace": false
+              }
+            ],
+            "expect": "  ا  ب  ",
+            "cmp": "deep"
+          },
+          {
+            "name": "diacritics_off",
+            "args": [
+              "كَتَبَ",
+              {
+                "diacritics": false
+              }
+            ],
+            "expect": "كَتَبَ",
+            "cmp": "deep"
+          },
+          {
+            "name": "nfc_before_stripping",
+            "args": [
+              "أحمد",
+              {
+                "alef": false
+              }
+            ],
+            "expect": "أحمد",
+            "cmp": "deep"
+          },
+          {
+            "name": "nfc_then_alef",
+            "args": [
+              "إسلام"
+            ],
+            "expect": "اسلام",
+            "cmp": "deep"
+          },
+          {
+            "name": "latin_marks_preserved",
+            "args": [
+              "Café — قَهْوَةٌ"
+            ],
+            "expect": "Café — قهوة",
+            "cmp": "deep"
+          },
+          {
+            "name": "dagger_alef",
+            "args": [
+              "هٰذا ذٰلك"
+            ],
+            "expect": "هذا ذلك",
+            "cmp": "deep"
+          },
+          {
+            "name": "quranic_marks",
+            "args": [
+              "ذَٰلِكَ ٱلْكِتَٰبُ لَا رَيْبَ ۛ فِيهِ ۛ"
+            ],
+            "expect": "ذلك الكتب لا ريب فيه",
+            "cmp": "deep"
+          },
+          {
+            "name": "punctuation_kept",
+            "args": [
+              "هل أنت بخير؟ نعم، شكرًا؛ إلى اللقاء."
+            ],
+            "expect": "هل انت بخير؟ نعم، شكرا؛ الى اللقاء.",
+            "cmp": "deep"
+          },
+          {
+            "name": "empty",
+            "args": [
+              ""
+            ],
+            "expect": "",
+            "cmp": "deep"
+          },
+          {
+            "name": "whitespace_only",
+            "args": [
+              "     "
+            ],
+            "expect": "",
+            "cmp": "deep"
+          },
+          {
+            "name": "all_options",
+            "args": [
+              "إِنَّ الـمُـسْـتَـشْـفَـى ٱلْجَدِيدَةَ فِي شَارِعِ ٢٠ مُؤَسَّسَةٌ",
+              {
+                "yaa": true,
+                "taaMarbuta": true,
+                "hamza": true,
+                "digits": "western"
+              }
+            ],
+            "expect": "ان المستشفي الجديده في شارع 20 موسسه",
+            "cmp": "deep"
+          },
+          {
+            "name": "partial_options_keep_defaults",
+            "args": [
+              "مَـرْحَبًا ١",
+              {
+                "digits": "western"
+              }
+            ],
+            "expect": "مرحبا 1",
+            "cmp": "deep"
+          },
+          {
+            "name": "all_off",
+            "args": [
+              "أَهْلًـا ١",
+              {
+                "diacritics": false,
+                "tatweel": false,
+                "alef": false,
+                "whitespace": false
+              }
+            ],
+            "expect": "أَهْلًـا ١",
+            "cmp": "deep"
+          },
+          {
+            "name": "options_not_mutated",
+            "script": "const o = { digits: 'arabic' }; normalizeArabic('1', o); return JSON.stringify(o);",
+            "expect": "{\"digits\":\"arabic\"}"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "slug": "arabic-plural-numbers",
+    "track": "arabic",
+    "title_en": "Arabic counting phrases & numerals",
+    "title_ar": "عبارات العدّ العربية والأرقام المشرقية",
+    "summary_en": "CLDR Arabic plural categories (zero/one/two/few/many/other, mod-100 rules) and Arabic-Indic number formatting with the Arabic thousands and decimal separators. Prompt written in Arabic.",
+    "summary_ar": "فئات الجمع العربية في CLDR (صفر/مفرد/مثنى/قليل/كثير/أخرى وقواعد باقي القسمة على ١٠٠) وتنسيق الأعداد بالأرقام المشرقية وفاصلي الآلاف والكسور العربيين. نص المهمة بالعربية.",
+    "prompt": "نحتاج في واجهة تطبيق عربي إلى صياغة عبارات العدّ صياغةً صحيحة لغويًا وبالأرقام العربية المشرقية.\n\nاكتب دالتين في JavaScript:\n\n**١. `formatNumberAr(n)`** — تُعيد العدد `n` (عدد حقيقي منتهٍ غير سالب) نصًّا بالأرقام ٠١٢٣٤٥٦٧٨٩:\n- فاصل الآلاف «٬» (U+066C) كل ثلاث خانات في الجزء الصحيح (للأعداد من ١٠٠٠ فما فوق).\n- الفاصلة العشرية «٫» (U+066B)، وخانات الكسر تبقى كما تظهر في `String(n)` (مثلًا 2.5 ← «٢٫٥»، و1234567.25 ← «١٬٢٣٤٬٥٦٧٫٢٥»).\n- لا تُضِف أي محارف اتجاه خفية (مثل U+200F أو U+061C) ولا مسافات.\n\n**٢. `pluralAr(n, forms)`** — تختار الصيغة المناسبة من الكائن `forms` وفق فئات الجمع العربية في معيار CLDR:\n- `zero`: ‏n = 0\n- `one`: ‏n = 1\n- `two`: ‏n = 2\n- `few`: ‏n عدد صحيح وباقي قسمته على 100 بين 3 و10\n- `many`: ‏n عدد صحيح وباقي قسمته على 100 بين 11 و99\n- `other`: كل ما عدا ذلك (مثل 100 و101 و102 و1000 والأعداد غير الصحيحة)\n\nثم تستبدل **كل** علامة `#` في الصيغة المختارة بناتج `formatNumberAr(n)`. إذا لم يحتوِ `forms` على الفئة المطلوبة فاستخدم `forms.other`.\n\nمثال:\n```js\nconst files = { zero: 'لا توجد ملفات', one: 'ملف واحد', two: 'ملفان', few: '# ملفات', many: '# ملفًا', other: '# ملف' };\npluralAr(3, files);   // «٣ ملفات»\npluralAr(11, files);  // «١١ ملفًا»\npluralAr(100, files); // «١٠٠ ملف»\npluralAr(103, files); // «١٠٣ ملفات»\n```\n\nانتبه: بعض بيئات التشغيل الحديثة تُخرج `Intl.NumberFormat('ar')` بالأرقام اللاتينية، فلا تفترض ذلك.\n\nأعِد ملف JavaScript واحدًا يعرّف الدالتين في النطاق العام (من دون import أو export، ومن دون الاعتماد على DOM).",
+    "output_type": "js",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": 0.85,
+    "rubric": [
+      {
+        "key": "correctness",
+        "label_en": "Correctness & edge cases",
+        "label_ar": "الصحة والحالات الحدّية",
+        "weight": 3,
+        "guide": "Judge against the specification and the unit-test results shown: every rule implemented exactly, edge cases (empty input, boundaries, option defaults) handled, no hard-coding of test values."
+      },
+      {
+        "key": "locale",
+        "label_en": "Locale correctness",
+        "label_ar": "صحة الإعدادات المحلية",
+        "weight": 2,
+        "guide": "Correct mod-100 logic for few/many, fractions fall into \"other\", exact separators U+066C/U+066B, no hidden bidi marks, does not rely on environment-dependent Intl defaults."
+      },
+      {
+        "key": "robustness",
+        "label_en": "Robustness & performance",
+        "label_ar": "المتانة والأداء",
+        "weight": 1,
+        "guide": "Linear-time processing of long strings, no catastrophic regexes, sensible handling of unexpected input (non-string, missing options) without throwing, deterministic output independent of the host locale. 9-10 = production-ready utility; 5-6 = works on the happy path only; 0-3 = fragile or environment-dependent."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, small functions, named constants for code points/ranges, no needless dependencies, no mutation of inputs, no global side effects beyond the requested functions."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "parses",
+          "type": "js_parses",
+          "weight": 1,
+          "label_en": "JavaScript parses",
+          "label_ar": "شيفرة JavaScript سليمة البنية"
+        },
+        {
+          "id": "size",
+          "type": "max_bytes",
+          "value": 60000,
+          "weight": 1,
+          "label_en": "Reasonable size (≤ 60 KB)",
+          "label_ar": "حجم معقول (٦٠ ك.ب كحدّ أقصى)"
+        },
+        {
+          "id": "entry",
+          "type": "contains",
+          "pattern": "pluralAr",
+          "weight": 1,
+          "label_en": "Defines pluralAr",
+          "label_ar": "تعريف pluralAr"
+        },
+        {
+          "id": "entry_fmt",
+          "type": "contains",
+          "pattern": "formatNumberAr",
+          "weight": 1,
+          "label_en": "Defines formatNumberAr",
+          "label_ar": "تعريف formatNumberAr"
+        }
+      ],
+      "tests": {
+        "entry": "pluralAr",
+        "timeout_ms": 2000,
+        "weight": 8,
+        "cases": [
+          {
+            "name": "fmt_zero",
+            "script": "return formatNumberAr(0);",
+            "expect": "٠"
+          },
+          {
+            "name": "fmt_single_digit",
+            "script": "return formatNumberAr(7);",
+            "expect": "٧"
+          },
+          {
+            "name": "fmt_999",
+            "script": "return formatNumberAr(999);",
+            "expect": "٩٩٩"
+          },
+          {
+            "name": "fmt_thousand",
+            "script": "return formatNumberAr(1000);",
+            "expect": "١٬٠٠٠"
+          },
+          {
+            "name": "fmt_million_decimal",
+            "script": "return formatNumberAr(1234567.25);",
+            "expect": "١٬٢٣٤٬٥٦٧٫٢٥"
+          },
+          {
+            "name": "fmt_decimal",
+            "script": "return formatNumberAr(2.5);",
+            "expect": "٢٫٥"
+          },
+          {
+            "name": "fmt_leading_zero_fraction",
+            "script": "return formatNumberAr(0.75);",
+            "expect": "٠٫٧٥"
+          },
+          {
+            "name": "p0_zero",
+            "args": [
+              0,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "لا توجد ملفات",
+            "cmp": "deep"
+          },
+          {
+            "name": "p1_one",
+            "args": [
+              1,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "ملف واحد",
+            "cmp": "deep"
+          },
+          {
+            "name": "p2_two",
+            "args": [
+              2,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "ملفان",
+            "cmp": "deep"
+          },
+          {
+            "name": "p3_few",
+            "args": [
+              3,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "٣ ملفات",
+            "cmp": "deep"
+          },
+          {
+            "name": "p10_few",
+            "args": [
+              10,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "١٠ ملفات",
+            "cmp": "deep"
+          },
+          {
+            "name": "p11_many",
+            "args": [
+              11,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "١١ ملفًا",
+            "cmp": "deep"
+          },
+          {
+            "name": "p99_many",
+            "args": [
+              99,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "٩٩ ملفًا",
+            "cmp": "deep"
+          },
+          {
+            "name": "p100_other",
+            "args": [
+              100,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "١٠٠ ملف",
+            "cmp": "deep"
+          },
+          {
+            "name": "p101_other_not_one",
+            "args": [
+              101,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "١٠١ ملف",
+            "cmp": "deep"
+          },
+          {
+            "name": "p102_other_not_two",
+            "args": [
+              102,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "١٠٢ ملف",
+            "cmp": "deep"
+          },
+          {
+            "name": "p103_few_mod100",
+            "args": [
+              103,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "١٠٣ ملفات",
+            "cmp": "deep"
+          },
+          {
+            "name": "p111_many_mod100",
+            "args": [
+              111,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "١١١ ملفًا",
+            "cmp": "deep"
+          },
+          {
+            "name": "p1000_other",
+            "args": [
+              1000,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "١٬٠٠٠ ملف",
+            "cmp": "deep"
+          },
+          {
+            "name": "p1005_few",
+            "args": [
+              1005,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "١٬٠٠٥ ملفات",
+            "cmp": "deep"
+          },
+          {
+            "name": "p1234567_many",
+            "args": [
+              1234567,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "١٬٢٣٤٬٥٦٧ ملفًا",
+            "cmp": "deep"
+          },
+          {
+            "name": "p_fraction_other",
+            "args": [
+              2.5,
+              {
+                "zero": "لا توجد ملفات",
+                "one": "ملف واحد",
+                "two": "ملفان",
+                "few": "# ملفات",
+                "many": "# ملفًا",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "٢٫٥ ملف",
+            "cmp": "deep"
+          },
+          {
+            "name": "books_few",
+            "args": [
+              7,
+              {
+                "one": "كتاب واحد",
+                "two": "كتابان",
+                "few": "# كتب",
+                "many": "# كتابًا",
+                "other": "# كتاب"
+              }
+            ],
+            "expect": "٧ كتب",
+            "cmp": "deep"
+          },
+          {
+            "name": "books_many",
+            "args": [
+              25,
+              {
+                "one": "كتاب واحد",
+                "two": "كتابان",
+                "few": "# كتب",
+                "many": "# كتابًا",
+                "other": "# كتاب"
+              }
+            ],
+            "expect": "٢٥ كتابًا",
+            "cmp": "deep"
+          },
+          {
+            "name": "books_203_few",
+            "args": [
+              203,
+              {
+                "one": "كتاب واحد",
+                "two": "كتابان",
+                "few": "# كتب",
+                "many": "# كتابًا",
+                "other": "# كتاب"
+              }
+            ],
+            "expect": "٢٠٣ كتب",
+            "cmp": "deep"
+          },
+          {
+            "name": "books_1011_many",
+            "args": [
+              1011,
+              {
+                "one": "كتاب واحد",
+                "two": "كتابان",
+                "few": "# كتب",
+                "many": "# كتابًا",
+                "other": "# كتاب"
+              }
+            ],
+            "expect": "١٬٠١١ كتابًا",
+            "cmp": "deep"
+          },
+          {
+            "name": "books_1101_other",
+            "args": [
+              1101,
+              {
+                "one": "كتاب واحد",
+                "two": "كتابان",
+                "few": "# كتب",
+                "many": "# كتابًا",
+                "other": "# كتاب"
+              }
+            ],
+            "expect": "١٬١٠١ كتاب",
+            "cmp": "deep"
+          },
+          {
+            "name": "missing_zero_falls_back",
+            "args": [
+              0,
+              {
+                "one": "كتاب واحد",
+                "two": "كتابان",
+                "few": "# كتب",
+                "many": "# كتابًا",
+                "other": "# كتاب"
+              }
+            ],
+            "expect": "٠ كتاب",
+            "cmp": "deep"
+          },
+          {
+            "name": "every_hash_replaced",
+            "args": [
+              12,
+              {
+                "many": "تم رفع # ملفًا من أصل # محاولة",
+                "other": "# ملف"
+              }
+            ],
+            "expect": "تم رفع ١٢ ملفًا من أصل ١٢ محاولة",
+            "cmp": "deep"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "slug": "arabic-bidi-truncate",
+    "track": "arabic",
+    "title_en": "Bidi-safe grapheme truncation",
+    "title_ar": "اقتطاع آمن للنص ثنائي الاتجاه",
+    "summary_en": "Truncate mixed Arabic/English/emoji text by grapheme clusters, keep harakat attached, and re-balance dangling bidi embeddings and isolates so truncated titles never scramble the surrounding UI.",
+    "summary_ar": "اقتطاع نص مختلط (عربي وإنجليزي ورموز تعبيرية) حسب عناقيد المحارف دون فصل الحركات عن حروفها، مع إغلاق محارف الاتجاه المفتوحة حتى لا تفسد العناوين المقتطعة ما حولها في الواجهة.",
+    "prompt": "Our dashboard shows user-generated titles (Arabic, English, emoji, mixed directions) in fixed-width cards, and we need a safe truncation helper.\n\nWrite a JavaScript function `truncateText(text, max, options)`:\n\n1. `max` is an integer ≥ 1 counting user-perceived characters: extended grapheme clusters as defined by Unicode UAX #29 (a letter together with its harakat, an emoji ZWJ sequence, a flag or CR+LF each count as one). `Intl.Segmenter` is available.\n2. If `text` has at most `max` characters, return it unchanged.\n3. Otherwise keep the first `max − 1` characters, remove trailing whitespace from that prefix, and append the ellipsis \"…\" (U+2026). Never split a character.\n4. Bidi safety: the kept prefix may open explicit directional formatting characters that are no longer closed. Scan the kept prefix with a stack:\n   - LRE (U+202A), RLE (U+202B), LRO (U+202D), RLO (U+202E) push an *embedding*;\n   - LRI (U+2066), RLI (U+2067), FSI (U+2068) push an *isolate*;\n   - PDF (U+202C) pops the top only if the top is an embedding (otherwise it is ignored);\n   - PDI (U+2069) pops everything up to and including the nearest isolate (it is ignored if no isolate is open).\n   After the ellipsis, append one closer per remaining stack entry, from the top of the stack down: PDF for an embedding, PDI for an isolate.\n5. If `options.isolate` is true, wrap the final result (truncated or not) in FSI … PDI (U+2068 … U+2069) so it can be dropped safely into text of either direction.\n6. `options` may be omitted; don't mutate any argument. An empty string stays empty (wrapped if `isolate` is set).\n\nExamples: `truncateText(\"Hello world\", 8)` → `\"Hello w…\"`; `truncateText(\"Hello world\", 7)` → `\"Hello…\"`; `truncateText(\"مُحَمَّدٌ رَسُولٌ\", 4)` → `\"مُحَمَّ…\"`.\n\nReturn a single JavaScript file that defines `truncateText` at the top level (no imports/exports, no DOM).",
+    "output_type": "js",
+    "difficulty": 4,
+    "visibility": "public",
+    "auto_weight": 0.85,
+    "rubric": [
+      {
+        "key": "correctness",
+        "label_en": "Correctness & edge cases",
+        "label_ar": "الصحة والحالات الحدّية",
+        "weight": 3,
+        "guide": "Judge against the specification and the unit-test results shown: every rule implemented exactly, edge cases (empty input, boundaries, option defaults) handled, no hard-coding of test values."
+      },
+      {
+        "key": "unicode",
+        "label_en": "Unicode & bidi rigour",
+        "label_ar": "الدقة في يونيكود والاتجاه",
+        "weight": 2,
+        "guide": "Uses grapheme segmentation (not code units or code points), trims only trailing whitespace of the prefix, implements the embedding/isolate stack exactly (PDI terminates inner embeddings, stray closers ignored), wraps with FSI/PDI when requested."
+      },
+      {
+        "key": "robustness",
+        "label_en": "Robustness & performance",
+        "label_ar": "المتانة والأداء",
+        "weight": 1,
+        "guide": "Linear-time processing of long strings, no catastrophic regexes, sensible handling of unexpected input (non-string, missing options) without throwing, deterministic output independent of the host locale. 9-10 = production-ready utility; 5-6 = works on the happy path only; 0-3 = fragile or environment-dependent."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, small functions, named constants for code points/ranges, no needless dependencies, no mutation of inputs, no global side effects beyond the requested functions."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "parses",
+          "type": "js_parses",
+          "weight": 1,
+          "label_en": "JavaScript parses",
+          "label_ar": "شيفرة JavaScript سليمة البنية"
+        },
+        {
+          "id": "size",
+          "type": "max_bytes",
+          "value": 60000,
+          "weight": 1,
+          "label_en": "Reasonable size (≤ 60 KB)",
+          "label_ar": "حجم معقول (٦٠ ك.ب كحدّ أقصى)"
+        },
+        {
+          "id": "entry",
+          "type": "contains",
+          "pattern": "truncateText",
+          "weight": 1,
+          "label_en": "Defines truncateText",
+          "label_ar": "تعريف truncateText"
+        }
+      ],
+      "tests": {
+        "entry": "truncateText",
+        "timeout_ms": 2000,
+        "weight": 8,
+        "cases": [
+          {
+            "name": "short_unchanged",
+            "args": [
+              "مرحبا",
+              10
+            ],
+            "expect": "مرحبا",
+            "cmp": "deep"
+          },
+          {
+            "name": "exact_length",
+            "args": [
+              "abcde",
+              5
+            ],
+            "expect": "abcde",
+            "cmp": "deep"
+          },
+          {
+            "name": "basic_latin",
+            "args": [
+              "Hello world",
+              8
+            ],
+            "expect": "Hello w…",
+            "cmp": "deep"
+          },
+          {
+            "name": "trim_trailing_space",
+            "args": [
+              "Hello world",
+              7
+            ],
+            "expect": "Hello…",
+            "cmp": "deep"
+          },
+          {
+            "name": "harakat_stay_attached",
+            "args": [
+              "مُحَمَّدٌ رَسُولٌ",
+              4
+            ],
+            "expect": "مُحَمَّ…",
+            "cmp": "deep"
+          },
+          {
+            "name": "emoji_zwj_sequence",
+            "args": [
+              "👨‍👩‍👧 family",
+              3
+            ],
+            "expect": "👨‍👩‍👧…",
+            "cmp": "deep"
+          },
+          {
+            "name": "flags",
+            "args": [
+              "🇸🇦🇦🇪🇪🇬",
+              2
+            ],
+            "expect": "🇸🇦…",
+            "cmp": "deep"
+          },
+          {
+            "name": "max_one",
+            "args": [
+              "abc",
+              1
+            ],
+            "expect": "…",
+            "cmp": "deep"
+          },
+          {
+            "name": "empty",
+            "args": [
+              "",
+              3
+            ],
+            "expect": "",
+            "cmp": "deep"
+          },
+          {
+            "name": "latin_combining",
+            "args": [
+              "éééé",
+              3
+            ],
+            "expect": "éé…",
+            "cmp": "deep"
+          },
+          {
+            "name": "crlf_is_one_char",
+            "args": [
+              "ab\r\ncd",
+              3
+            ],
+            "expect": "ab…",
+            "cmp": "deep"
+          },
+          {
+            "name": "decomposed_hamza_one_char",
+            "args": [
+              "أب",
+              2
+            ],
+            "expect": "أب",
+            "cmp": "deep"
+          },
+          {
+            "name": "arabic_trailing_spaces",
+            "args": [
+              "كلمة  ثانية",
+              6
+            ],
+            "expect": "كلمة…",
+            "cmp": "deep"
+          },
+          {
+            "name": "newline_trimmed",
+            "args": [
+              "سطر\nآخر",
+              5
+            ],
+            "expect": "سطر…",
+            "cmp": "deep"
+          },
+          {
+            "name": "open_embedding_closed",
+            "args": [
+              "x‫عربي‬ y",
+              4
+            ],
+            "expect": "x‫ع…‬",
+            "cmp": "deep"
+          },
+          {
+            "name": "open_isolate_closed",
+            "args": [
+              "⁧مرحبا بالعالم⁩!",
+              5
+            ],
+            "expect": "⁧مرح…⁩",
+            "cmp": "deep"
+          },
+          {
+            "name": "nested_mixed_stack",
+            "args": [
+              "⁨a‫bc‬d‮ef",
+              9
+            ],
+            "expect": "⁨a‫bc‬d‮…‬⁩",
+            "cmp": "deep"
+          },
+          {
+            "name": "pdi_closes_inner_embeddings",
+            "args": [
+              "⁦a‪b⁩c‫de",
+              8
+            ],
+            "expect": "⁦a‪b⁩c‫…‬",
+            "cmp": "deep"
+          },
+          {
+            "name": "stray_pdf_ignored_in_isolate",
+            "args": [
+              "⁧a‬bcdef",
+              4
+            ],
+            "expect": "⁧a‬…⁩",
+            "cmp": "deep"
+          },
+          {
+            "name": "stray_pdi_ignored",
+            "args": [
+              "‫a⁩bcdef",
+              4
+            ],
+            "expect": "‫a⁩…‬",
+            "cmp": "deep"
+          },
+          {
+            "name": "balanced_not_closed_again",
+            "args": [
+              "⁧عربي⁩ text here",
+              9
+            ],
+            "expect": "⁧عربي⁩ t…",
+            "cmp": "deep"
+          },
+          {
+            "name": "isolate_untruncated",
+            "args": [
+              "abc",
+              5,
+              {
+                "isolate": true
+              }
+            ],
+            "expect": "⁨abc⁩",
+            "cmp": "deep"
+          },
+          {
+            "name": "isolate_truncated",
+            "args": [
+              "مرحبا بالعالم",
+              6,
+              {
+                "isolate": true
+              }
+            ],
+            "expect": "⁨مرحبا…⁩",
+            "cmp": "deep"
+          },
+          {
+            "name": "isolate_with_closers",
+            "args": [
+              "‮abc def",
+              3,
+              {
+                "isolate": true
+              }
+            ],
+            "expect": "⁨‮a…‬⁩",
+            "cmp": "deep"
+          },
+          {
+            "name": "isolate_empty",
+            "args": [
+              "",
+              4,
+              {
+                "isolate": true
+              }
+            ],
+            "expect": "⁨⁩",
+            "cmp": "deep"
+          },
+          {
+            "name": "options_not_mutated",
+            "script": "const o = { isolate: true }; truncateText('abcdef', 2, o); return JSON.stringify(o);",
+            "expect": "{\"isolate\":true}"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "slug": "arabic-rtl-checkout",
+    "track": "arabic",
+    "title_en": "RTL Arabic checkout page",
+    "title_ar": "صفحة إتمام شراء عربية من اليمين لليسار",
+    "summary_en": "A luxurious, fully mirrored Arabic checkout with live VAT maths in Arabic-Indic numerals, a coupon, LTR-isolated phone and coupon fields, and accessible validation. Prompt written in Arabic.",
+    "summary_ar": "صفحة إتمام شراء عربية فاخرة معكوسة بالكامل، بحساب حيّ لضريبة القيمة المضافة بالأرقام المشرقية، وقسيمة خصم، وحقلَي جوال وقسيمة معزولين باتجاه LTR، وتحقق ميسَّر الوصول. نص المهمة بالعربية.",
+    "prompt": "صمِّم صفحة «إتمام الطلب» لمتجر عطور عربي خيالي اسمه «سِدرة للعطور»، بواجهة عربية كاملة من اليمين إلى اليسار وبمستوى تصميم فاخر.\n\nالمتطلبات:\n1. ملف HTML واحد مستقل: CSS وJavaScript مضمَّنان، ومن دون أي خطوط أو صور أو مكتبات أو روابط خارجية (استخدم خطوط النظام العربية؛ ويمكن استخدام SVG مضمَّن للأيقونات).\n2. `<html lang=\"ar\" dir=\"rtl\">` وتخطيط معكوس بالكامل: النموذج في العمود الأيمن وملخص الطلب في عمود جانبي على اليسار في الشاشات العريضة؛ مؤشر خطوات (السلة ← الشحن ← الدفع ← التأكيد) يبدأ من اليمين؛ أسهم «رجوع/متابعة» باتجاه صحيح. استخدم خصائص CSS المنطقية (margin-inline-start وpadding-inline-end وinset-inline…) بدل left/right.\n3. نموذج الشحن، ولكل حقل `<label for>`: الاسم الكامل، رقم الجوال (حقل `type=\"tel\"` باتجاه `dir=\"ltr\"` و`inputmode=\"numeric\"` بصيغة 05XXXXXXXX)، المدينة (قائمة منسدلة)، الحي، العنوان التفصيلي.\n4. خيارات التوصيل (أزرار راديو): «توصيل عادي (٣–٥ أيام عمل)» بسعر ٢٥ ر.س بالمعرّف `ship-standard` ومحدَّد افتراضيًا، و«توصيل سريع (خلال ٢٤ ساعة)» بسعر ٤٥ ر.س بالمعرّف `ship-express`.\n5. طرق الدفع (أزرار راديو): بطاقة ائتمانية، الدفع عند الاستلام، تحويل بنكي.\n6. السلة في الملخص — ثلاثة منتجات، والأسعار لا تشمل الضريبة:\n   - «مبخرة نحاسية مزخرفة» — ١٨٥٫٠٠ ر.س × ١\n   - «عود كمبودي فاخر ١٢ غرام» — ٢٤٠٫٠٠ ر.س × ٢\n   - «دهن ورد طائفي ٦ مل» — ٩٥٫٠٠ ر.س × ١\n   مع زرَّي زيادة وإنقاص للكمية لكل منتج (لهما `aria-label` عربي، والحد الأدنى للكمية ١) تُحدِّث الإجماليات فورًا.\n7. الإجماليات: المجموع الفرعي، ثم خصم القسيمة إن وُجد، ثم الشحن، ثم «ضريبة القيمة المضافة (١٥٪)» تُحسب على (المجموع الفرعي بعد الخصم + الشحن)، ثم الإجمالي داخل عنصر بالمعرّف `order-total`. قرِّب كل مبلغ إلى خانتين عشريتين دون أخطاء الفاصلة العائمة.\n8. حقل قسيمة خصم (الرمز لاتيني ويُكتب من اليسار إلى اليمين): الرمز `SIDRA10` يخصم ١٠٪ من المجموع الفرعي، وأي رمز آخر يُظهر رسالة خطأ عربية واضحة.\n9. كل الأرقام المعروضة للمستخدم بالأرقام العربية المشرقية مع «٬» فاصلًا للآلاف و«٫» فاصلةً عشرية، والعملة «ر.س» بعد الرقم (مثل «٩٠٢٫٧٥ ر.س»).\n10. زر «تأكيد الطلب»: يتحقق من الحقول ويعرض رسائل خطأ عربية بجانبها (مع `aria-invalid` و`aria-describedby`) وينقل التركيز إلى أول حقل خاطئ؛ وعند النجاح تظهر رسالة تأكيد برقم طلب.\n11. متجاوبة: عند عرض ٣٩٠ بكسل يصبح التخطيط عمودًا واحدًا دون أي تمرير أفقي.\n12. طباعة عربية مريحة: حجم النص الأساسي ١٦ بكسل على الأقل وتباعد أسطر مريح وتباين ألوان كافٍ.\n\nأعِد مستند HTML كاملًا واحدًا.",
+    "output_type": "html",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "rtl",
+        "label_en": "RTL mirroring & bidi",
+        "label_ar": "الانعكاس والاتجاه الثنائي",
+        "weight": 3,
+        "guide": "Whole layout mirrored (columns, stepper, icons, arrows, alignment); logical CSS properties; LTR content (phone, coupon) isolated correctly; no punctuation or numbers jumping to the wrong side."
+      },
+      {
+        "key": "numerals",
+        "label_en": "Arabic typography & numerals",
+        "label_ar": "الطباعة العربية والأرقام",
+        "weight": 2,
+        "guide": "Readable Arabic font stack and sizes, comfortable line height, Arabic-Indic digits with ٬ and ٫ everywhere, currency after the amount, natural Modern Standard Arabic copy."
+      },
+      {
+        "key": "logic",
+        "label_en": "Checkout logic",
+        "label_ar": "منطق الطلب",
+        "weight": 2,
+        "guide": "Quantities, shipping, coupon and 15% VAT computed exactly as specified (initial total ٩٠٢٫٧٥ ر.س), no floating-point artefacts, totals update instantly."
+      },
+      {
+        "key": "visual",
+        "label_en": "Visual polish",
+        "label_ar": "الإتقان البصري",
+        "weight": 2,
+        "guide": "Premium look worthy of a luxury perfume brand: hierarchy, spacing, colour, states; works at 390 px and 1440 px."
+      },
+      {
+        "key": "a11y",
+        "label_en": "Forms & accessibility",
+        "label_ar": "النماذج وإمكانية الوصول",
+        "weight": 2,
+        "guide": "Labels, grouped radios with legends, Arabic error messages wired with aria-invalid/aria-describedby, focus moved to the first error, visible focus styles, sufficient contrast."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "lang_ar",
+          "type": "lang_attr",
+          "value": "ar",
+          "weight": 1,
+          "label_en": "lang=\"ar\"",
+          "label_ar": "السمة lang=\"ar\""
+        },
+        {
+          "id": "dir_rtl",
+          "type": "dir_rtl",
+          "weight": 2,
+          "label_en": "dir=\"rtl\" on the document",
+          "label_ar": "المستند باتجاه rtl"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta",
+          "label_ar": "وسم viewport"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 1,
+          "label_en": "Self-contained file",
+          "label_ar": "ملف مستقل"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 1,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "parses",
+          "type": "html_parses",
+          "weight": 1,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "HTML سليم البنية"
+        },
+        {
+          "id": "total_hook",
+          "type": "selector",
+          "sel": "#order-total",
+          "weight": 1,
+          "label_en": "#order-total element",
+          "label_ar": "العنصر #order-total"
+        },
+        {
+          "id": "express_hook",
+          "type": "selector",
+          "sel": "#ship-express",
+          "weight": 1,
+          "label_en": "#ship-express option",
+          "label_ar": "الخيار #ship-express"
+        },
+        {
+          "id": "labels",
+          "type": "selector",
+          "sel": "label",
+          "min": 5,
+          "weight": 1,
+          "label_en": "≥ 5 labels",
+          "label_ar": "٥ تسميات على الأقل"
+        },
+        {
+          "id": "ltr_fields",
+          "type": "selector",
+          "sel": "[dir=ltr]",
+          "min": 1,
+          "weight": 1,
+          "label_en": "LTR-isolated field(s)",
+          "label_ar": "حقول معزولة باتجاه LTR"
+        },
+        {
+          "id": "logical_css",
+          "type": "contains",
+          "pattern": "(margin|padding|inset|border)-inline",
+          "regex": true,
+          "weight": 1,
+          "label_en": "Uses logical CSS properties",
+          "label_ar": "استخدام خصائص CSS المنطقية"
+        },
+        {
+          "id": "arabic_digits",
+          "type": "regex_count",
+          "pattern": "[٠-٩]",
+          "min": 10,
+          "weight": 1,
+          "label_en": "Arabic-Indic digits used",
+          "label_ar": "استخدام الأرقام المشرقية"
+        }
+      ],
+      "browser": [
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders content",
+          "label_ar": "يعرض محتوى"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JS errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "rtl",
+          "type": "rtl",
+          "weight": 2,
+          "label_en": "Computed direction is RTL",
+          "label_ar": "الاتجاه المحسوب RTL"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 2,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند ٣٩٠ بكسل"
+        },
+        {
+          "id": "total_correct",
+          "type": "text",
+          "contains": "٩٠٢٫٧٥",
+          "weight": 3,
+          "label_en": "Initial total ٩٠٢٫٧٥ shown",
+          "label_ar": "عرض الإجمالي الابتدائي ٩٠٢٫٧٥"
+        },
+        {
+          "id": "vat_correct",
+          "type": "text",
+          "contains": "١١٧٫٧٥",
+          "weight": 1,
+          "label_en": "VAT ١١٧٫٧٥ shown",
+          "label_ar": "عرض الضريبة ١١٧٫٧٥"
+        },
+        {
+          "id": "express_updates",
+          "type": "click",
+          "sel": "#ship-express",
+          "weight": 1,
+          "label_en": "Express shipping updates the page",
+          "label_ar": "التوصيل السريع يحدّث الصفحة"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility",
+          "label_ar": "أساسيات إمكانية الوصول"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "arabic-gov-appointment",
+    "track": "arabic",
+    "title_en": "Arabic government e-service wizard",
+    "title_ar": "معالج خدمة حكومية إلكترونية بالعربية",
+    "summary_en": "A three-step RTL booking wizard with mixed-direction data: digit normalisation for national IDs, LTR-isolated inputs, <bdi> in the review, Arabic validation and an RTL stepper.",
+    "summary_ar": "معالج حجز من ثلاث خطوات باتجاه RTL مع بيانات مختلطة الاتجاه: توحيد أرقام الهوية، وحقول معزولة باتجاه LTR، واستخدام <bdi> في المراجعة، وتحقق عربي، ومؤشر خطوات معكوس.",
+    "prompt": "Build an Arabic-language, right-to-left appointment booking page for a fictional public service: \"بلدية الواحة — تجديد رخصة القيادة\" (Al-Waha Municipality — driving licence renewal). It should feel like a trustworthy, modern government e-service.\n\nRequirements:\n1. One self-contained HTML document (inline CSS/JS; no external fonts, images, scripts or links). `<html lang=\"ar\" dir=\"rtl\">`. All visible UI text in natural Modern Standard Arabic; only codes such as plate numbers and booking references are Latin.\n2. A 3-step wizard — ١ البيانات الشخصية · ٢ الموعد · ٣ المراجعة والتأكيد — with a stepper that reads right-to-left and marks the current step with `aria-current=\"step\"`. Navigation buttons: «التالي» with `id=\"next-step\"` and «السابق», with arrows pointing the correct way for RTL.\n3. Step 1 fields, each with a visible `<label for>`:\n   - الاسم الكامل (required, Arabic letters and spaces).\n   - رقم الهوية الوطنية: exactly 10 digits starting with 1 or 2. Users may type Western (0–9) or Arabic-Indic (٠–٩) digits — normalise before validating. The input uses `dir=\"ltr\"` and `inputmode=\"numeric\"`.\n   - رقم الجوال in the form +966 5X XXX XXXX, also `dir=\"ltr\"`.\n   - رقم لوحة المركبة: three Latin letters and up to four digits, e.g. ABD 4821.\n4. Step 2: choose one of three service centres (radio cards showing Arabic names and distances such as «٤٫٢ كم»), then a day among Sunday 18 – Thursday 22 October 2026 (shown like «الأحد ١٨ أكتوبر»), then a time slot from 08:00 to 13:30 every 30 minutes, shown in Arabic-Indic digits with ص/م (e.g. «٨:٣٠ ص»). Make some slots unavailable (disabled, with the reason exposed to assistive technology).\n5. Step 3: a review summary as a description list. Wrap every Latin or numeric value (ID, phone, plate, reference) in `<bdi>` so punctuation never jumps. Each section has an «تعديل» button that returns to its step. A required consent checkbox. «تأكيد الحجز» shows a confirmation panel with a booking reference such as WAH-2026-0418 (inside `<bdi>`) and moves focus to its heading.\n6. Validation: inline Arabic error messages wired with `aria-invalid` and `aria-describedby`, an error summary at the top of the step with links to the fields, and focus moved to the summary. Users cannot advance with invalid data.\n7. Responsive from 390 px (no horizontal scrolling; the slot grid reflows) to 1440 px. Respect `prefers-color-scheme` and `prefers-reduced-motion`.\n8. No console errors.\n\nReturn one complete HTML document.",
+    "output_type": "html",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "bidi",
+        "label_en": "RTL & mixed-direction handling",
+        "label_ar": "الاتجاه والنص المختلط",
+        "weight": 3,
+        "guide": "Stepper, arrows and layout mirrored; Latin/numeric values isolated with dir=\"ltr\" inputs and <bdi> so nothing reorders; Arabic-Indic digits in dates, distances and slots."
+      },
+      {
+        "key": "flow",
+        "label_en": "Wizard logic & validation",
+        "label_ar": "منطق المعالج والتحقق",
+        "weight": 3,
+        "guide": "Cannot advance with invalid data; ID accepts both digit systems; precise Arabic error messages; error summary with working links; review reflects the entered data; edit buttons work; confirmation reference shown."
+      },
+      {
+        "key": "visual",
+        "label_en": "Visual design",
+        "label_ar": "التصميم البصري",
+        "weight": 2,
+        "guide": "Trustworthy, calm public-service aesthetic with clear hierarchy, good spacing and a polished slot picker; dark/light schemes; works at 390 px."
+      },
+      {
+        "key": "typography",
+        "label_en": "Arabic typography & language",
+        "label_ar": "الطباعة العربية واللغة",
+        "weight": 2,
+        "guide": "Legible Arabic font stack and sizes, comfortable line height, fluent Modern Standard Arabic microcopy (no machine-literal phrasing)."
+      },
+      {
+        "key": "a11y",
+        "label_en": "Accessibility",
+        "label_ar": "إمكانية الوصول",
+        "weight": 2,
+        "guide": "Labels, fieldsets/legends for radio groups, aria-current on the stepper, disabled slots explained, focus management between steps and on errors, visible focus."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "lang_ar",
+          "type": "lang_attr",
+          "value": "ar",
+          "weight": 1,
+          "label_en": "lang=\"ar\"",
+          "label_ar": "السمة lang=\"ar\""
+        },
+        {
+          "id": "dir_rtl",
+          "type": "dir_rtl",
+          "weight": 2,
+          "label_en": "dir=\"rtl\" on the document",
+          "label_ar": "المستند باتجاه rtl"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta",
+          "label_ar": "وسم viewport"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 1,
+          "label_en": "Self-contained file",
+          "label_ar": "ملف مستقل"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 1,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "parses",
+          "type": "html_parses",
+          "weight": 1,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "HTML سليم البنية"
+        },
+        {
+          "id": "next_hook",
+          "type": "selector",
+          "sel": "#next-step",
+          "weight": 1,
+          "label_en": "#next-step button",
+          "label_ar": "الزر #next-step"
+        },
+        {
+          "id": "labels",
+          "type": "selector",
+          "sel": "[for]",
+          "min": 4,
+          "weight": 1,
+          "label_en": "≥ 4 labelled fields",
+          "label_ar": "٤ حقول مُسمّاة على الأقل"
+        },
+        {
+          "id": "ltr_inputs",
+          "type": "selector",
+          "sel": "[dir=ltr]",
+          "min": 2,
+          "weight": 1,
+          "label_en": "LTR-isolated inputs",
+          "label_ar": "حقول معزولة باتجاه LTR"
+        },
+        {
+          "id": "bdi",
+          "type": "contains",
+          "pattern": "<bdi",
+          "ci": true,
+          "weight": 1,
+          "label_en": "Uses <bdi> isolation",
+          "label_ar": "استخدام العزل بـ <bdi>"
+        },
+        {
+          "id": "numeric_inputmode",
+          "type": "contains",
+          "pattern": "inputmode\\s*=\\s*[\"']?numeric",
+          "regex": true,
+          "ci": true,
+          "weight": 1,
+          "label_en": "Numeric keypad hint",
+          "label_ar": "تلميح لوحة الأرقام"
+        },
+        {
+          "id": "aria_current",
+          "type": "contains",
+          "pattern": "aria-current",
+          "ci": true,
+          "weight": 1,
+          "label_en": "Stepper uses aria-current",
+          "label_ar": "مؤشر الخطوات يستخدم aria-current"
+        }
+      ],
+      "browser": [
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders content",
+          "label_ar": "يعرض محتوى"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JS errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "rtl",
+          "type": "rtl",
+          "weight": 2,
+          "label_en": "Computed direction is RTL",
+          "label_ar": "الاتجاه المحسوب RTL"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 2,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند ٣٩٠ بكسل"
+        },
+        {
+          "id": "service_named",
+          "type": "text",
+          "contains": "تجديد رخصة القيادة",
+          "weight": 1,
+          "label_en": "Service title shown",
+          "label_ar": "عرض اسم الخدمة"
+        },
+        {
+          "id": "next_reacts",
+          "type": "click",
+          "sel": "#next-step",
+          "weight": 2,
+          "label_en": "\"Next\" validates / advances",
+          "label_ar": "زر «التالي» يتحقق أو ينتقل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility",
+          "label_ar": "أساسيات إمكانية الوصول"
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,314 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Find your departure airport · Saffron Air</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fbf7f0; --bg-2: #f3ead9; --surface: #ffffff; --surface-2: #f7f1e6; --text: #1d1a15; --muted: #5f584b;
+    --border: #e4d9c4; --accent: #9a4a0b; --accent-ink: #ffffff; --accent-soft: #fbe6cf; --mark: #ffe08a; --mark-ink: #1d1a15;
+    --active: #fdf0de; --focus: #1d4ed8; --shadow: 0 30px 70px -30px rgba(70, 40, 5, .35);
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #100d09; --bg-2: #1a140c; --surface: #1b1712; --surface-2: #241e16; --text: #f6efe3; --muted: #bdb2a0;
+      --border: #3a3125; --accent: #f3a54a; --accent-ink: #1b1003; --accent-soft: #3b2810; --mark: #f3a54a; --mark-ink: #1b1003;
+      --active: #33271a; --focus: #8ab4ff; --shadow: 0 40px 90px -30px rgba(0, 0, 0, .85);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background:
+      radial-gradient(1200px 500px at 85% -10%, var(--accent-soft), transparent 60%),
+      radial-gradient(900px 400px at -10% 110%, var(--bg-2), transparent 60%), var(--bg);
+    color: var(--text); font: 16px/1.55 var(--font); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+  header { display: flex; align-items: center; gap: 12px; padding: 20px clamp(16px, 5vw, 56px); }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .02em; }
+  .logo svg { width: 32px; height: 32px; color: var(--accent); }
+  .trip { margin-inline-start: auto; color: var(--muted); font-size: .9rem; }
+
+  main { max-width: 760px; margin: 0 auto; padding: clamp(24px, 7vh, 72px) clamp(16px, 5vw, 32px) 80px; }
+  h1 { margin: 0 0 10px; font-size: clamp(2rem, 5vw, 3rem); line-height: 1.08; letter-spacing: -.025em; }
+  .lead { margin: 0 0 28px; color: var(--muted); font-size: 1.08rem; max-width: 46ch; }
+
+  .search { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 20px; box-shadow: var(--shadow); }
+  .search label { display: block; font-weight: 700; margin-bottom: 8px; }
+  .field { position: relative; }
+  .field svg.lens { position: absolute; inset-inline-start: 16px; top: 50%; width: 20px; height: 20px; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+  #airport { width: 100%; min-height: 56px; padding: 12px 16px; padding-inline-start: 48px; border-radius: 14px; border: 1.5px solid var(--muted); background: var(--surface); color: var(--text); font: inherit; font-size: 1.1rem; }
+  #airport:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 28%, transparent); }
+  .hint { margin: 8px 0 0; color: var(--muted); font-size: .9rem; }
+
+  .popup { position: absolute; z-index: 10; inset-inline: 0; top: calc(100% + 8px); background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+  .popup[hidden] { display: none; }
+  #airport-list { list-style: none; margin: 0; padding: 6px; max-height: min(340px, 52vh); overflow-y: auto; overscroll-behavior: contain; }
+  [role="option"] { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; padding: 10px 12px; border-radius: 10px; cursor: pointer; border: 1.5px solid transparent; }
+  [role="option"][aria-selected="true"] { background: var(--active); border-color: var(--accent); }
+  .code { font: 700 .95rem/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; letter-spacing: .06em; padding: 8px 8px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); min-width: 54px; text-align: center; }
+  .name { display: block; font-weight: 600; overflow-wrap: anywhere; }
+  .place { display: block; color: var(--muted); font-size: .9rem; }
+  mark { background: var(--mark); color: var(--mark-ink); border-radius: 3px; padding: 0 1px; }
+  .empty { margin: 0; padding: 16px; color: var(--muted); }
+  .empty[hidden] { display: none; }
+
+  .summary { margin-top: 24px; display: flex; gap: 16px; align-items: center; padding: 18px 20px; border-radius: 16px; border: 1px dashed var(--border); color: var(--muted); }
+  .summary.is-set { border-style: solid; background: var(--surface); color: var(--text); }
+  .summary svg { flex: none; width: 36px; height: 36px; color: var(--accent); }
+  .summary strong { display: block; font-size: 1.1rem; }
+  .keys { margin-top: 28px; color: var(--muted); font-size: .9rem; display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 0; list-style: none; }
+  kbd { font: 600 .8rem ui-monospace, Menlo, Consolas, monospace; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+  @media (prefers-reduced-motion: no-preference) {
+    .popup { animation: drop .14s ease-out; }
+    @keyframes drop { from { opacity: 0; transform: translateY(-4px); } }
+  }
+  @media (max-width: 520px) {
+    .trip { display: none; }
+    .search { padding: 16px; border-radius: 16px; }
+    .code { min-width: 48px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="15" fill="currentColor" opacity=".14"/><path d="M6 19c6-1 11-4 20-11-3 7-8 12-15 14l-2 4-2-1 1-4-3-1z" fill="currentColor"/></svg>
+    <span>Saffron Air</span>
+  </div>
+  <p class="trip">Step 1 of 4 · Where are you flying from?</p>
+</header>
+<main>
+  <h1>Find your departure airport</h1>
+  <p class="lead">Search by city, airport or three-letter code. Accents are optional — “zur” finds Zürich.</p>
+
+  <div class="search">
+    <label for="airport" id="airport-label">Departure airport</label>
+    <div class="field">
+      <svg class="lens" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="airport" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="airport-list"
+             aria-describedby="airport-hint" autocomplete="off" autocapitalize="off" spellcheck="false" autofocus>
+      <div class="popup" id="airport-popup" hidden>
+        <ul id="airport-list" role="listbox" aria-labelledby="airport-label"></ul>
+        <p class="empty" id="airport-empty" hidden>No airports found. Try a city name or a code such as DXB.</p>
+      </div>
+    </div>
+    <p class="hint" id="airport-hint">Use the arrow keys to browse suggestions and Enter to choose.</p>
+  </div>
+
+  <section class="summary" id="summary" aria-labelledby="summary-title">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 16l20-7-3-2-6 2-6-4-2 1 4 4-5 2-2-1-1 1z" fill="currentColor"/></svg>
+    <div>
+      <h2 class="sr-only" id="summary-title">Selected airport</h2>
+      <strong id="summary-text">No airport selected yet</strong>
+      <span id="summary-sub">Your choice will appear here.</span>
+    </div>
+  </section>
+
+  <ul class="keys" aria-label="Keyboard shortcuts">
+    <li><kbd>↓</kbd> <kbd>↑</kbd> browse</li>
+    <li><kbd>Alt</kbd>+<kbd>↓</kbd> open list</li>
+    <li><kbd>Enter</kbd> choose</li>
+    <li><kbd>Esc</kbd> close · twice to clear</li>
+  </ul>
+  <div class="sr-only" role="status" aria-live="polite" id="airport-status"></div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var RAW = 'AMS|Amsterdam Schiphol|Amsterdam|Netherlands;ATH|Athens International|Athens|Greece;AUH|Zayed International|Abu Dhabi|United Arab Emirates;BCN|Barcelona–El Prat|Barcelona|Spain;BOM|Chhatrapati Shivaji Maharaj International|Mumbai|India;CAI|Cairo International|Cairo|Egypt;CDG|Paris Charles de Gaulle|Paris|France;CMN|Mohammed V International|Casablanca|Morocco;CPH|Copenhagen Kastrup|Copenhagen|Denmark;DOH|Hamad International|Doha|Qatar;DXB|Dubai International|Dubai|United Arab Emirates;FCO|Rome Fiumicino|Rome|Italy;GVA|Geneva|Genève|Switzerland;HEL|Helsinki-Vantaa|Helsinki|Finland;IST|Istanbul|Istanbul|Türkiye;JED|King Abdulaziz International|Jeddah|Saudi Arabia;KRK|Kraków John Paul II|Kraków|Poland;LIS|Humberto Delgado|Lisbon|Portugal;MAD|Adolfo Suárez Madrid–Barajas|Madrid|Spain;MCT|Muscat International|Muscat|Oman;MUC|Munich|München|Germany;NCE|Nice Côte d\'Azur|Nice|France;OSL|Oslo Gardermoen|Oslo|Norway;RUH|King Khalid International|Riyadh|Saudi Arabia;SVQ|Seville|Sevilla|Spain;TUN|Tunis–Carthage|Tunis|Tunisia;VIE|Vienna International|Wien|Austria;ZRH|Zürich|Zürich|Switzerland';
+  var AIRPORTS = RAW.split(';').map(function (row) {
+    var f = row.split('|');
+    return { code: f[0], name: f[1], city: f[2], country: f[3] };
+  });
+
+  var input = document.getElementById('airport');
+  var popup = document.getElementById('airport-popup');
+  var list = document.getElementById('airport-list');
+  var empty = document.getElementById('airport-empty');
+  var status = document.getElementById('airport-status');
+  var summary = document.getElementById('summary');
+  var results = [];
+  var active = -1;
+  var statusTimer = 0;
+  var SEP = /[\s\-–—(),'’.]/;
+
+  /** Fold one character: lower-case, strip combining marks (ü → u, è → e). */
+  function foldChar(ch) { return ch.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+  function fold(s) { return Array.from(s).map(foldChar).join(''); }
+
+  /** Index of a word-start match of q (already folded) inside text, as [start, end) in original chars. */
+  function wordMatch(text, q) {
+    var chars = Array.from(text);
+    var folded = '';
+    var map = [];
+    chars.forEach(function (ch, i) { var f = foldChar(ch); for (var k = 0; k < f.length; k++) { map.push(i); } folded += f; });
+    for (var i = 0; i < folded.length; i++) {
+      if ((i === 0 || SEP.test(folded.charAt(i - 1))) && folded.substr(i, q.length) === q) {
+        var start = map[i];
+        var end = map[i + q.length - 1] + 1;
+        return [chars.slice(0, start).join('').length, chars.slice(0, end).join('').length];
+      }
+    }
+    return null;
+  }
+  function search(raw) {
+    var q = fold(raw.trim());
+    if (!q) { return AIRPORTS.map(function (a) { return { a: a, hit: {} }; }); }
+    var out = [];
+    AIRPORTS.forEach(function (a) {
+      var hit = { code: wordMatch(a.code, q), name: wordMatch(a.name, q), city: wordMatch(a.city, q) };
+      if (hit.code || hit.name || hit.city) { out.push({ a: a, hit: hit, rank: hit.code ? 0 : 1 }); }
+    });
+    return out.sort(function (x, y) { return x.rank - y.rank || x.a.city.localeCompare(y.a.city); });
+  }
+
+  function highlight(el, text, range) {
+    if (!range) { el.textContent = text; return; }
+    el.append(text.slice(0, range[0]));
+    var m = document.createElement('mark');
+    m.textContent = text.slice(range[0], range[1]);
+    el.append(m, text.slice(range[1]));
+  }
+  function render() {
+    list.textContent = '';
+    results.forEach(function (r, i) {
+      var li = document.createElement('li');
+      li.id = 'airport-opt-' + r.a.code.toLowerCase();
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', 'false');
+      li.dataset.index = String(i);
+      var code = document.createElement('span');
+      code.className = 'code';
+      code.setAttribute('aria-hidden', 'true');
+      highlight(code, r.a.code, r.hit.code);
+      var text = document.createElement('span');
+      var name = document.createElement('span');
+      name.className = 'name';
+      highlight(name, r.a.name, r.hit.name);
+      var place = document.createElement('span');
+      place.className = 'place';
+      highlight(place, r.a.city, r.hit.city);
+      place.append(', ' + r.a.country);
+      var sr = document.createElement('span');
+      sr.className = 'sr-only';
+      sr.textContent = ' (' + r.a.code + ')';
+      text.append(name, place, sr);
+      li.append(code, text);
+      list.appendChild(li);
+    });
+  }
+
+  function setActive(i) {
+    var prev = list.querySelector('[aria-selected="true"]');
+    if (prev) { prev.setAttribute('aria-selected', 'false'); }
+    active = i;
+    if (i < 0 || !results[i]) { input.removeAttribute('aria-activedescendant'); return; }
+    var opt = list.children[i];
+    opt.setAttribute('aria-selected', 'true');
+    input.setAttribute('aria-activedescendant', opt.id);
+    opt.scrollIntoView({ block: 'nearest' });
+  }
+  function openPopup() {
+    var has = results.length > 0;
+    popup.hidden = false;
+    list.hidden = !has;
+    empty.hidden = has;
+    input.setAttribute('aria-expanded', has ? 'true' : 'false');
+  }
+  function closePopup() {
+    popup.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
+    setActive(-1);
+  }
+  function isOpen() { return input.getAttribute('aria-expanded') === 'true'; }
+  function refresh() {
+    results = search(input.value);
+    render();
+    setActive(-1);
+  }
+  function announce(text, delay) {
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(function () { status.textContent = text; }, delay);
+  }
+  function countText(n) { return n === 0 ? 'No airports found' : n === 1 ? '1 airport found' : n + ' airports found'; }
+
+  function choose(i) {
+    var r = results[i];
+    if (!r) { return; }
+    input.value = r.a.name + ' (' + r.a.code + ')';
+    closePopup();
+    summary.classList.add('is-set');
+    document.getElementById('summary-text').textContent = 'Departing from ' + r.a.city + ' (' + r.a.code + '), ' + r.a.country;
+    document.getElementById('summary-sub').textContent = r.a.name;
+    announce(r.a.name + ' (' + r.a.code + ') selected', 50);
+  }
+
+  input.addEventListener('input', function () {
+    refresh();
+    if (input.value.trim()) { openPopup(); } else { closePopup(); }
+    announce(input.value.trim() ? countText(results.length) : '', 450);
+  });
+  input.addEventListener('keydown', function (ev) {
+    var n = results.length;
+    switch (ev.key) {
+      case 'ArrowDown':
+        ev.preventDefault();
+        if (!isOpen()) {
+          if (!results.length) { refresh(); }
+          openPopup();
+          if (ev.altKey) { return; }
+          setActive(results.length ? 0 : -1);
+          return;
+        }
+        if (!ev.altKey && n) { setActive(active < n - 1 ? active + 1 : 0); }
+        return;
+      case 'ArrowUp':
+        ev.preventDefault();
+        if (!isOpen()) {
+          if (!results.length) { refresh(); }
+          openPopup();
+          setActive(results.length ? results.length - 1 : -1);
+          return;
+        }
+        if (n) { setActive(active > 0 ? active - 1 : n - 1); }
+        return;
+      case 'Enter':
+        if (isOpen() && active >= 0) { ev.preventDefault(); choose(active); }
+        return;
+      case 'Escape':
+        ev.preventDefault();
+        if (!popup.hidden) { closePopup(); popup.hidden = true; }
+        else if (input.value) { input.value = ''; refresh(); announce('Search cleared', 50); }
+        return;
+      case 'Tab':
+        closePopup();
+        return;
+      default:
+    }
+  });
+  list.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
+  list.addEventListener('click', function (ev) {
+    var opt = ev.target.closest('[role="option"]');
+    if (opt) { choose(Number(opt.dataset.index)); input.focus(); }
+  });
+  list.addEventListener('mousemove', function (ev) {
+    var opt = ev.target.closest('[role="option"]');
+    if (opt && Number(opt.dataset.index) !== active) { setActive(Number(opt.dataset.index)); }
+  });
+  document.addEventListener('pointerdown', function (ev) {
+    if (!ev.target.closest || !ev.target.closest('.field')) { closePopup(); }
+  });
+  input.addEventListener('blur', function () {
+    setTimeout(function () { if (document.activeElement !== input) { closePopup(); } }, 0);
+  });
+  refresh();
+})();
+</script>
+</body>
+</html>

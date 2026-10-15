@@ -1,0 +1,347 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atlas Docs — Configuration</title>
+<style>
+  :root, [data-theme="light"] {
+    --bg: #fbfbfa; --panel: #ffffff; --side: #f4f4f1; --text: #17181c; --muted: #6a6d76; --faint: #9a9da5; --line: #e6e6e1;
+    --accent: #5b5bd6; --accent-soft: #ececfb; --mark: #fff0b3; --shadow: 0 24px 80px -20px rgba(16,18,30,.35), 0 0 0 1px rgba(16,18,30,.06);
+    --backdrop: rgba(23,24,28,.28); --code: #f1f1ee;
+  }
+  [data-theme="dark"] {
+    --bg: #0f1013; --panel: #17181d; --side: #131418; --text: #ececf1; --muted: #9a9daa; --faint: #6c6f7b; --line: #26272f;
+    --accent: #8f8ff5; --accent-soft: #23234a; --mark: #4a3f10; --shadow: 0 24px 80px -20px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.08);
+    --backdrop: rgba(0,0,0,.55); --code: #1d1e24;
+  }
+  @media (prefers-color-scheme: dark) {
+    [data-theme="system"] { --bg: #0f1013; --panel: #17181d; --side: #131418; --text: #ececf1; --muted: #9a9daa; --faint: #6c6f7b; --line: #26272f; --accent: #8f8ff5; --accent-soft: #23234a; --mark: #4a3f10; --shadow: 0 24px 80px -20px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.08); --backdrop: rgba(0,0,0,.55); --code: #1d1e24; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; transition: background .2s, color .2s; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+  kbd { font: 600 11px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--muted); box-shadow: inset 0 -1px 0 var(--line); }
+  header.top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 16px; height: 60px; padding: 0 20px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(10px); }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -.01em; font-size: 16px; }
+  .brand svg { width: 26px; height: 26px; }
+  #open-palette { margin-inline-start: auto; display: flex; align-items: center; gap: 10px; width: min(360px, 52vw); height: 38px; padding: 0 8px 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; }
+  #open-palette:hover { border-color: var(--faint); }
+  #open-palette svg { width: 16px; height: 16px; flex: none; }
+  #open-palette .lbl { flex: 1; text-align: start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .shell { display: grid; grid-template-columns: 250px minmax(0, 1fr); max-width: 1180px; margin: 0 auto; }
+  .shell.no-side { grid-template-columns: minmax(0, 1fr); }
+  .shell.no-side nav.docs { display: none; }
+  nav.docs { padding: 28px 18px; border-inline-end: 1px solid var(--line); min-height: calc(100vh - 60px); }
+  nav.docs h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); margin: 18px 10px 6px; }
+  nav.docs a { display: block; padding: 6px 10px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 14px; }
+  nav.docs a:hover { color: var(--text); background: var(--side); }
+  nav.docs a[aria-current="page"] { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+  article { padding: 40px clamp(18px, 5vw, 64px) 80px; max-width: 760px; font-size: var(--article-size, 16px); }
+  article .crumb { color: var(--faint); font-size: 13px; }
+  article h1 { font-size: 2.2em; letter-spacing: -.02em; line-height: 1.15; margin: 8px 0 14px; }
+  article h2 { font-size: 1.3em; margin: 2em 0 .5em; }
+  article p { color: var(--muted); }
+  article code { background: var(--code); padding: 2px 6px; border-radius: 6px; font-size: .88em; }
+  pre { background: var(--code); padding: 16px 18px; border-radius: 12px; overflow-x: auto; font-size: 13px; line-height: 1.6; border: 1px solid var(--line); }
+  .callout { border: 1px solid var(--line); border-inline-start: 3px solid var(--accent); border-radius: 10px; padding: 12px 16px; background: var(--panel); color: var(--muted); }
+  /* palette */
+  #palette { position: fixed; inset: 0; z-index: 50; display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh; }
+  #palette[hidden] { display: none; }
+  .backdrop { position: absolute; inset: 0; background: var(--backdrop); backdrop-filter: blur(3px); animation: fade .16s ease-out; }
+  .sheet { position: relative; width: min(640px, calc(100vw - 32px)); background: var(--panel); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; animation: pop .18s cubic-bezier(.2,.9,.3,1.1); display: flex; flex-direction: column; max-height: 70vh; }
+  @keyframes fade { from { opacity: 0; } }
+  @keyframes pop { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
+  .search-row { display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+  .search-row svg { width: 18px; height: 18px; color: var(--faint); flex: none; }
+  #palette-input { flex: 1; height: 56px; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 17px; outline: none; min-width: 0; }
+  #palette-input::placeholder { color: var(--faint); }
+  #palette-results { list-style: none; margin: 0; padding: 8px; overflow-y: auto; overscroll-behavior: contain; }
+  .group-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); padding: 10px 10px 4px; }
+  [role=option] { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; cursor: pointer; color: var(--text); min-height: 44px; }
+  [role=option] .ico { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: var(--side); color: var(--muted); flex: none; }
+  [role=option] .ico svg { width: 16px; height: 16px; }
+  [role=option] .name { flex: 1; }
+  [role=option] mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1px; }
+  [role=option][aria-selected="true"] { background: var(--accent-soft); }
+  [role=option][aria-selected="true"] .ico { background: var(--accent); color: #fff; }
+  .empty { padding: 28px 12px; text-align: center; color: var(--muted); }
+  .foot { display: flex; gap: 16px; padding: 10px 16px; border-top: 1px solid var(--line); color: var(--faint); font-size: 12px; flex-wrap: wrap; }
+  .foot span { display: inline-flex; gap: 6px; align-items: center; }
+  #toast { position: fixed; bottom: 24px; inset-inline-start: 50%; transform: translateX(-50%) translateY(20px); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 500; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 60; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+  #toast.show { opacity: 1; transform: translateX(-50%); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (max-width: 760px) {
+    .shell { grid-template-columns: minmax(0, 1fr); }
+    nav.docs { display: none; }
+    #open-palette { width: auto; flex: 1; max-width: 220px; }
+    #open-palette kbd { display: none; }
+    #palette { padding-top: 10px; }
+    .sheet { width: calc(100vw - 16px); max-height: 82vh; }
+    .foot { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { .backdrop, .sheet { animation: none; } #toast, body { transition: none; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3l11 26h-6l-5-12-5 12H5z" fill="#5b5bd6"/><path d="M11 23h10" stroke="#fff" stroke-width="2.4"/></svg>Atlas Docs</div>
+  <button type="button" id="open-palette" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K /">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <span class="lbl">Search or jump to…</span><kbd>Ctrl K</kbd>
+  </button>
+</header>
+
+<div class="shell" id="shell">
+  <nav class="docs" id="docs-nav" aria-label="Documentation">
+    <h2>Start</h2>
+    <a href="#home" data-nav="Home">Home</a>
+    <a href="#getting-started" data-nav="Getting Started">Getting Started</a>
+    <a href="#installation" data-nav="Installation">Installation</a>
+    <a href="#configuration" data-nav="Configuration" aria-current="page">Configuration</a>
+    <h2>Reference</h2>
+    <a href="#api" data-nav="API Reference">API Reference</a>
+    <a href="#changelog" data-nav="Changelog">Changelog</a>
+    <h2>Account</h2>
+    <a href="#settings" data-nav="Settings">Settings</a>
+    <a href="#billing" data-nav="Billing">Billing</a>
+  </nav>
+  <main>
+    <article id="article">
+      <div class="crumb">Docs / Guides</div>
+      <h1>Configuring Atlas</h1>
+      <p>Atlas reads its configuration from <code>atlas.config.json</code> at the root of your project. Every key is optional; sensible defaults apply when a key is missing.</p>
+      <div class="callout">Tip: press <kbd>/</kbd> or <kbd>Ctrl K</kbd> anywhere to jump to a page or run an action.</div>
+      <h2>Environments</h2>
+      <p>Define one block per environment. Values in an environment block override the top-level defaults, so staging can point at a different region without duplicating the whole file.</p>
+<pre><code>{
+  "region": "eu-west",
+  "environments": {
+    "staging": { "region": "eu-central", "replicas": 1 },
+    "production": { "replicas": 3 }
+  }
+}</code></pre>
+      <h2>Secrets</h2>
+      <p>Never commit secrets. Reference them as <code>"$env:NAME"</code> and Atlas resolves them at deploy time from the environment of the build runner.</p>
+      <h2>Validation</h2>
+      <p>Run <code>atlas check</code> before deploying. It validates the schema, flags unknown keys and prints a diff of the effective configuration per environment.</p>
+    </article>
+  </main>
+</div>
+
+<div id="palette" role="dialog" aria-modal="true" aria-label="Command palette" hidden>
+  <div class="backdrop" data-close></div>
+  <div class="sheet">
+    <div class="search-row">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <label for="palette-input" class="sr">Search commands</label>
+      <input id="palette-input" type="text" role="combobox" aria-expanded="false" aria-controls="palette-results" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Type a command or search…">
+      <kbd>Esc</kbd>
+    </div>
+    <div id="palette-results" role="listbox" aria-label="Commands"></div>
+    <div class="foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>Enter</kbd> run</span><span><kbd>Esc</kbd> close</span></div>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  'use strict';
+  const ICONS = {
+    Navigation: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    Actions: '<path d="M13 3L4 14h7l-1 7 9-11h-7z"/>',
+    Theme: '<circle cx="12" cy="12" r="8"/><path d="M12 4v16" />',
+    Help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 .5c0 1.5-2.5 2-2.5 3.5M12 17h.01"/>',
+  };
+  const html = document.documentElement;
+  const article = document.getElementById('article');
+  let fontSize = 16;
+  const setFont = (px) => { fontSize = Math.min(22, Math.max(13, px)); article.style.setProperty('--article-size', fontSize + 'px'); };
+  const nav = (page) => () => {
+    document.querySelectorAll('[data-nav]').forEach((a) => {
+      if (a.dataset.nav === page) { a.setAttribute('aria-current', 'page'); a.scrollIntoView({ block: 'nearest' }); } else a.removeAttribute('aria-current');
+    });
+    window.scrollTo({ top: 0 });
+  };
+  const COMMANDS = [
+    ['Go to Home', 'Navigation', '', nav('Home')],
+    ['Go to Getting Started', 'Navigation', '', nav('Getting Started')],
+    ['Go to Installation', 'Navigation', '', nav('Installation')],
+    ['Go to Configuration', 'Navigation', '', nav('Configuration')],
+    ['Go to API Reference', 'Navigation', '', nav('API Reference')],
+    ['Go to Changelog', 'Navigation', '', nav('Changelog')],
+    ['Go to Settings', 'Navigation', '', nav('Settings')],
+    ['Go to Billing', 'Navigation', '', nav('Billing')],
+    ['Create new project', 'Actions', 'Ctrl+N', () => {}],
+    ['Invite teammate', 'Actions', '', () => {}],
+    ['Copy page link', 'Actions', '', () => {}],
+    ['Export as PDF', 'Actions', '', () => {}],
+    ['Open in new tab', 'Actions', '', () => {}],
+    ['Toggle sidebar', 'Actions', 'Ctrl+B', () => document.getElementById('shell').classList.toggle('no-side')],
+    ['Switch to dark theme', 'Theme', '', () => html.setAttribute('data-theme', 'dark')],
+    ['Switch to light theme', 'Theme', '', () => html.setAttribute('data-theme', 'light')],
+    ['Use system theme', 'Theme', '', () => html.setAttribute('data-theme', 'system')],
+    ['Increase font size', 'Theme', '', () => setFont(fontSize + 1)],
+    ['Decrease font size', 'Theme', '', () => setFont(fontSize - 1)],
+    ['Reset font size', 'Theme', '', () => setFont(16)],
+    ['Keyboard shortcuts', 'Help', '?', () => {}],
+    ['Contact support', 'Help', '', () => {}],
+    ['Report a bug', 'Help', '', () => {}],
+    ['Read the docs', 'Help', '', () => {}],
+    ["What's new", 'Help', '', () => {}],
+  ].map(([name, group, shortcut, run], i) => ({ id: 'cmd-' + i, name, group, shortcut, run, order: i }));
+  const GROUPS = ['Navigation', 'Actions', 'Theme', 'Help'];
+
+  const palette = document.getElementById('palette');
+  const input = document.getElementById('palette-input');
+  const list = document.getElementById('palette-results');
+  const toast = document.getElementById('toast');
+  let recent = [];
+  let items = [];      // flat list of rendered command objects in visual order
+  let active = 0;
+  let returnFocus = null;
+
+  // ---- fuzzy matching ----
+  const isWordStart = (s, i) => i === 0 || /[\s\-_/']/.test(s[i - 1]);
+  /** Best alignment of q inside s: maximise word starts and contiguous runs. Returns {positions, tier} or null. */
+  function match(q, name) {
+    const s = name.toLowerCase();
+    if (!q) return { positions: [], tier: 0 };
+    if (s.startsWith(q)) return { positions: [...q].map((_, i) => i), tier: 0 };
+    const memo = new Map();
+    const best = (qi, si, prev) => {
+      if (qi === q.length) return { score: 0, pos: [] };
+      const key = qi * 1000 + si * 2 + (prev === si - 1 ? 1 : 0);
+      if (memo.has(key)) return memo.get(key);
+      let res = null;
+      for (let i = si; i <= s.length - (q.length - qi); i++) {
+        if (s[i] !== q[qi]) continue;
+        const rest = best(qi + 1, i + 1, i);
+        if (!rest) continue;
+        const bonus = (isWordStart(s, i) ? 3 : 0) + (prev === i - 1 && qi > 0 ? 2 : 0) - (i - si) * 0.01;
+        const score = bonus + rest.score;
+        if (!res || score > res.score) res = { score, pos: [i, ...rest.pos] };
+      }
+      memo.set(key, res);
+      return res;
+    };
+    const r = best(0, 0, -2);
+    if (!r) return null;
+    const strong = r.pos.every((p, k) => isWordStart(s, p) || (k > 0 && r.pos[k - 1] === p - 1));
+    return { positions: r.pos, tier: strong ? 1 : 2, score: r.score };
+  }
+
+  function search(query) {
+    const q = query.trim().toLowerCase();
+    return COMMANDS.map((c) => ({ c, m: match(q, c.name) }))
+      .filter((x) => x.m)
+      .sort((a, b) => a.m.tier - b.m.tier || (b.m.score || 0) - (a.m.score || 0) || a.c.name.length - b.c.name.length || a.c.order - b.c.order);
+  }
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  function highlight(name, positions) {
+    const set = new Set(positions);
+    let out = '', open = false;
+    for (let i = 0; i < name.length; i++) {
+      const on = set.has(i);
+      if (on && !open) { out += '<mark>'; open = true; }
+      if (!on && open) { out += '</mark>'; open = false; }
+      out += esc(name[i]);
+    }
+    return out + (open ? '</mark>' : '');
+  }
+
+  function render() {
+    const q = input.value;
+    const results = search(q);
+    const sections = [];
+    if (!q.trim()) {
+      const rec = recent.map((id) => COMMANDS.find((c) => c.id === id)).filter(Boolean);
+      if (rec.length) sections.push({ label: 'Recent', rows: rec.map((c) => ({ c, m: { positions: [] } })) });
+      GROUPS.forEach((g) => sections.push({ label: g, rows: results.filter((r) => r.c.group === g) }));
+    } else {
+      const seen = [];
+      results.forEach((r) => { if (!seen.includes(r.c.group)) seen.push(r.c.group); });
+      seen.forEach((g) => sections.push({ label: g, rows: results.filter((r) => r.c.group === g) }));
+    }
+    items = [];
+    let htmlStr = '';
+    sections.filter((s) => s.rows.length).forEach((s, gi) => {
+      htmlStr += `<div role="group" aria-labelledby="grp-${gi}"><div class="group-label" id="grp-${gi}" role="presentation">${esc(s.label)}</div>`;
+      s.rows.forEach((r) => {
+        const idx = items.length;
+        items.push(r.c);
+        htmlStr += `<div role="option" id="opt-${idx}" data-idx="${idx}" aria-selected="false"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[r.c.group]}</svg></span><span class="name">${highlight(r.c.name, r.m.positions)}</span>${r.c.shortcut ? `<kbd>${esc(r.c.shortcut)}</kbd>` : ''}</div>`;
+      });
+      htmlStr += '</div>';
+    });
+    if (!items.length) htmlStr = `<div class="empty" role="presentation">No commands match “${esc(q.trim())}”</div>`;
+    list.innerHTML = htmlStr;
+    setActive(0);
+  }
+
+  function setActive(i) {
+    if (!items.length) { input.removeAttribute('aria-activedescendant'); return; }
+    active = (i + items.length) % items.length;
+    list.querySelectorAll('[role=option]').forEach((o) => o.setAttribute('aria-selected', String(+o.dataset.idx === active)));
+    const el = document.getElementById('opt-' + active);
+    input.setAttribute('aria-activedescendant', el.id);
+    el.scrollIntoView({ block: 'nearest' });
+  }
+
+  function open() {
+    if (!palette.hidden) { input.focus(); return; }
+    returnFocus = document.activeElement;
+    palette.hidden = false;
+    input.value = '';
+    input.setAttribute('aria-expanded', 'true');
+    render();
+    input.focus();
+  }
+  function close(restore = true) {
+    if (palette.hidden) return;
+    palette.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+    if (restore && returnFocus && document.contains(returnFocus) && returnFocus.focus) returnFocus.focus();
+  }
+  let toastTimer = 0;
+  function runCommand(c) {
+    close();
+    c.run();
+    recent = [c.id, ...recent.filter((id) => id !== c.id)].slice(0, 3);
+    toast.textContent = 'Ran: ' + c.name;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+
+  const inTextField = (el) => el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); open(); return; }
+    if (e.key === '/' && palette.hidden && !inTextField(document.activeElement)) { e.preventDefault(); open(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b' && palette.hidden) { e.preventDefault(); runCommand(COMMANDS.find((c) => c.name === 'Toggle sidebar')); }
+  });
+  input.addEventListener('input', render);
+  input.addEventListener('keydown', (e) => {
+    switch (e.key) {
+      case 'ArrowDown': e.preventDefault(); setActive(active + 1); break;
+      case 'ArrowUp': e.preventDefault(); setActive(active - 1); break;
+      case 'Home': if (items.length) { e.preventDefault(); setActive(0); } break;
+      case 'End': if (items.length) { e.preventDefault(); setActive(items.length - 1); } break;
+      case 'Enter': e.preventDefault(); if (items[active]) runCommand(items[active]); break;
+      case 'Escape': e.preventDefault(); close(); break;
+      case 'Tab': e.preventDefault(); input.focus(); break;
+    }
+  });
+  palette.addEventListener('keydown', (e) => { if (e.key === 'Tab') { e.preventDefault(); input.focus(); } if (e.key === 'Escape') close(); });
+  list.addEventListener('mousemove', (e) => { const o = e.target.closest('[role=option]'); if (o && +o.dataset.idx !== active) setActive(+o.dataset.idx); });
+  list.addEventListener('mousedown', (e) => e.preventDefault());
+  list.addEventListener('click', (e) => { const o = e.target.closest('[role=option]'); if (o) runCommand(items[+o.dataset.idx]); });
+  palette.querySelector('[data-close]').addEventListener('click', () => close());
+  document.getElementById('open-palette').addEventListener('click', open);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1046 @@
+[
+  {
+    "slug": "ui-pricing-plans",
+    "track": "ui",
+    "title_en": "Pricing Page with Billing Switch",
+    "title_ar": "صفحة أسعار مع مبدّل لدورة الفوترة",
+    "summary_en": "A premium SaaS pricing page: three plans with a monthly/annual switch that must compute exact prices, a feature comparison table and an accessible FAQ.",
+    "summary_ar": "صفحة أسعار احترافية لخدمة سحابية: ثلاث باقات مع مبدّل شهري/سنوي يحسب الأسعار بدقة، وجدول مقارنة للمزايا، وأسئلة شائعة سهلة الوصول.",
+    "prompt": "Build the pricing page for \"Quillstack\", a (fictional) collaborative writing platform for research teams.\n\nPlans (USD):\n| Plan        | Monthly                | Annual (billed once a year) | Seats |\n| Solo        | $9 / month             | $90 / year                  | 1     |\n| Team        | $24 per user / month   | $240 per user / year        | 2–50  |\n| Institution | $59 per user / month   | $590 per user / year        | 51+   |\n\nRequirements\n1. Hero: headline, a one-sentence value proposition and the billing switch.\n2. Billing switch: one control with id=\"billing-toggle\" (a <button role=\"switch\" aria-checked=\"…\"> or a checkbox with a visible label) that switches between Monthly and Annual. Annual is selected on page load. Show a \"2 months free\" hint next to the Annual label.\n3. Plan cards: three cards, each an element with class=\"plan\", containing the plan name, price, billing note, a one-line description, 5 feature bullets and a call-to-action.\n   - Annual mode shows the effective monthly price rounded to cents — Solo $7.50, Team $20 (or $20.00), Institution $49.17 — and the billing notes \"Billed $90 yearly\", \"Billed $240 yearly per user\", \"Billed $590 yearly per user\".\n   - Monthly mode shows $9, $24 and $59 with the note \"Billed monthly\".\n   - Price changes animate subtly and cause no layout shift.\n   - The Team card is visually emphasised and carries a \"Most popular\" badge.\n4. Comparison table: a <table id=\"compare\"> whose <tbody> has exactly these 8 feature rows, with columns Solo / Team / Institution. Use icons or a dash, but always expose accessible text (\"Included\" / \"Not included\"):\n   - Unlimited documents: yes / yes / yes\n   - Real-time co-editing: no / yes / yes\n   - Citation manager (BibTeX, RIS): yes / yes / yes\n   - Version history: \"30 days\" / \"1 year\" / \"Unlimited\"\n   - LaTeX & Markdown export: yes / yes / yes\n   - Review workflows & approvals: no / yes / yes\n   - Single sign-on (SAML): no / no / yes\n   - Dedicated success manager: no / no / yes\n   On narrow screens the table must stay readable without making the page scroll horizontally (scroll inside its own wrapper, or restack it).\n5. FAQ: a section with id=\"faq\" containing these 4 questions as an accessible accordion (<details>/<summary>, or buttons with aria-expanded); write sensible answers: \"Can I switch plans later?\", \"Do you offer discounts for students?\", \"What counts as a user?\", \"Where is my data stored?\"\n6. A footer with a small-print line.\n\nAim for a premium, trustworthy look: clear typographic hierarchy, generous spacing, a restrained palette, visible focus states and comfortable touch targets on mobile. Every id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
+    "output_type": "html",
+    "difficulty": 2,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "design",
+        "label_en": "Visual design",
+        "label_ar": "التصميم البصري",
+        "weight": 3,
+        "guide": "Premium, cohesive look: confident type scale, consistent spacing rhythm, restrained palette, the Team plan emphasised without shouting, polished hover/focus states. 9-10 = could ship on a real SaaS site; 5-6 = generic template, uneven spacing or weak hierarchy; 0-3 = unstyled or broken layout."
+      },
+      {
+        "key": "pricing",
+        "label_en": "Pricing logic",
+        "label_ar": "منطق التسعير",
+        "weight": 3,
+        "guide": "Annual is the default; effective prices are exact ($7.50, $20, $49.17) with the specified billed-yearly notes; the switch updates every card and note consistently, works with keyboard and exposes its state (aria-checked / checked). Deduct heavily for wrong maths, prices that do not update, or layout jumps when toggling."
+      },
+      {
+        "key": "content",
+        "label_en": "Comparison & content",
+        "label_ar": "المقارنة والمحتوى",
+        "weight": 2,
+        "guide": "Table matches the spec exactly (8 rows, version-history values) with accessible Included/Not included text and clear column headers; the FAQ accordion works with keyboard; copy is specific to a research-writing product rather than lorem ipsum."
+      },
+      {
+        "key": "responsive",
+        "label_en": "Responsive & accessible",
+        "label_ar": "التجاوب وإمكانية الوصول",
+        "weight": 2,
+        "guide": "At 390 px the cards stack, the table stays usable without page overflow, tap targets are at least 44 px; semantic landmarks, ordered headings, AA contrast and visible focus everywhere."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Prices defined once as data and derived, not hard-coded per mode. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 0.5,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 120000,
+          "weight": 0.5,
+          "label_en": "Under 120 KB",
+          "label_ar": "حجم الملف أقل من 120 كيلوبايت"
+        },
+        {
+          "id": "has_toggle",
+          "type": "selector",
+          "sel": "#billing-toggle",
+          "weight": 1,
+          "label_en": "Billing switch #billing-toggle in markup",
+          "label_ar": "مبدّل الفوترة ‎#billing-toggle‎ موجود في الشيفرة"
+        },
+        {
+          "id": "has_compare",
+          "type": "selector",
+          "sel": "#compare",
+          "weight": 1,
+          "label_en": "Comparison table #compare in markup",
+          "label_ar": "جدول المقارنة ‎#compare‎ موجود"
+        },
+        {
+          "id": "has_faq",
+          "type": "selector",
+          "sel": "#faq",
+          "weight": 1,
+          "label_en": "FAQ section #faq in markup",
+          "label_ar": "قسم الأسئلة الشائعة ‎#faq‎ موجود"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "three_plans",
+          "type": "selector",
+          "sel": ".plan",
+          "min": 3,
+          "weight": 3,
+          "label_en": "Three plan cards",
+          "label_ar": "ثلاث بطاقات للباقات"
+        },
+        {
+          "id": "annual_price",
+          "type": "text",
+          "contains": "$49.17",
+          "weight": 3,
+          "label_en": "Annual effective price $49.17 shown by default",
+          "label_ar": "عرض السعر السنوي الفعلي ‎$49.17‎ افتراضيًا"
+        },
+        {
+          "id": "billed_note",
+          "type": "text",
+          "contains": "Billed $590 yearly",
+          "ci": true,
+          "weight": 1,
+          "label_en": "Billing note \"Billed $590 yearly\"",
+          "label_ar": "ملاحظة الفوترة السنوية صحيحة"
+        },
+        {
+          "id": "popular",
+          "type": "text",
+          "contains": "Most popular",
+          "ci": true,
+          "weight": 1,
+          "label_en": "\"Most popular\" badge",
+          "label_ar": "شارة «الأكثر شيوعًا»"
+        },
+        {
+          "id": "compare_rows",
+          "type": "selector",
+          "sel": "#compare tbody tr",
+          "min": 8,
+          "weight": 2,
+          "label_en": "Comparison table has 8 rows",
+          "label_ar": "جدول المقارنة يضم 8 صفوف"
+        },
+        {
+          "id": "toggle_works",
+          "type": "click",
+          "sel": "#billing-toggle",
+          "weight": 3,
+          "label_en": "Billing switch changes the page",
+          "label_ar": "المبدّل يغيّر الأسعار"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "ui-ops-dashboard",
+    "track": "ui",
+    "title_en": "Bike-Share Operations Dashboard",
+    "title_ar": "لوحة تشغيل لشبكة دراجات مشتركة",
+    "summary_en": "A responsive operations dashboard computed from raw station data: exact KPIs, a hand-built SVG bar chart and a sortable, searchable, filterable table with an off-canvas mobile drawer.",
+    "summary_ar": "لوحة تحكم تشغيلية متجاوبة تُحسب من بيانات المحطات الخام: مؤشرات أداء دقيقة، ورسم أعمدة SVG مبني يدويًا، وجدول قابل للفرز والبحث والتصفية مع قائمة جانبية منزلقة على الجوال.",
+    "prompt": "Build the operations dashboard of \"Velora\", a (fictional) city bike-share, showing today's station data.\n\nData — embed it exactly (status is one of ok | low | offline):\nid,name,district,bikes,docks,trips,status\nS01,Harbour Gate,Old Port,4,20,132,low\nS02,Linden Square,Old Port,11,18,98,ok\nS03,Mill Street,Old Port,0,16,41,offline\nS04,Observatory Hill,Northfield,14,24,77,ok\nS05,Tram Depot,Northfield,9,20,115,ok\nS06,Riverside Market,Northfield,2,22,146,low\nS07,University Gardens,Campus,17,30,203,ok\nS08,Library Steps,Campus,6,14,88,ok\nS09,Science Park,Campus,3,26,64,low\nS10,Ferry Terminal,Eastbank,12,20,121,ok\nS11,Glassworks,Eastbank,0,12,0,offline\nS12,Canal Basin,Eastbank,8,16,57,ok\n\nRequirements\n1. App shell: a sidebar navigation (Overview — current page, Stations, Rebalancing, Maintenance, Settings) and a top bar with the page title \"Fleet overview\" and the date label \"Thursday, 15 October 2026\". Below 768 px the sidebar becomes an off-canvas drawer opened by a button with id=\"menu-toggle\" (aria-expanded + aria-controls; Escape and a backdrop click close it).\n2. KPI row: four cards, each an element with class=\"kpi\", computed from the data in JavaScript (do not hard-code results):\n   - Trips today = sum of trips, formatted with an en-US thousands separator.\n   - Bikes available = sum of bikes.\n   - Fleet fill rate = total bikes ÷ total docks as a percentage with one decimal and a % sign.\n   - Needs attention = number of stations whose status is not ok.\n   Each KPI card also has a small decorative inline-SVG sparkline or meter (aria-hidden).\n3. District chart: an inline <svg id=\"district-chart\"> bar chart of total trips per district (4 districts), with one <rect class=\"bar\"> per district, bar lengths proportional on a zero baseline, district names and values as text labels. No chart libraries.\n4. Stations table: <table id=\"stations\"> with one <tbody> row per station (12 rows) and the columns Station, District, Bikes / Docks (with a small fill bar), Trips, Status (a coloured pill that also has a text label — never colour alone).\n   - Sorting: every column header contains a <button> that sorts by that column; clicking the same header again reverses the order; numbers sort numerically; expose the state with aria-sort on the <th>. The Trips header button has id=\"sort-trips\".\n   - Search: a labelled text input with id=\"search\" filters rows by station name or district as you type (case-insensitive) and a line reads \"Showing N of 12 stations\".\n   - Status filter: chips All / OK / Low / Offline (buttons with aria-pressed) that combine with the search.\n   - When nothing matches, show an empty-state row.\n5. At 390 px the KPI cards reflow (2×2 or one column) and the table stays usable without making the page scroll horizontally (scroll inside its own wrapper or switch to a card list).\n\nDark, calm, data-dense but legible: tabular numerals, right-aligned numbers, colour reserved for meaning. Every id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
+    "output_type": "html",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "data",
+        "label_en": "Data correctness",
+        "label_ar": "صحة البيانات",
+        "weight": 3,
+        "guide": "KPIs computed from the dataset: 1,142 trips, 86 bikes, 36.1% fill rate, 5 stations needing attention; district totals Old Port 271, Northfield 338, Campus 355, Eastbank 178 with proportional bars on a zero baseline. Sorting is numeric for numbers (not lexicographic), reversible and stable; search and status filter combine. Any wrong number caps this criterion at 4."
+      },
+      {
+        "key": "design",
+        "label_en": "Information design",
+        "label_ar": "تصميم المعلومات",
+        "weight": 3,
+        "guide": "Clear hierarchy (KPIs, chart, table), aligned grid, tabular numerals, right-aligned numeric columns, status colours with text labels, dense yet calm. 9-10 = polished commercial product; 5-6 = generic admin template; 0-3 = cluttered or broken."
+      },
+      {
+        "key": "interaction",
+        "label_en": "Interactions",
+        "label_ar": "التفاعلات",
+        "weight": 2,
+        "guide": "Sort, search and filters are instant and reflected in aria-sort, aria-pressed and the \"Showing N of 12\" line; the drawer opens/closes with the button, Escape and the backdrop and manages focus sensibly; empty state handled."
+      },
+      {
+        "key": "responsive",
+        "label_en": "Responsive & accessible",
+        "label_ar": "التجاوب وإمكانية الوصول",
+        "weight": 2,
+        "guide": "Nothing overflows the page at 390 px, KPIs reflow, the table scrolls inside its wrapper or becomes cards; labelled search, landmarks, visible focus, chart has an accessible description."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Rows rendered from one data array; KPIs derived, not typed in. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 0.5,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 150000,
+          "weight": 0.5,
+          "label_en": "Under 150 KB",
+          "label_ar": "حجم الملف أقل من 150 كيلوبايت"
+        },
+        {
+          "id": "has_table",
+          "type": "selector",
+          "sel": "#stations",
+          "weight": 1,
+          "label_en": "Stations table #stations in markup",
+          "label_ar": "جدول المحطات ‎#stations‎ موجود"
+        },
+        {
+          "id": "has_search",
+          "type": "selector",
+          "sel": "#search",
+          "weight": 1,
+          "label_en": "Search input #search in markup",
+          "label_ar": "حقل البحث ‎#search‎ موجود"
+        },
+        {
+          "id": "has_menu",
+          "type": "selector",
+          "sel": "#menu-toggle",
+          "weight": 1,
+          "label_en": "Drawer button #menu-toggle in markup",
+          "label_ar": "زر القائمة ‎#menu-toggle‎ موجود"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "kpis",
+          "type": "selector",
+          "sel": ".kpi",
+          "min": 4,
+          "weight": 2,
+          "label_en": "Four KPI cards",
+          "label_ar": "أربع بطاقات مؤشرات"
+        },
+        {
+          "id": "kpi_trips",
+          "type": "text",
+          "contains": "1,142",
+          "weight": 2,
+          "label_en": "Trips KPI = 1,142",
+          "label_ar": "مؤشر الرحلات = 1,142"
+        },
+        {
+          "id": "kpi_fill",
+          "type": "text",
+          "contains": "36.1%",
+          "weight": 2,
+          "label_en": "Fill rate KPI = 36.1%",
+          "label_ar": "نسبة الامتلاء = 36.1%"
+        },
+        {
+          "id": "table_rows",
+          "type": "selector",
+          "sel": "#stations tbody tr",
+          "min": 12,
+          "weight": 2,
+          "label_en": "Table shows 12 stations",
+          "label_ar": "الجدول يعرض 12 محطة"
+        },
+        {
+          "id": "chart_bars",
+          "type": "selector",
+          "sel": "#district-chart .bar",
+          "min": 4,
+          "weight": 3,
+          "label_en": "District chart has 4 bars",
+          "label_ar": "رسم المناطق يضم 4 أعمدة"
+        },
+        {
+          "id": "title",
+          "type": "text",
+          "contains": "Fleet overview",
+          "ci": true,
+          "weight": 0.5,
+          "label_en": "Page title \"Fleet overview\"",
+          "label_ar": "عنوان الصفحة «Fleet overview»"
+        },
+        {
+          "id": "sorts",
+          "type": "click",
+          "sel": "#sort-trips",
+          "weight": 2,
+          "label_en": "Sorting by trips reorders the table",
+          "label_ar": "الفرز حسب الرحلات يعيد ترتيب الجدول"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "ui-checkout-flow",
+    "track": "ui",
+    "title_en": "Accessible Multi-Step Checkout",
+    "title_ar": "صفحة دفع متعددة الخطوات سهلة الوصول",
+    "summary_en": "A four-step checkout with real validation (Luhn, expiry, formats), live order summary maths including VAT, and production-grade accessibility for errors and focus.",
+    "summary_ar": "عملية دفع من أربع خطوات بتحقق فعلي من المدخلات (خوارزمية Luhn وتاريخ الانتهاء والصيغ)، وملخص طلب يُحسب لحظيًا مع الضريبة، وإتاحة احترافية لرسائل الأخطاء وإدارة التركيز.",
+    "prompt": "Build the checkout of \"Kettle & Leaf\", a (fictional) tea shop. Everything happens client-side on one page.\n\nCart (fixed; prices in EUR, VAT-inclusive at 20%):\n- Sencha Morning, 100 g — €14.50 × 2\n- Smoked Lapsang, 50 g — €9.80 × 1\n- Cast-iron kettle, 0.8 L — €38.00 × 1\nShipping: Standard (3–5 days) €4.90, free when the subtotal is €60.00 or more; Express (next day) €12.00.\n\nRequirements\n1. Layout: form on the left and a sticky order summary on the right on desktop. On mobile the summary moves above the form as a collapsible panel (a button with aria-expanded) whose header always shows the total; it may start collapsed.\n2. The form is <form id=\"checkout\" novalidate>, split into 4 steps: 1 Details, 2 Delivery, 3 Payment, 4 Review. A step indicator <ol id=\"steps\"> has one <li> per step and marks the current one with aria-current=\"step\". Only the current step is visible. Navigation buttons have id=\"back\" and id=\"next\"; on the last step the primary button reads \"Place order\".\n3. Fields — each with a visible <label>, a suitable type/inputmode and autocomplete attributes:\n   - Details: full name, email, street address, city, postal code, country (<select> with at least 5 countries).\n   - Delivery: Standard / Express radio group inside a fieldset with a legend; changing it updates the summary immediately.\n   - Payment: card number, expiry (MM/YY), CVC, name on card.\n4. Validation — on \"Next\" and on blur; never with alert():\n   - Required fields; email must look like an address; postal code 3–10 characters (letters, digits, spaces, hyphens).\n   - Card number: after removing spaces, 13–19 digits that pass the Luhn checksum. Format it while typing in groups of four (\"4242 4242 4242 4242\") without breaking the caret during normal typing.\n   - Expiry: MM/YY, month 01–12, not earlier than the user's current month; insert the slash automatically.\n   - CVC: 3 or 4 digits.\n   - Errors appear inline under the field, are linked with aria-describedby, the field gets aria-invalid=\"true\", and focus moves to the first invalid field. A polite live region with id=\"form-status\" announces how many fields need attention.\n   - The user cannot leave a step that has errors.\n5. Order summary (id=\"summary\"): line items, Subtotal, Shipping, Total and a line reading \"Includes VAT €X.XX\" (VAT included = total × 20 / 120). Money is formatted like €12.34. With the cart above and Standard shipping the summary shows Subtotal €76.80, Shipping Free, Total €76.80 and \"Includes VAT €12.80\".\n6. Review step: lists everything entered (card shown as \"•••• 4242\") with \"Edit\" buttons that jump back to each step. \"Place order\" shows a confirmation panel with an order number of the form KL-123456 and moves focus to its heading.\n\nMake it feel calm and trustworthy, like a well-designed independent shop. Every id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
+    "output_type": "html",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "validation",
+        "label_en": "Validation & logic",
+        "label_ar": "التحقق والمنطق",
+        "weight": 3,
+        "guide": "Luhn implemented correctly (4242 4242 4242 4242 passes, 4242 4242 4242 4241 fails), expiry rejects month 13 and past months, card formatting keeps the caret sane, steps cannot be skipped with errors, totals right for both shipping options (Standard: €76.80 with VAT €12.80; Express: €88.80 with VAT €14.80)."
+      },
+      {
+        "key": "a11y",
+        "label_en": "Accessibility",
+        "label_ar": "إمكانية الوصول",
+        "weight": 3,
+        "guide": "Every control labelled; errors tied with aria-describedby and aria-invalid; focus moves to the first error; live region announces; step indicator uses aria-current; radios grouped with fieldset/legend; focus managed on step change and on confirmation; everything keyboard-operable."
+      },
+      {
+        "key": "design",
+        "label_en": "Visual design & UX",
+        "label_ar": "التصميم وتجربة الاستخدام",
+        "weight": 2,
+        "guide": "Trustworthy commerce design: clear progress, aligned fields, helpful hints, polished summary and a sensible mobile summary panel. 5-6 = default-looking form; 9-10 = feels like a premium independent brand."
+      },
+      {
+        "key": "summary",
+        "label_en": "Summary & review",
+        "label_ar": "الملخص والمراجعة",
+        "weight": 1,
+        "guide": "Summary updates live with the shipping choice; review is accurate with working edit buttons and a masked card; confirmation shows a KL-###### order number."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Validation rules are declarative and reused for blur and submit. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 0.5,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 150000,
+          "weight": 0.5,
+          "label_en": "Under 150 KB",
+          "label_ar": "حجم الملف أقل من 150 كيلوبايت"
+        },
+        {
+          "id": "has_form",
+          "type": "selector",
+          "sel": "#checkout",
+          "weight": 1,
+          "label_en": "Form #checkout in markup",
+          "label_ar": "النموذج ‎#checkout‎ موجود"
+        },
+        {
+          "id": "has_next",
+          "type": "selector",
+          "sel": "#next",
+          "weight": 1,
+          "label_en": "Next button #next in markup",
+          "label_ar": "زر المتابعة ‎#next‎ موجود"
+        },
+        {
+          "id": "autocomplete",
+          "type": "regex_count",
+          "pattern": "autocomplete\\s*=",
+          "min": 8,
+          "weight": 1,
+          "label_en": "Uses autocomplete attributes",
+          "label_ar": "يستخدم سمات autocomplete"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "steps",
+          "type": "selector",
+          "sel": "#steps li",
+          "min": 4,
+          "weight": 2,
+          "label_en": "Step indicator with 4 steps",
+          "label_ar": "مؤشر خطوات من 4 مراحل"
+        },
+        {
+          "id": "total",
+          "type": "text",
+          "contains": "€76.80",
+          "weight": 2,
+          "label_en": "Total €76.80 is correct",
+          "label_ar": "الإجمالي ‎€76.80‎ صحيح"
+        },
+        {
+          "id": "vat",
+          "type": "text",
+          "contains": "Includes VAT €12.80",
+          "weight": 2,
+          "label_en": "VAT line \"Includes VAT €12.80\"",
+          "label_ar": "سطر الضريبة ‎€12.80‎ صحيح"
+        },
+        {
+          "id": "live_region",
+          "type": "selector",
+          "sel": "#form-status",
+          "weight": 1,
+          "label_en": "Live region #form-status",
+          "label_ar": "منطقة الإعلان الحي ‎#form-status‎"
+        },
+        {
+          "id": "validates",
+          "type": "click",
+          "sel": "#next",
+          "weight": 3,
+          "label_en": "Next on an empty step shows errors",
+          "label_ar": "زر المتابعة مع حقول فارغة يُظهر الأخطاء"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 2,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "ui-command-palette",
+    "track": "ui",
+    "title_en": "Keyboard-First Command Palette",
+    "title_ar": "لوحة أوامر تعمل بلوحة المفاتيح",
+    "summary_en": "A Ctrl/⌘K command palette with ranked fuzzy search, highlighted matches, grouped results, recents, full combobox semantics, focus trapping and commands that really act on the page.",
+    "summary_ar": "لوحة أوامر تُفتح بـ Ctrl/⌘K مع بحث تقريبي مرتَّب وإبراز للأحرف المطابقة ونتائج مجمّعة وأوامر حديثة، ودلالات combobox كاملة وحصر للتركيز، وأوامر تعمل فعليًا على الصفحة.",
+    "prompt": "Build \"Atlas Docs\", a (fictional) documentation site shell with a keyboard-first command palette like those in modern developer tools.\n\nPage shell: a header with the product name \"Atlas Docs\" and a search-style button with id=\"open-palette\" reading \"Search or jump to…\" with a shortcut hint; a left navigation (Home, Getting Started, Installation, Configuration, API Reference, Changelog, Settings, Billing) and an article with a few headings and paragraphs about configuring \"Atlas\" (your own copy).\n\nCommands (name — group — optional shortcut hint), 25 in total:\n- Navigation: Go to Home; Go to Getting Started; Go to Installation; Go to Configuration; Go to API Reference; Go to Changelog; Go to Settings; Go to Billing\n- Actions: Create new project (Ctrl+N); Invite teammate; Copy page link; Export as PDF; Open in new tab; Toggle sidebar (Ctrl+B)\n- Theme: Switch to dark theme; Switch to light theme; Use system theme; Increase font size; Decrease font size; Reset font size\n- Help: Keyboard shortcuts (?); Contact support; Report a bug; Read the docs; What's new\n\nBehaviour\n1. Opening: Ctrl+K and ⌘K (metaKey), the \"/\" key when focus is not in a text field, or clicking #open-palette. It opens with an empty query and the input focused.\n2. Markup (present in the initial HTML, hidden until opened): a modal dialog id=\"palette\" (role=\"dialog\", aria-modal=\"true\", accessible name) containing an input id=\"palette-input\" with role=\"combobox\", aria-expanded, aria-controls=\"palette-results\" and aria-autocomplete=\"list\", and a results container id=\"palette-results\" with role=\"listbox\". Each result is a role=\"option\" element with a unique id; the active one has aria-selected=\"true\" and is referenced by the input's aria-activedescendant.\n3. Matching: case-insensitive fuzzy subsequence matching on the command name (\"gtset\" matches \"Go to Settings\"). Rank (1) names that start with the query, then (2) matches where every matched character starts a word or continues a contiguous run, then (3) other subsequence matches; break ties by the shorter name. Highlight matched characters with <mark>. Results are shown under their group headings (headings are not selectable options); groups are ordered by their best result and keep the ranking inside each group.\n4. Empty query: a \"Recent\" group with up to 3 most recently run commands (most recent first, no duplicates), followed by all commands by group.\n5. Keyboard: ArrowDown/ArrowUp move the active option and wrap around; Home/End jump to first/last; Enter runs the active command; Escape closes; Tab never moves focus out of the dialog. The active option is scrolled into view.\n6. Pointer: hovering an option makes it active, clicking runs it, clicking the backdrop closes.\n7. Running a command closes the palette, returns focus to the element that was focused before opening, and shows a toast id=\"toast\" (role=\"status\") reading \"Ran: <command name>\". Theme commands really switch the page between dark, light and system themes; font-size commands change the article text size; \"Toggle sidebar\" hides/shows the navigation; \"Go to …\" commands mark the matching nav link as current.\n8. No results: show \"No commands match “<query>”\" in the results area.\n9. At 390 px the palette is a near-full-width sheet at the top with large touch targets.\n\nPolish matters: crisp typography, a short fade/scale entrance (≤ 200 ms), a clear active row and shortcut hints rendered as <kbd> chips. Every id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
+    "output_type": "html",
+    "difficulty": 4,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "keyboard",
+        "label_en": "Keyboard & ARIA",
+        "label_ar": "لوحة المفاتيح ودلالات ARIA",
+        "weight": 3,
+        "guide": "Ctrl/⌘K and \"/\" open it (but \"/\" does not hijack typing in fields), full combobox/listbox semantics with aria-activedescendant, wrap-around arrows, Home/End, Tab trapped, Escape closes and focus returns to the invoker. Missing focus restoration or trapping caps this at 5."
+      },
+      {
+        "key": "search",
+        "label_en": "Search quality",
+        "label_ar": "جودة البحث",
+        "weight": 3,
+        "guide": "Fuzzy subsequence matching with the specified ranking (\"gtset\" puts Go to Settings first, \"exp\" puts Export as PDF first, \"theme\" surfaces theme commands), highlighted matched characters, groups ordered by best match, recents exactly as specified, clear empty state."
+      },
+      {
+        "key": "design",
+        "label_en": "Visual & motion design",
+        "label_ar": "التصميم والحركة",
+        "weight": 2,
+        "guide": "Feels like a premium developer tool: refined typography, subtle blurred backdrop, quick entrance animation, unmistakable active row, kbd chips, good mobile sheet. Generic unstyled list = 3-4."
+      },
+      {
+        "key": "behaviour",
+        "label_en": "Command behaviour",
+        "label_ar": "سلوك الأوامر",
+        "weight": 2,
+        "guide": "Commands really act (theme, font size, sidebar, navigation), the toast announces them, reopening starts clean, hammering keys never throws errors or desynchronises the active option."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Matching/ranking is a pure function separate from rendering. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 0.5,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 150000,
+          "weight": 0.5,
+          "label_en": "Under 150 KB",
+          "label_ar": "حجم الملف أقل من 150 كيلوبايت"
+        },
+        {
+          "id": "has_dialog",
+          "type": "selector",
+          "sel": "#palette",
+          "weight": 1,
+          "label_en": "Dialog #palette in initial markup",
+          "label_ar": "نافذة الأوامر ‎#palette‎ موجودة في الشيفرة"
+        },
+        {
+          "id": "has_combobox",
+          "type": "selector",
+          "sel": "[role=combobox]",
+          "weight": 1,
+          "label_en": "Input has role=\"combobox\"",
+          "label_ar": "حقل الإدخال بدور combobox"
+        },
+        {
+          "id": "has_listbox",
+          "type": "selector",
+          "sel": "[role=listbox]",
+          "weight": 1,
+          "label_en": "Results have role=\"listbox\"",
+          "label_ar": "النتائج بدور listbox"
+        },
+        {
+          "id": "has_button",
+          "type": "selector",
+          "sel": "#open-palette",
+          "weight": 1,
+          "label_en": "Button #open-palette",
+          "label_ar": "زر الفتح ‎#open-palette‎"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "brand",
+          "type": "text",
+          "contains": "Atlas Docs",
+          "ci": true,
+          "weight": 0.5,
+          "label_en": "Shows \"Atlas Docs\"",
+          "label_ar": "يعرض «Atlas Docs»"
+        },
+        {
+          "id": "opens_click",
+          "type": "click",
+          "sel": "#open-palette",
+          "weight": 3,
+          "label_en": "Button opens the palette",
+          "label_ar": "الزر يفتح لوحة الأوامر"
+        },
+        {
+          "id": "opens_slash",
+          "type": "keyboard",
+          "keys": [
+            "/"
+          ],
+          "weight": 3,
+          "label_en": "\"/\" opens the palette",
+          "label_ar": "مفتاح «/» يفتح لوحة الأوامر"
+        },
+        {
+          "id": "has_toast",
+          "type": "selector",
+          "sel": "#toast",
+          "weight": 0.5,
+          "label_en": "Toast region #toast",
+          "label_ar": "منطقة الإشعار ‎#toast‎"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 2,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "ui-kanban-board",
+    "track": "ui",
+    "title_en": "Kanban Board with Accessible Drag & Drop",
+    "title_ar": "لوحة كانبان بسحب وإفلات سهل الوصول",
+    "summary_en": "A sprint board with pointer-event drag and drop that works on touch, a complete keyboard alternative with live announcements, WIP limits, filters and an add-card form.",
+    "summary_ar": "لوحة مهام بسحب وإفلات عبر Pointer Events يعمل باللمس، وبديل كامل بلوحة المفاتيح مع إعلانات حية لقارئ الشاشة، وحدود للعمل الجاري، وتصفية، ونموذج لإضافة البطاقات.",
+    "prompt": "Build the sprint board of a (fictional) product team: a Kanban board with smooth drag and drop that also works with the keyboard and on touch screens.\n\nColumns in order, with work-in-progress limits: Backlog (no limit), In progress (limit 3), Review (limit 2), Done (no limit).\n\nInitial cards (title — column — tag — assignee initials — story points):\n1. Audit onboarding emails — Backlog — Growth — MK — 3\n2. Dark mode for reports — Backlog — UI — JS — 5\n3. Rate-limit public API — Backlog — Backend — AR — 8\n4. Invoice PDF redesign — Backlog — UI — LT — 3\n5. Migrate cron jobs to queue — In progress — Backend — AR — 5\n6. Empty-state illustrations — In progress — UI — JS — 2\n7. Referral program experiment — In progress — Growth — MK — 5\n8. Fix timezone bug in exports — Review — Backend — LT — 2\n9. Accessibility pass on forms — Done — UI — JS — 3\n10. Set up error tracking — Done — Backend — AR — 1\n\nRequirements\n1. Board: a container id=\"board\" holding four column elements with class=\"column\". Each column header shows its title, the number of cards, the total story points and — for limited columns — \"count / limit\" (e.g. \"3 / 3\"). Each card is an element with class=\"card\" showing title, a colour-coded tag, the assignee's initials as an avatar and the points.\n2. Drag and drop built on Pointer Events, so mouse, pen and touch all work (the HTML5 Drag and Drop API alone is not acceptable: it does not work on touch). While dragging, the card follows the pointer with a lifted look, a placeholder shows exactly where it will land, other cards make room with a short animation, and on release the card animates into place. Cards can be reordered within a column and moved between columns; releasing outside every column cancels and returns the card. On touch, page scrolling must keep working when the user is not dragging — e.g. start drags from a visible drag handle, or after a ~200 ms long-press; explain the gesture with a short visible hint.\n3. Keyboard: cards are focusable (tabindex=\"0\"). Space or Enter picks up the focused card; ArrowUp/ArrowDown move it within its column; ArrowLeft/ArrowRight move it to the previous/next column (keeping a sensible position); Space or Enter drops it; Escape cancels and restores the original position. Focus stays on the moved card. Every pick-up, move, drop and cancel is announced in an aria-live region with id=\"announcer\" (e.g. \"Moved “Invoice PDF redesign” to Review, position 2 of 2\").\n4. WIP limits: moving a card into a full column is allowed, but the column then shows a clear over-limit state (colour plus the text \"Over limit\").\n5. Add card: a button with id=\"add-card\" opens an inline form at the top of Backlog (title required, tag select, points select); Enter saves, Escape cancels, an empty title shows an inline error.\n6. Filter: assignee chips (All, MK, JS, AR, LT) as buttons with aria-pressed that dim non-matching cards.\n7. Responsive: on narrow screens the columns scroll horizontally inside the board with scroll-snap (the page itself must not scroll horizontally), each column about 85% of the viewport wide.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
+    "output_type": "html",
+    "difficulty": 4,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "dnd",
+        "label_en": "Drag & drop quality",
+        "label_ar": "جودة السحب والإفلات",
+        "weight": 3,
+        "guide": "Pointer-events based and works with mouse and touch; precise placeholder; neighbours animate out of the way; drop animation; cancel outside columns; no jitter, flicker or accidental text selection; page still scrolls on touch. HTML5 DnD-only implementations score at most 3."
+      },
+      {
+        "key": "keyboard",
+        "label_en": "Keyboard & screen reader",
+        "label_ar": "لوحة المفاتيح وقارئ الشاشة",
+        "weight": 3,
+        "guide": "Complete pick-up / move / drop / cancel cycle with arrows; focus follows the card; announcements include column and position; Escape restores exactly; nothing traps or loses focus."
+      },
+      {
+        "key": "logic",
+        "label_en": "Board logic",
+        "label_ar": "منطق اللوحة",
+        "weight": 2,
+        "guide": "Counts, story-point totals and count/limit update after every change; over-limit state appears and clears correctly; add-card validates; filters keep working after moves."
+      },
+      {
+        "key": "design",
+        "label_en": "Visual polish",
+        "label_ar": "الإتقان البصري",
+        "weight": 2,
+        "guide": "Clean modern board: colour-coded tags, avatars, depth while dragging, smooth snap-scrolling columns on mobile, clear hint text."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Board state is a single model; the DOM is rendered from it rather than mutated ad hoc. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 0.5,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 150000,
+          "weight": 0.5,
+          "label_en": "Under 150 KB",
+          "label_ar": "حجم الملف أقل من 150 كيلوبايت"
+        },
+        {
+          "id": "has_board",
+          "type": "selector",
+          "sel": "#board",
+          "weight": 1,
+          "label_en": "Board #board in markup",
+          "label_ar": "اللوحة ‎#board‎ موجودة"
+        },
+        {
+          "id": "has_announcer",
+          "type": "selector",
+          "sel": "#announcer",
+          "weight": 1,
+          "label_en": "Live region #announcer in markup",
+          "label_ar": "منطقة الإعلان ‎#announcer‎ موجودة"
+        },
+        {
+          "id": "has_add",
+          "type": "selector",
+          "sel": "#add-card",
+          "weight": 1,
+          "label_en": "Add button #add-card in markup",
+          "label_ar": "زر الإضافة ‎#add-card‎ موجود"
+        },
+        {
+          "id": "pointer_events",
+          "type": "contains",
+          "pattern": "pointerdown",
+          "ci": true,
+          "weight": 1,
+          "label_en": "Uses Pointer Events",
+          "label_ar": "يستخدم Pointer Events"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "columns",
+          "type": "selector",
+          "sel": ".column",
+          "min": 4,
+          "weight": 2,
+          "label_en": "Four columns",
+          "label_ar": "أربعة أعمدة"
+        },
+        {
+          "id": "cards",
+          "type": "selector",
+          "sel": ".card",
+          "min": 10,
+          "weight": 2,
+          "label_en": "Ten initial cards",
+          "label_ar": "عشر بطاقات أولية"
+        },
+        {
+          "id": "wip",
+          "type": "text",
+          "contains": "3 / 3",
+          "weight": 2,
+          "label_en": "WIP count \"3 / 3\" shown",
+          "label_ar": "عرض حدّ العمل الجاري «3 / 3»"
+        },
+        {
+          "id": "col_title",
+          "type": "text",
+          "contains": "In progress",
+          "ci": true,
+          "weight": 0.5,
+          "label_en": "Column \"In progress\"",
+          "label_ar": "عمود «In progress»"
+        },
+        {
+          "id": "add_opens",
+          "type": "click",
+          "sel": "#add-card",
+          "weight": 2,
+          "label_en": "Add card opens the form",
+          "label_ar": "زر الإضافة يفتح النموذج"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 2,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  }
+]

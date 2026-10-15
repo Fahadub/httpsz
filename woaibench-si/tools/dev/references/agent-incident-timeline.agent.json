@@ -1,0 +1,52 @@
+{
+  "steps": [
+    {
+      "tool": "list_dir",
+      "args": {
+        "path": "/var/log/gateway"
+      }
+    },
+    {
+      "tool": "read_file",
+      "args": {
+        "path": "/var/log/gateway/access-2026-10-14.log"
+      }
+    },
+    {
+      "tool": "read_file",
+      "args": {
+        "path": "/var/log/payments/app.log"
+      }
+    },
+    {
+      "tool": "read_file",
+      "args": {
+        "path": "/var/log/deploy/deploys.log"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "/out/incident-214.json",
+        "content": "{\n  \"incident_id\": 214,\n  \"trigger_deploy\": \"d-8812\",\n  \"rollback_deploy\": \"d-8814\",\n  \"first_error_utc\": \"2026-10-14T13:01:58Z\",\n  \"last_error_utc\": \"2026-10-14T13:41:50Z\",\n  \"duration_minutes\": 39,\n  \"gateway_5xx_count\": 7\n}\n"
+      }
+    },
+    {
+      "tool": "update_record",
+      "args": {
+        "table": "incidents",
+        "id": 214,
+        "fields": {
+          "status": "postmortem",
+          "trigger_deploy": "d-8812"
+        }
+      }
+    },
+    {
+      "tool": "finish",
+      "args": {
+        "answer": "Payments deploy d-8812 shrank the DB pool from 50 to 5, causing checkout errors from 13:01:58Z to 13:41:50Z until rollback d-8814."
+      }
+    }
+  ]
+}

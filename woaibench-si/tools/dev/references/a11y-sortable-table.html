@@ -1,0 +1,165 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Observatory inventory · Southern Sky Consortium</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8; --surface: #ffffff; --surface-2: #eef1f5; --text: #141821; --muted: #4f5869; --border: #d9dee7;
+    --accent: #2f4fb3; --accent-soft: #e6ecfb; --row-hover: #f6f8fc; --focus: #b4231b;
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b0e14; --surface: #121722; --surface-2: #19202e; --text: #eef2fa; --muted: #a9b3c6; --border: #283247;
+      --accent: #9db4ff; --accent-soft: #1d2a4b; --row-hover: #161d2b; --focus: #ffb86b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 var(--font); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: clamp(24px, 5vw, 56px) clamp(16px, 4vw, 40px) 72px; }
+  .eyebrow { margin: 0 0 6px; color: var(--accent); font-weight: 700; font-size: .8rem; letter-spacing: .14em; text-transform: uppercase; }
+  h1 { margin: 0; font-size: clamp(1.9rem, 4.5vw, 2.8rem); letter-spacing: -.02em; line-height: 1.1; }
+  .lead { margin: 10px 0 28px; color: var(--muted); max-width: 62ch; }
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0 0 28px; padding: 0; list-style: none; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
+  .stat b { display: block; font-size: 1.6rem; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .stat span { color: var(--muted); font-size: .9rem; }
+
+  .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+  .scroller { overflow-x: auto; }
+  .scroller:focus-visible { outline-offset: -3px; }
+  table { width: 100%; min-width: 760px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  caption { text-align: start; padding: 18px 20px 14px; caption-side: top; }
+  caption strong { display: block; font-size: 1.1rem; }
+  caption span { color: var(--muted); font-size: .9rem; }
+  thead th { background: var(--surface-2); border-block: 1px solid var(--border); padding: 0; text-align: start; font-size: .85rem; letter-spacing: .02em; }
+  th.num, td.num { text-align: end; }
+  thead button { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 16px; cursor: pointer; font-weight: 700; color: var(--text); }
+  th.num button { justify-content: flex-end; }
+  thead button:hover { background: var(--accent-soft); }
+  thead button:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
+  .arrow { width: 14px; height: 14px; flex: none; opacity: .35; transition: transform .2s ease, opacity .2s; }
+  th[aria-sort] .arrow { opacity: 1; color: var(--accent); }
+  th[aria-sort="descending"] .arrow { transform: rotate(180deg); }
+  tbody th, tbody td { padding: 12px 16px; border-bottom: 1px solid var(--border); text-align: start; vertical-align: middle; }
+  tbody th { font-weight: 600; }
+  tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--row-hover); }
+  .site { color: var(--muted); }
+  tfoot td, tfoot th { padding: 14px 16px; border-top: 2px solid var(--border); font-weight: 700; }
+  .note { margin-top: 14px; color: var(--muted); font-size: .9rem; }
+  @media (max-width: 700px) {
+    .stats { grid-template-columns: 1fr; }
+    .stat { display: flex; justify-content: space-between; align-items: baseline; }
+  }
+  @media (prefers-reduced-motion: reduce) { .arrow { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Southern Sky Consortium</p>
+    <h1>Observatory inventory</h1>
+    <p class="lead">Every optical telescope in the consortium’s shared time pool, with its site, commissioning date, primary-mirror aperture and lifetime budget.</p>
+  </header>
+  <main>
+    <ul class="stats" aria-label="Inventory summary">
+      <li class="stat"><b id="stat-count">12</b> <span>telescopes</span></li>
+      <li class="stat"><b id="stat-aperture">86.9 m</b> <span>combined aperture</span></li>
+      <li class="stat"><b id="stat-budget">8,061.5</b> <span>total budget, USD M</span></li>
+    </ul>
+
+    <div class="table-card">
+      <div class="scroller" role="region" aria-labelledby="inventory-caption" tabindex="0">
+        <table id="inventory">
+          <caption id="inventory-caption"><strong>Telescopes in the shared time pool</strong><span>Column headers are buttons: activate one to sort, again to reverse.</span></caption>
+          <thead>
+            <tr>
+              <th scope="col" data-type="text"><button type="button" id="sort-name">Name<svg class="arrow" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3l5 7H3z" fill="currentColor"/></svg></button></th>
+              <th scope="col" data-type="text"><button type="button" id="sort-site">Site<svg class="arrow" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3l5 7H3z" fill="currentColor"/></svg></button></th>
+              <th scope="col" data-type="date"><button type="button" id="sort-commissioned">Commissioned<svg class="arrow" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3l5 7H3z" fill="currentColor"/></svg></button></th>
+              <th scope="col" class="num" data-type="number"><button type="button" id="sort-aperture">Aperture (m)<svg class="arrow" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3l5 7H3z" fill="currentColor"/></svg></button></th>
+              <th scope="col" class="num" data-type="number"><button type="button" id="sort-budget">Budget (USD M)<svg class="arrow" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3l5 7H3z" fill="currentColor"/></svg></button></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Halcyon</th><td class="site">Atacama Ridge, Chile</td><td><time datetime="2019-03-14">14 Mar 2019</time></td><td class="num">8.4</td><td class="num">1,240</td></tr>
+            <tr><th scope="row">Meridian South</th><td class="site">Karoo Plateau, South Africa</td><td><time datetime="2011-09-02">2 Sep 2011</time></td><td class="num">11.0</td><td class="num">420</td></tr>
+            <tr><th scope="row">Tern</th><td class="site">Mauna Crest, USA</td><td><time datetime="2024-06-21">21 Jun 2024</time></td><td class="num">3.6</td><td class="num">96</td></tr>
+            <tr><th scope="row">Aurelia</th><td class="site">La Palma Heights, Spain</td><td><time datetime="2007-07-30">30 Jul 2007</time></td><td class="num">10.4</td><td class="num">175</td></tr>
+            <tr><th scope="row">Corvid Array</th><td class="site">Pilbara Flats, Australia</td><td><time datetime="2022-11-08">8 Nov 2022</time></td><td class="num">6.5</td><td class="num">2,050</td></tr>
+            <tr><th scope="row">Ishtar</th><td class="site">Wadi Rum Field, Jordan</td><td><time datetime="2016-01-19">19 Jan 2016</time></td><td class="num">4.1</td><td class="num">88</td></tr>
+            <tr><th scope="row">Nimbus</th><td class="site">Hanle Valley, India</td><td><time datetime="2001-08-25">25 Aug 2001</time></td><td class="num">2.0</td><td class="num">12</td></tr>
+            <tr><th scope="row">Saltire</th><td class="site">Isle of Lewis, UK</td><td><time datetime="1998-05-11">11 May 1998</time></td><td class="num">2.5</td><td class="num">9.5</td></tr>
+            <tr><th scope="row">Övergård</th><td class="site">Abisko Fell, Sweden</td><td><time datetime="2013-03-03">3 Mar 2013</time></td><td class="num">1.8</td><td class="num">14</td></tr>
+            <tr><th scope="row">Zephyr</th><td class="site">Atacama Ridge, Chile</td><td><time datetime="2025-02-27">27 Feb 2025</time></td><td class="num">25.4</td><td class="num">3,900</td></tr>
+            <tr><th scope="row">Albedo</th><td class="site">Sutherland, South Africa</td><td><time datetime="2005-10-12">12 Oct 2005</time></td><td class="num">9.2</td><td class="num">36</td></tr>
+            <tr><th scope="row">Ébène</th><td class="site">Pic du Midi, France</td><td><time datetime="2009-04-04">4 Apr 2009</time></td><td class="num">2.0</td><td class="num">21</td></tr>
+          </tbody>
+          <tfoot>
+            <tr><th scope="row" colspan="4">Total budget</th><td class="num" id="total-budget">8,061.5</td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    <p class="note">Budgets are lifetime construction and operations costs in millions of US dollars, not adjusted for inflation.</p>
+    <div class="sr-only" role="status" aria-live="polite" id="sort-status"></div>
+  </main>
+</div>
+<script>
+(function () {
+  'use strict';
+  var table = document.getElementById('inventory');
+  var tbody = table.tBodies[0];
+  var headers = Array.prototype.slice.call(table.tHead.rows[0].cells);
+  var status = document.getElementById('sort-status');
+  var collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
+  var state = { col: -1, dir: 'ascending' };
+
+  function cellValue(row, col, type) {
+    var cell = row.cells[col];
+    if (type === 'number') { return parseFloat(cell.textContent.replace(/[^0-9.\-]/g, '')); }
+    if (type === 'date') { var t = cell.querySelector('time'); return Date.parse(t ? t.getAttribute('datetime') : cell.textContent); }
+    return cell.textContent.trim();
+  }
+  function compare(a, b, type) {
+    if (type === 'text') { return collator.compare(a, b); }
+    return a === b ? 0 : (a < b ? -1 : 1);
+  }
+  function label(th) { return th.querySelector('button').firstChild.textContent.trim(); }
+
+  function sortBy(col) {
+    var dir = state.col === col && state.dir === 'ascending' ? 'descending' : 'ascending';
+    var type = headers[col].dataset.type;
+    var sign = dir === 'ascending' ? 1 : -1;
+    var rows = Array.prototype.map.call(tbody.rows, function (row, i) { return { row: row, i: i, v: cellValue(row, col, type) }; });
+    rows.sort(function (x, y) { return sign * compare(x.v, y.v, type) || x.i - y.i; });
+    var frag = document.createDocumentFragment();
+    rows.forEach(function (r) { frag.appendChild(r.row); });
+    tbody.appendChild(frag);
+    headers.forEach(function (th, i) { if (i === col) { th.setAttribute('aria-sort', dir); } else { th.removeAttribute('aria-sort'); } });
+    state = { col: col, dir: dir };
+    status.textContent = '';
+    setTimeout(function () { status.textContent = 'Sorted by ' + label(headers[col]) + ', ' + dir; }, 60);
+  }
+
+  headers.forEach(function (th, i) {
+    th.querySelector('button').addEventListener('click', function () { sortBy(i); });
+  });
+
+  function sum(col) { return Array.prototype.reduce.call(tbody.rows, function (acc, row) { return acc + cellValue(row, col, 'number'); }, 0); }
+  var fmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+  document.getElementById('stat-count').textContent = String(tbody.rows.length);
+  document.getElementById('stat-aperture').textContent = fmt.format(sum(3)) + ' m';
+  document.getElementById('stat-budget').textContent = fmt.format(sum(4));
+  document.getElementById('total-budget').textContent = fmt.format(sum(4));
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+{
+  "steps": [
+    {
+      "tool": "read_file",
+      "args": {
+        "path": "/srv/billing/MIGRATION.md"
+      }
+    },
+    {
+      "tool": "search_files",
+      "args": {
+        "query": "conf.d"
+      }
+    },
+    {
+      "tool": "move_file",
+      "args": {
+        "from": "/srv/billing/conf.d/database.conf",
+        "to": "/srv/billing/settings/database.toml"
+      }
+    },
+    {
+      "tool": "move_file",
+      "args": {
+        "from": "/srv/billing/conf.d/payments.conf",
+        "to": "/srv/billing/settings/payments.toml"
+      }
+    },
+    {
+      "tool": "move_file",
+      "args": {
+        "from": "/srv/billing/conf.d/legacy-ftp.conf",
+        "to": "/srv/billing/archive/legacy-ftp.conf"
+      }
+    },
+    {
+      "tool": "read_file",
+      "args": {
+        "path": "/srv/billing/deploy/run.sh"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "/srv/billing/deploy/run.sh",
+        "content": "#!/bin/sh\nset -eu\nAPP=/srv/billing\nexec \"$APP/bin/billingd\" \\\n  --db-config \"$APP/settings/database.toml\" \\\n  --payments-config \"$APP/settings/payments.toml\" \\\n  --ledger-dir \"$APP/vendor/ledgerkit\"\n"
+      }
+    },
+    {
+      "tool": "read_file",
+      "args": {
+        "path": "/srv/billing/docker-compose.yml"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "/srv/billing/docker-compose.yml",
+        "content": "services:\n  billing:\n    image: registry.corvina.test/billing:stable\n    command: [\"/srv/billing/deploy/run.sh\"]\n    volumes:\n      - ./settings/database.toml:/srv/billing/settings/database.toml:ro\n      - ./settings/payments.toml:/srv/billing/settings/payments.toml:ro\n      - ./vendor/ledgerkit/conf.d:/srv/billing/vendor/ledgerkit/conf.d:ro\n"
+      }
+    },
+    {
+      "tool": "read_file",
+      "args": {
+        "path": "/srv/billing/src/config.py"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "/srv/billing/src/config.py",
+        "content": "import os\n\nCONFIG_DIR = os.environ.get(\"BILLING_CONFIG_DIR\", \"/srv/billing/settings\")\nDATABASE_CONFIG = os.path.join(CONFIG_DIR, \"database.toml\")\nPAYMENTS_CONFIG = os.path.join(CONFIG_DIR, \"payments.toml\")\n"
+      }
+    },
+    {
+      "tool": "append_file",
+      "args": {
+        "path": "/srv/billing/CHANGELOG.md",
+        "content": "- 4.0.0: configuration moved from conf.d/ to settings/\n"
+      }
+    },
+    {
+      "tool": "finish",
+      "args": {
+        "answer": "Moved database/payments to settings/*.toml, archived legacy-ftp.conf, updated deploy/run.sh, docker-compose.yml, src/config.py and CHANGELOG.md (vendor/ untouched)."
+      }
+    }
+  ]
+}

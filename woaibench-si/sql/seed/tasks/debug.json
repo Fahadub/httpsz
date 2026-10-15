@@ -1,0 +1,2305 @@
+[
+  {
+    "slug": "debug-invoice-totals",
+    "track": "debug",
+    "title_en": "Fix the Invoice Totals",
+    "title_ar": "إصلاح مجاميع الفاتورة",
+    "summary_en": "Repair an invoice calculator: binary floating-point rounding, half-cent refunds, locale-dependent sorting and a caller-visible mutation.",
+    "summary_ar": "إصلاح حاسبة فواتير تعاني من أخطاء التقريب في الفاصلة العائمة، وتقريب أنصاف السنتات في المرتجعات، وفرز يعتمد على اللغة المحلية، وتعديل مصفوفة المستدعي.",
+    "prompt": "# Fix the Invoice Totals\n\nThis function builds the totals block of invoices for a small online shop. Finance compares every invoice with the accounting system, which works with exact decimal numbers.\n\nThe doc comment describes the intended behaviour and is correct; the implementation is not. Users filed the bug reports below. Find the root causes, fix **all** defects (including ones the reports only hint at) and keep the same function name and signature.\n\n## Current code\n```js\n/**\n * Builds the totals block of an invoice.\n *\n * lines: [{ sku: string, unitPrice: number, qty: number, taxRate: number }]\n *   unitPrice ≥ 0 with at most 4 decimals; qty an integer (negative for returned items);\n *   taxRate between 0 and 1 with at most 4 decimals (0.2 = 20 %).\n * opts.discountPercent: 0–100 with at most 2 decimals, applied to every line before tax (default 0).\n *\n * Returns a new object { lines: [{ sku, net, tax, gross }], net, tax, gross } where\n *   line net   = unitPrice × qty × (1 − discountPercent / 100), rounded to cents\n *   line tax   = line net × taxRate, rounded to cents\n *   line gross = line net + line tax\n *   net / tax / gross = sums of the line values.\n * All arithmetic is exact decimal arithmetic on the values as written (like the accounting system),\n * rounding is half away from zero (2.345 → 2.35, −2.345 → −2.35), and every amount is returned as\n * a Number equal to (an integer number of cents) / 100.\n * Lines are listed sorted by sku in plain UTF-16 code-unit order (the accounting export's order);\n * lines with equal skus keep their input order. The caller's array and objects are not modified.\n */\nfunction invoiceTotals(lines, opts = {}) {\n  const pct = opts.discountPercent || 0;\n  const sorted = lines.sort((a, b) => a.sku.localeCompare(b.sku));\n  const out = [];\n  let net = 0;\n  let tax = 0;\n  for (const line of sorted) {\n    const lineNet = round2(line.unitPrice * line.qty * (1 - pct / 100));\n    const lineTax = round2(lineNet * line.taxRate);\n    out.push({ sku: line.sku, net: lineNet, tax: lineTax, gross: lineNet + lineTax });\n    net += lineNet;\n    tax += lineTax;\n  }\n  return { lines: out, net: round2(net), tax: round2(tax), gross: round2(net + tax) };\n}\n\nfunction round2(x) {\n  return Math.round(x * 100) / 100;\n}\n```\n\n## Bug reports\n1. After the invoice preview is rendered, the shopping cart shows its items in a different order than the customer added them.\n2. Finance reports one-cent differences: a line of 1 × 1.005 is billed as 1.00 instead of 1.01, and 3 × 0.075 as 0.22 instead of 0.23.\n3. Refunds are off by a cent in the customer’s favour: a returned item at 0.125 shows −0.12 instead of −0.13.\n4. The JSON export contains amounts such as `\"gross\": 0.12000000000000001`.\n5. Invoices with SKUs `b-200` and `B-100` list the lines in a different order than the accounting export, and the order differs between our Node server and some browsers.\n\n## Output format\nReply with exactly one ```js code block containing the complete solution:\n- plain JavaScript (ES2022) that declares `function invoiceTotals(...)` at the top level, plus any helpers it needs;\n- no `import`, `export`, `require` or `module.exports`; no DOM, Node.js or network APIs; no external libraries;\n- the code is evaluated as a classic script inside a Web Worker and called directly by hidden unit tests — do not read input, print output or include your own tests.\nReturn the complete fixed code (the documented function plus any helpers), not a diff.",
+    "output_type": "js",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "diagnosis",
+        "label_en": "Root-cause fixes",
+        "label_ar": "إصلاح السبب الجذري",
+        "weight": 3,
+        "guide": "Each reported symptom is fixed at its root cause (not patched for the example input); unrelated behaviour and the public signature are preserved; no new bugs introduced."
+      },
+      {
+        "key": "robustness",
+        "label_en": "Robustness & edge cases",
+        "label_ar": "المتانة والحالات الحدّية",
+        "weight": 3,
+        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way."
+      },
+      {
+        "key": "minimal_diff",
+        "label_en": "Focused, reviewable change",
+        "label_ar": "تعديل مركّز قابل للمراجعة",
+        "weight": 2,
+        "guide": "The fix keeps the original structure where it was sound, so a reviewer can map each change to a reported bug; brief comments explain non-obvious fixes."
+      },
+      {
+        "key": "readability",
+        "label_en": "Readability & structure",
+        "label_ar": "المقروئية والبنية",
+        "weight": 2,
+        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "parses",
+          "type": "js_parses",
+          "weight": 1,
+          "label_en": "Code parses",
+          "label_ar": "الشيفرة سليمة البنية"
+        }
+      ],
+      "tests": {
+        "entry": "invoiceTotals",
+        "timeout_ms": 2000,
+        "weight": 9,
+        "cases": [
+          {
+            "name": "simple_line",
+            "args": [
+              [
+                {
+                  "sku": "A",
+                  "unitPrice": 10,
+                  "qty": 2,
+                  "taxRate": 0.2
+                }
+              ]
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "A",
+                  "net": 20,
+                  "tax": 4,
+                  "gross": 24
+                }
+              ],
+              "net": 20,
+              "tax": 4,
+              "gross": 24
+            }
+          },
+          {
+            "name": "empty_invoice",
+            "args": [
+              []
+            ],
+            "expect": {
+              "lines": [],
+              "net": 0,
+              "tax": 0,
+              "gross": 0
+            }
+          },
+          {
+            "name": "half_cent_1_005",
+            "args": [
+              [
+                {
+                  "sku": "A",
+                  "unitPrice": 1.005,
+                  "qty": 1,
+                  "taxRate": 0
+                }
+              ],
+              {}
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "A",
+                  "net": 1.01,
+                  "tax": 0,
+                  "gross": 1.01
+                }
+              ],
+              "net": 1.01,
+              "tax": 0,
+              "gross": 1.01
+            }
+          },
+          {
+            "name": "half_cent_product_0_075_x3",
+            "args": [
+              [
+                {
+                  "sku": "A",
+                  "unitPrice": 0.075,
+                  "qty": 3,
+                  "taxRate": 0
+                }
+              ],
+              {}
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "A",
+                  "net": 0.23,
+                  "tax": 0,
+                  "gross": 0.23
+                }
+              ],
+              "net": 0.23,
+              "tax": 0,
+              "gross": 0.23
+            }
+          },
+          {
+            "name": "half_cent_product_0_345_x9",
+            "args": [
+              [
+                {
+                  "sku": "A",
+                  "unitPrice": 0.345,
+                  "qty": 9,
+                  "taxRate": 0
+                }
+              ],
+              {}
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "A",
+                  "net": 3.11,
+                  "tax": 0,
+                  "gross": 3.11
+                }
+              ],
+              "net": 3.11,
+              "tax": 0,
+              "gross": 3.11
+            }
+          },
+          {
+            "name": "half_cent_product_0_565_x13",
+            "args": [
+              [
+                {
+                  "sku": "A",
+                  "unitPrice": 0.565,
+                  "qty": 13,
+                  "taxRate": 0
+                }
+              ],
+              {}
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "A",
+                  "net": 7.35,
+                  "tax": 0,
+                  "gross": 7.35
+                }
+              ],
+              "net": 7.35,
+              "tax": 0,
+              "gross": 7.35
+            }
+          },
+          {
+            "name": "half_cent_product_0_015_x7",
+            "args": [
+              [
+                {
+                  "sku": "A",
+                  "unitPrice": 0.015,
+                  "qty": 7,
+                  "taxRate": 0
+                }
+              ],
+              {}
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "A",
+                  "net": 0.11,
+                  "tax": 0,
+                  "gross": 0.11
+                }
+              ],
+              "net": 0.11,
+              "tax": 0,
+              "gross": 0.11
+            }
+          },
+          {
+            "name": "half_cent_product_2_675",
+            "args": [
+              [
+                {
+                  "sku": "A",
+                  "unitPrice": 0.535,
+                  "qty": 5,
+                  "taxRate": 0
+                }
+              ],
+              {}
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "A",
+                  "net": 2.68,
+                  "tax": 0,
+                  "gross": 2.68
+                }
+              ],
+              "net": 2.68,
+              "tax": 0,
+              "gross": 2.68
+            }
+          },
+          {
+            "name": "refund_rounds_away_from_zero",
+            "args": [
+              [
+                {
+                  "sku": "R",
+                  "unitPrice": 0.125,
+                  "qty": -1,
+                  "taxRate": 0
+                }
+              ],
+              {}
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "R",
+                  "net": -0.13,
+                  "tax": 0,
+                  "gross": -0.13
+                }
+              ],
+              "net": -0.13,
+              "tax": 0,
+              "gross": -0.13
+            }
+          },
+          {
+            "name": "refund_with_tax",
+            "args": [
+              [
+                {
+                  "sku": "R",
+                  "unitPrice": 1.005,
+                  "qty": -3,
+                  "taxRate": 0.2
+                }
+              ],
+              {}
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "R",
+                  "net": -3.02,
+                  "tax": -0.6,
+                  "gross": -3.62
+                }
+              ],
+              "net": -3.02,
+              "tax": -0.6,
+              "gross": -3.62
+            }
+          },
+          {
+            "name": "tax_half_cent",
+            "args": [
+              [
+                {
+                  "sku": "T",
+                  "unitPrice": 0.05,
+                  "qty": 1,
+                  "taxRate": 0.5
+                }
+              ],
+              {}
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "T",
+                  "net": 0.05,
+                  "tax": 0.03,
+                  "gross": 0.08
+                }
+              ],
+              "net": 0.05,
+              "tax": 0.03,
+              "gross": 0.08
+            }
+          },
+          {
+            "name": "tax_on_rounded_net",
+            "args": [
+              [
+                {
+                  "sku": "T",
+                  "unitPrice": 0.333,
+                  "qty": 3,
+                  "taxRate": 0.15
+                }
+              ],
+              {}
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "T",
+                  "net": 1,
+                  "tax": 0.15,
+                  "gross": 1.15
+                }
+              ],
+              "net": 1,
+              "tax": 0.15,
+              "gross": 1.15
+            }
+          },
+          {
+            "name": "gross_exact_cents",
+            "args": [
+              [
+                {
+                  "sku": "G",
+                  "unitPrice": 0.1,
+                  "qty": 1,
+                  "taxRate": 0.2
+                }
+              ],
+              {}
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "G",
+                  "net": 0.1,
+                  "tax": 0.02,
+                  "gross": 0.12
+                }
+              ],
+              "net": 0.1,
+              "tax": 0.02,
+              "gross": 0.12
+            }
+          },
+          {
+            "name": "gross_exact_cents_2",
+            "args": [
+              [
+                {
+                  "sku": "G",
+                  "unitPrice": 1.1,
+                  "qty": 3,
+                  "taxRate": 0.07
+                }
+              ],
+              {}
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "G",
+                  "net": 3.3,
+                  "tax": 0.23,
+                  "gross": 3.53
+                }
+              ],
+              "net": 3.3,
+              "tax": 0.23,
+              "gross": 3.53
+            }
+          },
+          {
+            "name": "discount_12_5",
+            "args": [
+              [
+                {
+                  "sku": "D",
+                  "unitPrice": 19.99,
+                  "qty": 3,
+                  "taxRate": 0.2
+                }
+              ],
+              {
+                "discountPercent": 12.5
+              }
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "D",
+                  "net": 52.47,
+                  "tax": 10.49,
+                  "gross": 62.96
+                }
+              ],
+              "net": 52.47,
+              "tax": 10.49,
+              "gross": 62.96
+            }
+          },
+          {
+            "name": "discount_33_33",
+            "args": [
+              [
+                {
+                  "sku": "D",
+                  "unitPrice": 0.3,
+                  "qty": 1,
+                  "taxRate": 0
+                }
+              ],
+              {
+                "discountPercent": 33.33
+              }
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "D",
+                  "net": 0.2,
+                  "tax": 0,
+                  "gross": 0.2
+                }
+              ],
+              "net": 0.2,
+              "tax": 0,
+              "gross": 0.2
+            }
+          },
+          {
+            "name": "discount_exact_half_cent",
+            "args": [
+              [
+                {
+                  "sku": "D",
+                  "unitPrice": 0.45,
+                  "qty": 1,
+                  "taxRate": 0
+                }
+              ],
+              {
+                "discountPercent": 50
+              }
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "D",
+                  "net": 0.23,
+                  "tax": 0,
+                  "gross": 0.23
+                }
+              ],
+              "net": 0.23,
+              "tax": 0,
+              "gross": 0.23
+            }
+          },
+          {
+            "name": "discount_100_percent",
+            "args": [
+              [
+                {
+                  "sku": "F",
+                  "unitPrice": 99.99,
+                  "qty": 7,
+                  "taxRate": 0.2
+                }
+              ],
+              {
+                "discountPercent": 100
+              }
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "F",
+                  "net": 0,
+                  "tax": 0,
+                  "gross": 0
+                }
+              ],
+              "net": 0,
+              "tax": 0,
+              "gross": 0
+            }
+          },
+          {
+            "name": "large_quantity_exact",
+            "args": [
+              [
+                {
+                  "sku": "B",
+                  "unitPrice": 9999.9999,
+                  "qty": 1000000,
+                  "taxRate": 0.0001
+                }
+              ],
+              {}
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "B",
+                  "net": 9999999900,
+                  "tax": 999999.99,
+                  "gross": 10000999899.99
+                }
+              ],
+              "net": 9999999900,
+              "tax": 999999.99,
+              "gross": 10000999899.99
+            }
+          },
+          {
+            "name": "four_decimal_price_tiny_tax",
+            "args": [
+              [
+                {
+                  "sku": "P",
+                  "unitPrice": 0.0001,
+                  "qty": 49,
+                  "taxRate": 0.0725
+                }
+              ],
+              {}
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "P",
+                  "net": 0,
+                  "tax": 0,
+                  "gross": 0
+                }
+              ],
+              "net": 0,
+              "tax": 0,
+              "gross": 0
+            }
+          },
+          {
+            "name": "totals_are_sums_of_rounded_lines",
+            "args": [
+              [
+                {
+                  "sku": "a",
+                  "unitPrice": 0.005,
+                  "qty": 1,
+                  "taxRate": 0
+                },
+                {
+                  "sku": "b",
+                  "unitPrice": 0.005,
+                  "qty": 1,
+                  "taxRate": 0
+                },
+                {
+                  "sku": "c",
+                  "unitPrice": 0.005,
+                  "qty": 1,
+                  "taxRate": 0
+                }
+              ]
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "a",
+                  "net": 0.01,
+                  "tax": 0,
+                  "gross": 0.01
+                },
+                {
+                  "sku": "b",
+                  "net": 0.01,
+                  "tax": 0,
+                  "gross": 0.01
+                },
+                {
+                  "sku": "c",
+                  "net": 0.01,
+                  "tax": 0,
+                  "gross": 0.01
+                }
+              ],
+              "net": 0.03,
+              "tax": 0,
+              "gross": 0.03
+            }
+          },
+          {
+            "name": "many_dimes_total",
+            "args": [
+              [
+                {
+                  "sku": "x0",
+                  "unitPrice": 0.1,
+                  "qty": 1,
+                  "taxRate": 0.1
+                },
+                {
+                  "sku": "x1",
+                  "unitPrice": 0.1,
+                  "qty": 1,
+                  "taxRate": 0.1
+                },
+                {
+                  "sku": "x2",
+                  "unitPrice": 0.1,
+                  "qty": 1,
+                  "taxRate": 0.1
+                },
+                {
+                  "sku": "x3",
+                  "unitPrice": 0.1,
+                  "qty": 1,
+                  "taxRate": 0.1
+                },
+                {
+                  "sku": "x4",
+                  "unitPrice": 0.1,
+                  "qty": 1,
+                  "taxRate": 0.1
+                },
+                {
+                  "sku": "x5",
+                  "unitPrice": 0.1,
+                  "qty": 1,
+                  "taxRate": 0.1
+                },
+                {
+                  "sku": "x6",
+                  "unitPrice": 0.1,
+                  "qty": 1,
+                  "taxRate": 0.1
+                },
+                {
+                  "sku": "x7",
+                  "unitPrice": 0.1,
+                  "qty": 1,
+                  "taxRate": 0.1
+                },
+                {
+                  "sku": "x8",
+                  "unitPrice": 0.1,
+                  "qty": 1,
+                  "taxRate": 0.1
+                },
+                {
+                  "sku": "x9",
+                  "unitPrice": 0.1,
+                  "qty": 1,
+                  "taxRate": 0.1
+                }
+              ]
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "x0",
+                  "net": 0.1,
+                  "tax": 0.01,
+                  "gross": 0.11
+                },
+                {
+                  "sku": "x1",
+                  "net": 0.1,
+                  "tax": 0.01,
+                  "gross": 0.11
+                },
+                {
+                  "sku": "x2",
+                  "net": 0.1,
+                  "tax": 0.01,
+                  "gross": 0.11
+                },
+                {
+                  "sku": "x3",
+                  "net": 0.1,
+                  "tax": 0.01,
+                  "gross": 0.11
+                },
+                {
+                  "sku": "x4",
+                  "net": 0.1,
+                  "tax": 0.01,
+                  "gross": 0.11
+                },
+                {
+                  "sku": "x5",
+                  "net": 0.1,
+                  "tax": 0.01,
+                  "gross": 0.11
+                },
+                {
+                  "sku": "x6",
+                  "net": 0.1,
+                  "tax": 0.01,
+                  "gross": 0.11
+                },
+                {
+                  "sku": "x7",
+                  "net": 0.1,
+                  "tax": 0.01,
+                  "gross": 0.11
+                },
+                {
+                  "sku": "x8",
+                  "net": 0.1,
+                  "tax": 0.01,
+                  "gross": 0.11
+                },
+                {
+                  "sku": "x9",
+                  "net": 0.1,
+                  "tax": 0.01,
+                  "gross": 0.11
+                }
+              ],
+              "net": 1,
+              "tax": 0.1,
+              "gross": 1.1
+            }
+          },
+          {
+            "name": "sku_code_unit_order",
+            "script": "const r = invoiceTotals([['b-200', 1], ['B-100', 2], ['a-1', 3], ['A-2', 4], ['ä-3', 5], ['10', 6], ['9', 7]].map(([sku, p]) => ({ sku, unitPrice: p, qty: 1, taxRate: 0 }))); return r.lines.map((l) => l.sku);",
+            "expect": [
+              "10",
+              "9",
+              "A-2",
+              "B-100",
+              "a-1",
+              "b-200",
+              "ä-3"
+            ]
+          },
+          {
+            "name": "equal_skus_keep_input_order",
+            "script": "const r = invoiceTotals([{ sku: 'X', unitPrice: 3, qty: 1, taxRate: 0 }, { sku: 'A', unitPrice: 9, qty: 1, taxRate: 0 }, { sku: 'X', unitPrice: 1, qty: 1, taxRate: 0 }, { sku: 'X', unitPrice: 2, qty: 1, taxRate: 0 }]); return r.lines.map((l) => l.sku + l.net);",
+            "expect": [
+              "A9",
+              "X3",
+              "X1",
+              "X2"
+            ]
+          },
+          {
+            "name": "does_not_mutate_caller_array",
+            "script": "const lines = [{ sku: 'z', unitPrice: 1, qty: 1, taxRate: 0 }, { sku: 'a', unitPrice: 2, qty: 1, taxRate: 0 }]; const before = JSON.stringify(lines); const r = invoiceTotals(lines, { discountPercent: 10 }); return [JSON.stringify(lines) === before, r.lines[0] !== lines[1], r.net];",
+            "expect": [
+              true,
+              true,
+              2.7
+            ]
+          },
+          {
+            "name": "mixed_invoice_realistic",
+            "args": [
+              [
+                {
+                  "sku": "SRV-02",
+                  "unitPrice": 149.95,
+                  "qty": 2,
+                  "taxRate": 0.19
+                },
+                {
+                  "sku": "HW-11",
+                  "unitPrice": 12.345,
+                  "qty": 4,
+                  "taxRate": 0.19
+                },
+                {
+                  "sku": "RET-7",
+                  "unitPrice": 12.345,
+                  "qty": -1,
+                  "taxRate": 0.19
+                },
+                {
+                  "sku": "BOOK",
+                  "unitPrice": 23.4,
+                  "qty": 1,
+                  "taxRate": 0.07
+                },
+                {
+                  "sku": "FEE",
+                  "unitPrice": 0.995,
+                  "qty": 3,
+                  "taxRate": 0
+                }
+              ],
+              {
+                "discountPercent": 7.5
+              }
+            ],
+            "expect": {
+              "lines": [
+                {
+                  "sku": "BOOK",
+                  "net": 21.65,
+                  "tax": 1.52,
+                  "gross": 23.17
+                },
+                {
+                  "sku": "FEE",
+                  "net": 2.76,
+                  "tax": 0,
+                  "gross": 2.76
+                },
+                {
+                  "sku": "HW-11",
+                  "net": 45.68,
+                  "tax": 8.68,
+                  "gross": 54.36
+                },
+                {
+                  "sku": "RET-7",
+                  "net": -11.42,
+                  "tax": -2.17,
+                  "gross": -13.59
+                },
+                {
+                  "sku": "SRV-02",
+                  "net": 277.41,
+                  "tax": 52.71,
+                  "gross": 330.12
+                }
+              ],
+              "net": 336.08,
+              "tax": 60.74,
+              "gross": 396.82
+            }
+          },
+          {
+            "name": "random_lines_exact",
+            "script": "let __s = 61; const rnd = () => (__s = (Math.imul(__s, 1664525) + 1013904223) >>> 0) / 4294967296; const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1)); const lines = []; for (let i = 0; i < 400; i++) lines.push({ sku: 'S' + ri(0, 50), unitPrice: ri(0, 999999) / 10000, qty: ri(-5, 40), taxRate: ri(0, 2500) / 10000 }); const r = invoiceTotals(lines, { discountPercent: ri(0, 9999) / 100 }); let h = 0; for (const l of r.lines) h = (h * 31 + Math.round(l.net * 100) * 7 + Math.round(l.tax * 100) * 3 + Math.round(l.gross * 100)) % 1000000007; const exactCents = r.lines.every((l) => [l.net, l.tax, l.gross].every((v) => Math.round(v * 100) / 100 === v)) && l2(r); function l2(x) { return [x.net, x.tax, x.gross].every((v) => Math.round(v * 100) / 100 === v); } return [h, r.net, r.tax, r.gross, exactCents];",
+            "expect": [
+              788525272,
+              111703.76,
+              15154.54,
+              126858.3,
+              true
+            ]
+          },
+          {
+            "name": "random_half_cent_lines",
+            "script": "let __s = 67; const rnd = () => (__s = (Math.imul(__s, 1664525) + 1013904223) >>> 0) / 4294967296; const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1)); const lines = []; for (let i = 0; i < 300; i++) { const q = 2 * ri(0, 20) + 1; lines.push({ sku: 'H' + i, unitPrice: (ri(0, 9999) * 10 + 5) / 1000, qty: i % 4 === 0 ? -q : q, taxRate: ri(0, 2000) / 10000 }); } const r = invoiceTotals(lines); return [r.lines.slice(0, 5), r.net, r.tax, r.gross];",
+            "expect": [
+              [
+                {
+                  "sku": "H0",
+                  "net": -391.33,
+                  "tax": -54.39,
+                  "gross": -445.72
+                },
+                {
+                  "sku": "H1",
+                  "net": 26.15,
+                  "tax": 3.76,
+                  "gross": 29.91
+                },
+                {
+                  "sku": "H10",
+                  "net": 1204.52,
+                  "tax": 219.95,
+                  "gross": 1424.47
+                },
+                {
+                  "sku": "H100",
+                  "net": -28.65,
+                  "tax": -3.95,
+                  "gross": -32.6
+                },
+                {
+                  "sku": "H101",
+                  "net": 1696.82,
+                  "tax": 144.23,
+                  "gross": 1841.05
+                }
+              ],
+              162338.22,
+              17135.57,
+              179473.79
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "slug": "debug-preview-truncate",
+    "track": "debug",
+    "title_en": "Fix the Notification Preview",
+    "title_ar": "إصلاح معاينة الإشعارات",
+    "summary_en": "Repair a text-truncation helper that splits emoji, overshoots its limit by one, cuts words on the wrong boundary and eats leading indentation.",
+    "summary_ar": "إصلاح دالة اقتطاع نصوص تقسم الرموز التعبيرية وتتجاوز الحد بحرف واحد وتقطع الكلمات عند الموضع الخطأ وتحذف المسافات البادئة.",
+    "prompt": "# Fix the Notification Preview\n\nA messaging app shortens long messages for push-notification previews with the helper below. The rules in its doc comment come from the design team and are authoritative.\n\nThe doc comment describes the intended behaviour and is correct; the implementation is not. Users filed the bug reports below. Find the root causes, fix **all** defects (including ones the reports only hint at) and keep the same function name and signature.\n\n## Current code\n```js\n/**\n * Shortens a message for a notification preview.\n *\n * Rules (U = the text as an array of Unicode code points; \"space\" means U+0020):\n *  1. If U has at most maxLen code points, return the text unchanged.\n *  2. Otherwise keep the first maxLen − 1 code points (one position is reserved for \"…\").\n *  3. If the first dropped code point is not a space, and the kept part contains a space at a\n *     code-point index ≥ floor((maxLen − 1) / 2), cut the kept part at its LAST space\n *     (that space and everything after it are dropped).\n *  4. Remove trailing whitespace (as matched by /\\s/) from the kept part and append \"…\" (U+2026).\n * maxLen is an integer ≥ 1. Leading whitespace is part of the message and must be preserved.\n */\nfunction previewText(text, maxLen) {\n  if (text.length <= maxLen) return text;\n  let kept = text.slice(0, maxLen);\n  const lastSpace = kept.lastIndexOf(' ');\n  if (lastSpace > maxLen / 2) kept = kept.slice(0, lastSpace);\n  return kept.trim() + '…';\n}\n```\n\n## Bug reports\n1. Push notifications sometimes end with a broken “�” character instead of an emoji, and the iOS payload validator rejects some of them as invalid UTF-16.\n2. Previews can be one character longer than the configured limit (limit 10 → 11 characters).\n3. Messages that fit exactly (for example ones containing emoji) are still shortened.\n4. Code snippets lose their indentation in previews: “    indented code” becomes “indented…”.\n5. Product noticed that the word-boundary rule does not behave as documented for some lengths (a space exactly at the threshold, and cuts that fall right before a space). Please make it follow the doc comment exactly.\n\n## Output format\nReply with exactly one ```js code block containing the complete solution:\n- plain JavaScript (ES2022) that declares `function previewText(...)` at the top level, plus any helpers it needs;\n- no `import`, `export`, `require` or `module.exports`; no DOM, Node.js or network APIs; no external libraries;\n- the code is evaluated as a classic script inside a Web Worker and called directly by hidden unit tests — do not read input, print output or include your own tests.\nReturn the complete fixed code (the documented function plus any helpers), not a diff.",
+    "output_type": "js",
+    "difficulty": 2,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "diagnosis",
+        "label_en": "Root-cause fixes",
+        "label_ar": "إصلاح السبب الجذري",
+        "weight": 3,
+        "guide": "Each reported symptom is fixed at its root cause (not patched for the example input); unrelated behaviour and the public signature are preserved; no new bugs introduced."
+      },
+      {
+        "key": "robustness",
+        "label_en": "Robustness & edge cases",
+        "label_ar": "المتانة والحالات الحدّية",
+        "weight": 3,
+        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way."
+      },
+      {
+        "key": "minimal_diff",
+        "label_en": "Focused, reviewable change",
+        "label_ar": "تعديل مركّز قابل للمراجعة",
+        "weight": 2,
+        "guide": "The fix keeps the original structure where it was sound, so a reviewer can map each change to a reported bug; brief comments explain non-obvious fixes."
+      },
+      {
+        "key": "readability",
+        "label_en": "Readability & structure",
+        "label_ar": "المقروئية والبنية",
+        "weight": 2,
+        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "parses",
+          "type": "js_parses",
+          "weight": 1,
+          "label_en": "Code parses",
+          "label_ar": "الشيفرة سليمة البنية"
+        }
+      ],
+      "tests": {
+        "entry": "previewText",
+        "timeout_ms": 2000,
+        "weight": 9,
+        "cases": [
+          {
+            "name": "fits_unchanged",
+            "args": [
+              "Short note",
+              20
+            ],
+            "expect": "Short note"
+          },
+          {
+            "name": "exact_length_unchanged",
+            "args": [
+              "abcdefghij",
+              10
+            ],
+            "expect": "abcdefghij"
+          },
+          {
+            "name": "emoji_counts_as_one_code_point",
+            "args": [
+              "Party 🎉🎉🎉",
+              9
+            ],
+            "expect": "Party 🎉🎉🎉"
+          },
+          {
+            "name": "one_too_long_hard_cut",
+            "args": [
+              "abcdefghijk",
+              10
+            ],
+            "expect": "abcdefghi…"
+          },
+          {
+            "name": "result_never_exceeds_limit",
+            "args": [
+              "The quick brown fox jumps over the lazy dog",
+              20
+            ],
+            "expect": "The quick brown fox…"
+          },
+          {
+            "name": "cut_at_last_space",
+            "args": [
+              "Meeting moved to Thursday afternoon",
+              22
+            ],
+            "expect": "Meeting moved to…"
+          },
+          {
+            "name": "first_dropped_is_space_keeps_word",
+            "args": [
+              "Hello wonderful world",
+              16
+            ],
+            "expect": "Hello wonderful…"
+          },
+          {
+            "name": "first_dropped_is_space_keeps_word_2",
+            "args": [
+              "one two three four",
+              14
+            ],
+            "expect": "one two three…"
+          },
+          {
+            "name": "space_exactly_at_threshold",
+            "args": [
+              "aaaaa bbbbbbbbbbbb",
+              11
+            ],
+            "expect": "aaaaa…"
+          },
+          {
+            "name": "space_just_below_threshold",
+            "args": [
+              "aaaa bbbbbbbbbbbbb",
+              11
+            ],
+            "expect": "aaaa bbbbb…"
+          },
+          {
+            "name": "threshold_with_odd_limit",
+            "args": [
+              "abc defghijklmnop",
+              8
+            ],
+            "expect": "abc…"
+          },
+          {
+            "name": "no_spaces_long_word",
+            "args": [
+              "Supercalifragilisticexpialidocious",
+              12
+            ],
+            "expect": "Supercalifr…"
+          },
+          {
+            "name": "emoji_not_split",
+            "args": [
+              "Go🚀🚀🚀🚀🚀🚀",
+              5
+            ],
+            "expect": "Go🚀🚀…"
+          },
+          {
+            "name": "emoji_only",
+            "args": [
+              "😀😃😄😁😆😅",
+              4
+            ],
+            "expect": "😀😃😄…"
+          },
+          {
+            "name": "leading_whitespace_preserved",
+            "args": [
+              "    indented code sample here",
+              14
+            ],
+            "expect": "    indented…"
+          },
+          {
+            "name": "trailing_whitespace_trimmed_before_ellipsis",
+            "args": [
+              "Alpha\t\t\tBravo",
+              8
+            ],
+            "expect": "Alpha…"
+          },
+          {
+            "name": "newline_whitespace_trimmed",
+            "args": [
+              "Line one\n\nLine two",
+              11
+            ],
+            "expect": "Line one…"
+          },
+          {
+            "name": "max_len_one",
+            "args": [
+              "Hello",
+              1
+            ],
+            "expect": "…"
+          },
+          {
+            "name": "max_len_two",
+            "args": [
+              "Hello",
+              2
+            ],
+            "expect": "H…"
+          },
+          {
+            "name": "only_spaces",
+            "args": [
+              "        ",
+              3
+            ],
+            "expect": "…"
+          },
+          {
+            "name": "arabic_text",
+            "args": [
+              "مرحبًا بكم في منصة المقارنة الجديدة",
+              20
+            ],
+            "expect": "مرحبًا بكم في منصة…"
+          },
+          {
+            "name": "combining_marks_are_code_points",
+            "args": [
+              "Café au lait été",
+              9
+            ],
+            "expect": "Café au…"
+          },
+          {
+            "name": "zwj_sequence_counts_each_code_point",
+            "args": [
+              "Team👩‍💻👩‍💻 rocks",
+              7
+            ],
+            "expect": "Team👩‍…"
+          },
+          {
+            "name": "lone_surrogate_input_is_one_code_point",
+            "args": [
+              "ab\ud83dcdefgh",
+              5
+            ],
+            "expect": "ab\ud83dc…"
+          },
+          {
+            "name": "cjk_text",
+            "args": [
+              "東京都の天気予報は晴れです",
+              8
+            ],
+            "expect": "東京都の天気予…"
+          },
+          {
+            "name": "never_produces_lone_surrogates",
+            "script": "const out = []; const text = 'Results 🥇🥈🥉 for 🇸🇮 and 🇦🇪 teams 🎯🎯🎯'; for (let n = 1; n <= 40; n++) { const r = previewText(text, n); if (/[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(^|[^\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/.test(r)) out.push(n); if (Array.from(r).length > n) out.push('long' + n); } return out;",
+            "expect": []
+          },
+          {
+            "name": "long_text_performance",
+            "script": "const words = []; for (let i = 0; i < 200000; i++) words.push('w' + (i % 97)); const t = words.join(' '); const r = previewText(t, 50000); return [Array.from(r).length <= 50000, r.endsWith('…'), !r.endsWith(' …'), r.startsWith('w0 w1 w2')];",
+            "expect": [
+              true,
+              true,
+              true,
+              true
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "slug": "debug-renewal-dates",
+    "track": "debug",
+    "title_en": "Fix the Subscription Renewal Dates",
+    "title_ar": "إصلاح مواعيد تجديد الاشتراكات",
+    "summary_en": "Repair a billing-date helper with a 0-based month slip, month-end overflow, day drift after short months and an input that hangs the server.",
+    "summary_ar": "إصلاح دالة مواعيد الفوترة: انزياح الشهر بسبب الترقيم من الصفر، وتجاوز نهاية الشهر، وانجراف اليوم بعد الأشهر القصيرة، ومدخلات تُعلّق الخادم.",
+    "prompt": "# Fix the Subscription Renewal Dates\n\nA SaaS billing service uses this helper to show customers their next renewal dates and to schedule charges.\n\nThe doc comment describes the intended behaviour and is correct; the implementation is not. Users filed the bug reports below. Find the root causes, fix **all** defects (including ones the reports only hint at) and keep the same function name and signature.\n\n## Current code\n```js\n/**\n * Upcoming renewal dates of a subscription.\n *\n * startDate  \"YYYY-MM-DD\" — the day the subscription started (a calendar date, year ≥ 1900).\n * months     renewal period in months, an integer from 1 to 1200.\n * afterDate  \"YYYY-MM-DD\" — only renewals strictly after this date are returned (year ≥ 1900).\n * count      how many dates to return, an integer from 0 to 1000.\n *\n * Renewal k (k = 1, 2, 3, …) falls k × months months after startDate, on the same day of the\n * month as startDate; if the target month is shorter, it falls on that month's last day\n * (start 2024-01-31, monthly → 2024-02-29, 2024-03-31, 2024-04-30, …).\n * Returns the first `count` renewals after afterDate as \"YYYY-MM-DD\" strings, in increasing order.\n * The result must not depend on the time zone of the machine running the code.\n * Throws a RangeError for a malformed date string (anything but exactly YYYY-MM-DD), an\n * impossible date (2026-02-30, month 13, day 00), a year before 1900, or months/count outside\n * their ranges (including non-integers).\n */\nfunction nextRenewals(startDate, months, afterDate, count) {\n  const [y, m, d] = startDate.split('-').map(Number);\n  const after = new Date(afterDate);\n  const result = [];\n  let current = new Date(Date.UTC(y, m, d));\n  while (result.length < count) {\n    current.setUTCMonth(current.getUTCMonth() + months);\n    if (current > after) result.push(current.toISOString().slice(0, 10));\n  }\n  return result;\n}\n```\n\n## Bug reports\n1. A customer who subscribed on 2026-01-15 (monthly) sees 2026-03-15 as the first renewal; it should be 2026-02-15.\n2. Customers who subscribed on the 31st get renewal dates on the 2nd or 3rd of a month (for example 2026-03-03 for a subscription started on 2025-12-31) where we expect the last day of the shorter month.\n3. Once a renewal date has shifted like that, every later renewal stays on the new day (…-03, …-03, …) instead of returning to the original day of the month whenever the month is long enough.\n4. A request with `months: 0` (a bad config value) kept a worker at 100 % CPU until it was killed; requests with dates such as `2026-02-30` produce nonsense instead of an error.\n\n## Output format\nReply with exactly one ```js code block containing the complete solution:\n- plain JavaScript (ES2022) that declares `function nextRenewals(...)` at the top level, plus any helpers it needs;\n- no `import`, `export`, `require` or `module.exports`; no DOM, Node.js or network APIs; no external libraries;\n- the code is evaluated as a classic script inside a Web Worker and called directly by hidden unit tests — do not read input, print output or include your own tests.\nReturn the complete fixed code (the documented function plus any helpers), not a diff.",
+    "output_type": "js",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "diagnosis",
+        "label_en": "Root-cause fixes",
+        "label_ar": "إصلاح السبب الجذري",
+        "weight": 3,
+        "guide": "Each reported symptom is fixed at its root cause (not patched for the example input); unrelated behaviour and the public signature are preserved; no new bugs introduced."
+      },
+      {
+        "key": "robustness",
+        "label_en": "Robustness & edge cases",
+        "label_ar": "المتانة والحالات الحدّية",
+        "weight": 3,
+        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way."
+      },
+      {
+        "key": "minimal_diff",
+        "label_en": "Focused, reviewable change",
+        "label_ar": "تعديل مركّز قابل للمراجعة",
+        "weight": 2,
+        "guide": "The fix keeps the original structure where it was sound, so a reviewer can map each change to a reported bug; brief comments explain non-obvious fixes."
+      },
+      {
+        "key": "readability",
+        "label_en": "Readability & structure",
+        "label_ar": "المقروئية والبنية",
+        "weight": 2,
+        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "parses",
+          "type": "js_parses",
+          "weight": 1,
+          "label_en": "Code parses",
+          "label_ar": "الشيفرة سليمة البنية"
+        }
+      ],
+      "tests": {
+        "entry": "nextRenewals",
+        "timeout_ms": 2000,
+        "weight": 9,
+        "cases": [
+          {
+            "name": "monthly_mid_month",
+            "args": [
+              "2026-01-15",
+              1,
+              "2026-01-15",
+              3
+            ],
+            "expect": [
+              "2026-02-15",
+              "2026-03-15",
+              "2026-04-15"
+            ]
+          },
+          {
+            "name": "first_renewal_is_one_period_later",
+            "args": [
+              "2026-05-02",
+              1,
+              "2000-01-01",
+              1
+            ],
+            "expect": [
+              "2026-06-02"
+            ]
+          },
+          {
+            "name": "month_end_anchor_leap_year",
+            "args": [
+              "2024-01-31",
+              1,
+              "2024-01-01",
+              6
+            ],
+            "expect": [
+              "2024-02-29",
+              "2024-03-31",
+              "2024-04-30",
+              "2024-05-31",
+              "2024-06-30",
+              "2024-07-31"
+            ]
+          },
+          {
+            "name": "month_end_anchor_common_year",
+            "args": [
+              "2025-01-31",
+              1,
+              "2025-01-31",
+              3
+            ],
+            "expect": [
+              "2025-02-28",
+              "2025-03-31",
+              "2025-04-30"
+            ]
+          },
+          {
+            "name": "day_30_through_february",
+            "args": [
+              "2025-11-30",
+              1,
+              "2025-12-01",
+              4
+            ],
+            "expect": [
+              "2025-12-30",
+              "2026-01-30",
+              "2026-02-28",
+              "2026-03-30"
+            ]
+          },
+          {
+            "name": "yearly_from_leap_day",
+            "args": [
+              "2024-02-29",
+              12,
+              "2024-02-29",
+              5
+            ],
+            "expect": [
+              "2025-02-28",
+              "2026-02-28",
+              "2027-02-28",
+              "2028-02-29",
+              "2029-02-28"
+            ]
+          },
+          {
+            "name": "century_not_leap",
+            "args": [
+              "2096-02-29",
+              48,
+              "2096-03-01",
+              2
+            ],
+            "expect": [
+              "2100-02-28",
+              "2104-02-29"
+            ]
+          },
+          {
+            "name": "four_hundred_rule_leap",
+            "args": [
+              "1996-02-29",
+              48,
+              "1996-02-29",
+              2
+            ],
+            "expect": [
+              "2000-02-29",
+              "2004-02-29"
+            ]
+          },
+          {
+            "name": "quarterly_from_aug_31",
+            "args": [
+              "2025-08-31",
+              3,
+              "2025-08-31",
+              4
+            ],
+            "expect": [
+              "2025-11-30",
+              "2026-02-28",
+              "2026-05-31",
+              "2026-08-31"
+            ]
+          },
+          {
+            "name": "december_rollover",
+            "args": [
+              "2026-11-30",
+              1,
+              "2026-11-30",
+              3
+            ],
+            "expect": [
+              "2026-12-30",
+              "2027-01-30",
+              "2027-02-28"
+            ]
+          },
+          {
+            "name": "after_date_equal_to_renewal_excluded",
+            "args": [
+              "2026-01-10",
+              2,
+              "2026-05-10",
+              2
+            ],
+            "expect": [
+              "2026-07-10",
+              "2026-09-10"
+            ]
+          },
+          {
+            "name": "after_date_far_in_future",
+            "args": [
+              "2000-01-31",
+              1,
+              "2030-02-27",
+              2
+            ],
+            "expect": [
+              "2030-02-28",
+              "2030-03-31"
+            ]
+          },
+          {
+            "name": "after_date_before_start",
+            "args": [
+              "2026-03-31",
+              6,
+              "1999-12-31",
+              3
+            ],
+            "expect": [
+              "2026-09-30",
+              "2027-03-31",
+              "2027-09-30"
+            ]
+          },
+          {
+            "name": "count_zero",
+            "args": [
+              "2026-01-01",
+              1,
+              "2026-01-01",
+              0
+            ],
+            "expect": []
+          },
+          {
+            "name": "century_period",
+            "args": [
+              "1950-06-15",
+              1200,
+              "1950-06-15",
+              1
+            ],
+            "expect": [
+              "2050-06-15"
+            ]
+          },
+          {
+            "name": "odd_period_17_months",
+            "args": [
+              "2023-03-31",
+              17,
+              "2023-01-01",
+              3
+            ],
+            "expect": [
+              "2024-08-31",
+              "2026-01-31",
+              "2027-06-30"
+            ]
+          },
+          {
+            "name": "many_periods_later",
+            "args": [
+              "1900-01-31",
+              1,
+              "9990-01-01",
+              3
+            ],
+            "expect": [
+              "9990-01-31",
+              "9990-02-28",
+              "9990-03-31"
+            ]
+          },
+          {
+            "name": "thousand_monthly_renewals",
+            "script": "const r = nextRenewals('1901-03-31', 1, '1901-03-31', 1000); return [r.length, r[0], r[10], r[999], r.every((d, i) => i === 0 || d > r[i - 1])];",
+            "expect": [
+              1000,
+              "1901-04-30",
+              "1902-02-28",
+              "1984-07-31",
+              true
+            ]
+          },
+          {
+            "name": "impossible_dates_rejected",
+            "script": "const calls = [['2026-02-30', 1, '2026-01-01', 1], ['2026-13-01', 1, '2026-01-01', 1], ['2026-00-10', 1, '2026-01-01', 1], ['2026-04-31', 1, '2026-01-01', 1], ['2025-02-29', 12, '2026-01-01', 1], ['2026-01-01', 1, '2026-06-31', 1], ['1899-12-31', 1, '2026-01-01', 1], ['2024-02-29', 1, '2026-01-01', 1]]; return calls.map((args) => { try { nextRenewals(...args); return 'ok'; } catch (e) { return e instanceof RangeError ? 'RangeError' : (e && e.name) || 'error'; } });",
+            "expect": [
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "ok"
+            ]
+          },
+          {
+            "name": "malformed_dates_rejected",
+            "script": "const calls = [['2026-1-05', 1, '2026-01-01', 1], ['26-01-05', 1, '2026-01-01', 1], ['2026-01-05T00:00:00Z', 1, '2026-01-01', 1], ['', 1, '2026-01-01', 1], ['2026/01/05', 1, '2026-01-01', 1], ['2026-01-05', 1, '2026-01-01 ', 1], [20260105, 1, '2026-01-01', 1], ['2026-01-05', 1, null, 1]]; return calls.map((args) => { try { nextRenewals(...args); return 'ok'; } catch (e) { return e instanceof RangeError ? 'RangeError' : (e && e.name) || 'error'; } });",
+            "expect": [
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError"
+            ]
+          },
+          {
+            "name": "zero_months_rejected_not_hanging",
+            "script": "const calls = [['2026-01-05', 0, '2026-01-01', 1]]; return calls.map((args) => { try { nextRenewals(...args); return 'ok'; } catch (e) { return e instanceof RangeError ? 'RangeError' : (e && e.name) || 'error'; } });",
+            "expect": [
+              "RangeError"
+            ]
+          },
+          {
+            "name": "bad_months_rejected",
+            "script": "const calls = [['2026-01-05', -1, '2026-01-01', 1], ['2026-01-05', 1.5, '2026-01-01', 1], ['2026-01-05', 1201, '2026-01-01', 1], ['2026-01-05', '3', '2026-01-01', 1], ['2026-01-05', NaN, '2026-01-01', 1], ['2026-01-05', 1200, '2026-01-01', 1]]; return calls.map((args) => { try { nextRenewals(...args); return 'ok'; } catch (e) { return e instanceof RangeError ? 'RangeError' : (e && e.name) || 'error'; } });",
+            "expect": [
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "ok"
+            ]
+          },
+          {
+            "name": "bad_count_rejected",
+            "script": "const calls = [['2026-01-05', 1, '2026-01-01', -1], ['2026-01-05', 1, '2026-01-01', 2.5], ['2026-01-05', 1, '2026-01-01', 1001], ['2026-01-05', 1, '2026-01-01', 1000]]; return calls.map((args) => { try { nextRenewals(...args); return 'ok'; } catch (e) { return e instanceof RangeError ? 'RangeError' : (e && e.name) || 'error'; } });",
+            "expect": [
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "ok"
+            ]
+          },
+          {
+            "name": "after_date_inside_clamped_month",
+            "args": [
+              "2024-01-31",
+              1,
+              "2024-02-28",
+              2
+            ],
+            "expect": [
+              "2024-02-29",
+              "2024-03-31"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "slug": "debug-async-pool",
+    "track": "debug",
+    "title_en": "Fix the Async Job Pool",
+    "title_ar": "إصلاح مُجمِّع المهام غير المتزامنة",
+    "summary_en": "Repair a promise pool that exceeds its concurrency limit, scrambles result order, hangs on empty input and keeps launching jobs after a failure.",
+    "summary_ar": "إصلاح مجمّع وعود (Promises) يتجاوز حد التزامن ويخلط ترتيب النتائج ويتعلّق عند الإدخال الفارغ ويواصل إطلاق المهام بعد الفشل.",
+    "prompt": "# Fix the Async Job Pool\n\nA data-sync service calls a payment provider’s API through this small promise pool. The provider allows a fixed number of concurrent requests per API key.\n\nThe doc comment describes the intended behaviour and is correct; the implementation is not. Users filed the bug reports below. Find the root causes, fix **all** defects (including ones the reports only hint at) and keep the same function name and signature.\n\n## Current code\n```js\n/**\n * Runs asynchronous jobs with a concurrency limit.\n *\n * jobs  — array of functions (up to 50 000); each returns a promise or a plain value, and may throw.\n * limit — maximum number of jobs running at the same time; must be a positive integer.\n *\n * Jobs are started in array order, and a new job starts as soon as a running one finishes.\n * Resolves to the array of results in the same order as `jobs` ([] for no jobs).\n * If a job throws or its promise rejects, the returned promise rejects with that same error and\n * no further jobs are started (jobs already running are left alone; their outcomes are ignored).\n * A job that throws synchronously fails at that moment, before any later job is started.\n * If `limit` is not a positive integer, the returned promise rejects with a RangeError.\n */\nasync function runPool(jobs, limit) {\n  const results = [];\n  let next = 0;\n  let active = 0;\n  return new Promise((resolve, reject) => {\n    const launch = () => {\n      while (active <= limit && next < jobs.length) {\n        const job = jobs[next++];\n        active++;\n        job().then((value) => {\n          results.push(value);\n          active--;\n          if (results.length === jobs.length) resolve(results);\n          else launch();\n        }, reject);\n      }\n    };\n    launch();\n  });\n}\n```\n\n## Bug reports\n1. With `limit: 2` the provider still answers 429 “too many concurrent requests” — its logs show three requests in flight at once.\n2. Exported rows are shuffled: the results do not line up with the input records.\n3. The nightly sync never finishes on days when there is nothing to sync.\n4. After one request fails we still see new requests going out, and a job that returns a cached value (not a promise) crashes the pool with “then is not a function”.\n5. A config typo (`limit: 0`) was silently accepted instead of being rejected.\n\n## Output format\nReply with exactly one ```js code block containing the complete solution:\n- plain JavaScript (ES2022) that declares `function runPool(...)` at the top level, plus any helpers it needs;\n- no `import`, `export`, `require` or `module.exports`; no DOM, Node.js or network APIs; no external libraries;\n- the code is evaluated as a classic script inside a Web Worker and called directly by hidden unit tests — do not read input, print output or include your own tests.\nReturn the complete fixed code (the documented function plus any helpers), not a diff.",
+    "output_type": "js",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "diagnosis",
+        "label_en": "Root-cause fixes",
+        "label_ar": "إصلاح السبب الجذري",
+        "weight": 3,
+        "guide": "Each reported symptom is fixed at its root cause (not patched for the example input); unrelated behaviour and the public signature are preserved; no new bugs introduced."
+      },
+      {
+        "key": "robustness",
+        "label_en": "Robustness & edge cases",
+        "label_ar": "المتانة والحالات الحدّية",
+        "weight": 3,
+        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way."
+      },
+      {
+        "key": "minimal_diff",
+        "label_en": "Focused, reviewable change",
+        "label_ar": "تعديل مركّز قابل للمراجعة",
+        "weight": 2,
+        "guide": "The fix keeps the original structure where it was sound, so a reviewer can map each change to a reported bug; brief comments explain non-obvious fixes."
+      },
+      {
+        "key": "readability",
+        "label_en": "Readability & structure",
+        "label_ar": "المقروئية والبنية",
+        "weight": 2,
+        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "parses",
+          "type": "js_parses",
+          "weight": 1,
+          "label_en": "Code parses",
+          "label_ar": "الشيفرة سليمة البنية"
+        }
+      ],
+      "tests": {
+        "entry": "runPool",
+        "timeout_ms": 2000,
+        "weight": 9,
+        "cases": [
+          {
+            "name": "limit_is_respected",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const P = settle(runPool(mk(6), 2)); await tick(); const s1 = ctl.started.length; ctl.d[1].ok('b'); await tick(); const s2 = ctl.started.length; await finishAll(); const r = await within(P, 300); return { s1, s2, max: ctl.max, r }; })();",
+            "expect": {
+              "s1": 2,
+              "s2": 3,
+              "max": 2,
+              "r": {
+                "ok": [
+                  "r0",
+                  "b",
+                  "r2",
+                  "r3",
+                  "r4",
+                  "r5"
+                ]
+              }
+            }
+          },
+          {
+            "name": "results_in_input_order",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const P = settle(runPool(mk(4), 4)); await tick(); for (const i of [3, 1, 2, 0]) { ctl.d[i].ok('v' + i); await tick(); } return await P; })();",
+            "expect": {
+              "ok": [
+                "v0",
+                "v1",
+                "v2",
+                "v3"
+              ]
+            }
+          },
+          {
+            "name": "empty_job_list_resolves",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { return await within(settle(runPool([], 3)), 200); })();",
+            "expect": {
+              "ok": []
+            }
+          },
+          {
+            "name": "plain_values_and_async_functions",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { return await within(settle(runPool([() => 1, () => Promise.resolve(2), async () => 3, () => 'four', () => null], 2)), 500); })();",
+            "expect": {
+              "ok": [
+                1,
+                2,
+                3,
+                "four",
+                null
+              ]
+            }
+          },
+          {
+            "name": "undefined_results_kept_in_place",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const r = await within(settle(runPool([() => undefined, async () => 7, () => undefined], 1)), 500); return r.ok ? [r.ok.length, r.ok.map((v) => v === undefined ? 'u' : v)] : r; })();",
+            "expect": [
+              3,
+              [
+                "u",
+                7,
+                "u"
+              ]
+            ]
+          },
+          {
+            "name": "sync_throw_rejects",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { return await within(settle(runPool([() => { throw new TypeError('bad input'); }, () => 2], 2)), 500); })();",
+            "expect": {
+              "err": "bad input",
+              "type": "TypeError"
+            }
+          },
+          {
+            "name": "sync_throw_stops_later_jobs",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const jobs = mk(5); jobs[1] = () => { ctl.started.push(1); throw new Error('sync boom'); }; const P = settle(runPool(jobs, 3)); await tick(); await tick(); const r = await within(P, 300); return [r, ctl.started]; })();",
+            "expect": [
+              {
+                "err": "sync boom",
+                "type": "Error"
+              },
+              [
+                0,
+                1
+              ]
+            ]
+          },
+          {
+            "name": "rejection_stops_new_jobs",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const P = settle(runPool(mk(5), 2)); await tick(); ctl.d[0].fail(new Error('boom')); await tick(); ctl.d[1].ok('late'); await tick(); await tick(); const r = await within(P, 300); return [r, ctl.started]; })();",
+            "expect": [
+              {
+                "err": "boom",
+                "type": "Error"
+              },
+              [
+                0,
+                1
+              ]
+            ]
+          },
+          {
+            "name": "rejects_with_same_error_object",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const boom = new RangeError('quota'); let got; const p = runPool([() => Promise.reject(boom), () => 1], 1); try { await p; } catch (e) { got = e; } return got === boom; })();",
+            "expect": true
+          },
+          {
+            "name": "later_failures_ignored",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const P = settle(runPool(mk(3), 3)); await tick(); ctl.d[2].fail(new Error('first')); ctl.d[0].fail(new Error('second')); ctl.d[1].ok(1); await tick(); return await P; })();",
+            "expect": {
+              "err": "first",
+              "type": "Error"
+            }
+          },
+          {
+            "name": "refills_slot_immediately",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const P = settle(runPool(mk(5), 2)); await tick(); ctl.d[0].ok(0); await tick(); const afterFirst = ctl.started.slice(); ctl.d[2].ok(2); await tick(); const afterSecond = ctl.started.slice(); for (const i of [1, 3, 4]) { ctl.d[i].ok(i); await tick(); } return [afterFirst, afterSecond, await P]; })();",
+            "expect": [
+              [
+                0,
+                1,
+                2
+              ],
+              [
+                0,
+                1,
+                2,
+                3
+              ],
+              {
+                "ok": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  4
+                ]
+              }
+            ]
+          },
+          {
+            "name": "starts_in_array_order",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const P = settle(runPool(mk(6), 3)); await tick(); for (const i of [2, 0, 1, 5, 4, 3]) { if (ctl.d[i]) ctl.d[i].ok(i); await tick(); } await finishAll(); await within(P, 300); return ctl.started; })();",
+            "expect": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5
+            ]
+          },
+          {
+            "name": "limit_one_is_sequential",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const P = settle(runPool(mk(4), 1)); for (let i = 0; i < 4; i++) { await tick(); ctl.d[i].ok(i * 10); } const r = await P; return [ctl.max, r]; })();",
+            "expect": [
+              1,
+              {
+                "ok": [
+                  0,
+                  10,
+                  20,
+                  30
+                ]
+              }
+            ]
+          },
+          {
+            "name": "limit_larger_than_job_count",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const P = settle(runPool(mk(3), 100)); await tick(); const s = ctl.started.length; ctl.d.forEach((d, i) => d.ok(i)); return [s, await P]; })();",
+            "expect": [
+              3,
+              {
+                "ok": [
+                  0,
+                  1,
+                  2
+                ]
+              }
+            ]
+          },
+          {
+            "name": "invalid_limits_rejected",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const out = []; for (const lim of [0, -1, 1.5, '2', NaN, Infinity, null, undefined]) { let r; try { r = await within(settle(runPool([() => 1], lim)), 200); } catch (e) { r = { err: 'sync', type: e && e.name }; } out.push(r && r.type); } return out; })();",
+            "expect": [
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError",
+              "RangeError"
+            ]
+          },
+          {
+            "name": "does_not_mutate_jobs",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const jobs = [() => 1, () => 2, () => 3]; const copy = jobs.slice(); await runPool(jobs, 2); return jobs.length === 3 && jobs.every((j, i) => j === copy[i]); })();",
+            "expect": true
+          },
+          {
+            "name": "many_microtask_jobs",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const n = 2000; let running = 0, max = 0; const jobs = Array.from({ length: n }, (_, i) => async () => { running++; max = Math.max(max, running); await null; await null; running--; return i * 2; }); const r = await runPool(jobs, 7); return [max, r.length, r[0], r[1999], r.every((v, i) => v === i * 2)]; })();",
+            "expect": [
+              7,
+              2000,
+              0,
+              3998,
+              true
+            ]
+          },
+          {
+            "name": "fifty_thousand_plain_jobs",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const n = 50000; const jobs = Array.from({ length: n }, (_, i) => () => i); const r = await within(runPool(jobs, 3), 1500); return Array.isArray(r) ? [r.length, r[49999], r.every((v, i) => v === i)] : r; })();",
+            "expect": [
+              50000,
+              49999,
+              true
+            ]
+          },
+          {
+            "name": "timer_based_jobs",
+            "script": "const tick = () => new Promise((r) => setTimeout(r, 0)); const ctl = { started: [], running: 0, max: 0, d: [] }; const mk = (n) => Array.from({ length: n }, (_, i) => () => { ctl.started.push(i); ctl.running++; ctl.max = Math.max(ctl.max, ctl.running); return new Promise((res, rej) => { const d = { done: false, ok: (v) => { if (d.done) return; d.done = true; ctl.running--; res(v); }, fail: (e) => { if (d.done) return; d.done = true; ctl.running--; rej(e); } }; ctl.d[i] = d; }); }); const finishAll = async () => { for (let k = 0; k < 12; k++) { await tick(); ctl.d.forEach((d, i) => d && d.ok('r' + i)); } }; const settle = (p) => p.then((v) => ({ ok: v }), (e) => ({ err: e && e.message !== undefined ? e.message : String(e), type: e && e.name })); const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r('still pending'), ms))]); return (async () => { const delays = [30, 5, 20, 1, 12, 8]; let running = 0, max = 0; const jobs = delays.map((ms, i) => () => new Promise((res) => { running++; max = Math.max(max, running); setTimeout(() => { running--; res('t' + i); }, ms); })); const r = await runPool(jobs, 3); return [max, r]; })();",
+            "expect": [
+              3,
+              [
+                "t0",
+                "t1",
+                "t2",
+                "t3",
+                "t4",
+                "t5"
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "slug": "debug-csv-parse",
+    "track": "debug",
+    "title_en": "Fix the CSV Parser",
+    "title_ar": "إصلاح محلّل CSV",
+    "summary_en": "Repair a CSV parser that splits quoted line breaks, mangles doubled quotes, drops empty fields and blank records, and leaves CR characters behind.",
+    "summary_ar": "إصلاح محلّل CSV يقسم فواصل الأسطر داخل الحقول المقتبسة، ويُفسد علامات الاقتباس المضاعفة، ويُسقط الحقول الفارغة والسجلات الخالية، ويترك محارف CR.",
+    "prompt": "# Fix the CSV Parser\n\nA CRM imports customer lists that users export from spreadsheets (Excel on Windows, Google Sheets, LibreOffice). The import uses this parser.\n\nThe doc comment describes the intended behaviour and is correct; the implementation is not. Users filed the bug reports below. Find the root causes, fix **all** defects (including ones the reports only hint at) and keep the same function name and signature.\n\n## Current code\n```js\n/**\n * Parses CSV text into an array of records, each an array of string fields.\n *\n * - Fields are separated by commas; records end with LF (\"\\n\") or CRLF (\"\\r\\n\").\n *   A CR that is not followed by LF is an ordinary character.\n * - A field whose first character is a double quote is quoted: it ends at the next quote that is\n *   not doubled. Inside it, commas, CR and LF are literal and \"\" stands for one \". Characters after\n *   the closing quote, up to the next comma or record end, are appended to the field as they are.\n *   An unterminated quoted field extends to the end of the text.\n * - A quote anywhere else in an unquoted field is an ordinary character.\n * - Every record has at least one field: an empty line is a record with one empty field, [\"\"].\n * - A line break at the very end of the text does not start another record; \"\" gives [].\n * Input can be several megabytes; parsing must take linear time.\n */\nfunction parseCsv(text) {\n  const rows = [];\n  for (const line of text.split('\\n')) {\n    if (line === '') continue;\n    const row = [];\n    let field = '';\n    let inQuotes = false;\n    for (let i = 0; i < line.length; i++) {\n      const ch = line[i];\n      if (inQuotes) {\n        if (ch === '\"') inQuotes = false;\n        else field += ch;\n      } else if (ch === '\"') {\n        inQuotes = true;\n      } else if (ch === ',') {\n        row.push(field);\n        field = '';\n      } else {\n        field += ch;\n      }\n    }\n    if (field !== '') row.push(field);\n    rows.push(row);\n  }\n  return rows;\n}\n```\n\n## Bug reports\n1. Customers whose address contains a line break (quoted in the file) are split into two broken rows.\n2. A note exported as `\"He said \"\"hi\"\"\"` is imported as `He said hi` (the quotes disappear) instead of `He said \"hi\"`.\n3. Rows ending with an empty column lose that column (`a,b,` has 2 fields instead of 3; the same for a final `\"\"`), which shifts columns in the preview.\n4. Files saved on Windows: the last field of every line ends with an invisible `\\r`, so e-mail addresses fail validation.\n5. Blank lines vanish, so the row numbers in our validation messages are off.\n\n## Output format\nReply with exactly one ```js code block containing the complete solution:\n- plain JavaScript (ES2022) that declares `function parseCsv(...)` at the top level, plus any helpers it needs;\n- no `import`, `export`, `require` or `module.exports`; no DOM, Node.js or network APIs; no external libraries;\n- the code is evaluated as a classic script inside a Web Worker and called directly by hidden unit tests — do not read input, print output or include your own tests.\nReturn the complete fixed code (the documented function plus any helpers), not a diff.",
+    "output_type": "js",
+    "difficulty": 2,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "diagnosis",
+        "label_en": "Root-cause fixes",
+        "label_ar": "إصلاح السبب الجذري",
+        "weight": 3,
+        "guide": "Each reported symptom is fixed at its root cause (not patched for the example input); unrelated behaviour and the public signature are preserved; no new bugs introduced."
+      },
+      {
+        "key": "robustness",
+        "label_en": "Robustness & edge cases",
+        "label_ar": "المتانة والحالات الحدّية",
+        "weight": 3,
+        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way."
+      },
+      {
+        "key": "minimal_diff",
+        "label_en": "Focused, reviewable change",
+        "label_ar": "تعديل مركّز قابل للمراجعة",
+        "weight": 2,
+        "guide": "The fix keeps the original structure where it was sound, so a reviewer can map each change to a reported bug; brief comments explain non-obvious fixes."
+      },
+      {
+        "key": "readability",
+        "label_en": "Readability & structure",
+        "label_ar": "المقروئية والبنية",
+        "weight": 2,
+        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "parses",
+          "type": "js_parses",
+          "weight": 1,
+          "label_en": "Code parses",
+          "label_ar": "الشيفرة سليمة البنية"
+        }
+      ],
+      "tests": {
+        "entry": "parseCsv",
+        "timeout_ms": 2000,
+        "weight": 9,
+        "cases": [
+          {
+            "name": "simple_rows",
+            "args": [
+              "a,b,c\n1,2,3"
+            ],
+            "expect": [
+              [
+                "a",
+                "b",
+                "c"
+              ],
+              [
+                "1",
+                "2",
+                "3"
+              ]
+            ]
+          },
+          {
+            "name": "empty_text",
+            "args": [
+              ""
+            ],
+            "expect": []
+          },
+          {
+            "name": "single_field",
+            "args": [
+              "hello"
+            ],
+            "expect": [
+              [
+                "hello"
+              ]
+            ]
+          },
+          {
+            "name": "final_newline_no_extra_record",
+            "args": [
+              "a,b\n1,2\n"
+            ],
+            "expect": [
+              [
+                "a",
+                "b"
+              ],
+              [
+                "1",
+                "2"
+              ]
+            ]
+          },
+          {
+            "name": "crlf_records",
+            "args": [
+              "id,name\r\n1,Ana\r\n2,Bo\r\n"
+            ],
+            "expect": [
+              [
+                "id",
+                "name"
+              ],
+              [
+                "1",
+                "Ana"
+              ],
+              [
+                "2",
+                "Bo"
+              ]
+            ]
+          },
+          {
+            "name": "lone_cr_is_data",
+            "args": [
+              "a\rb,c"
+            ],
+            "expect": [
+              [
+                "a\rb",
+                "c"
+              ]
+            ]
+          },
+          {
+            "name": "quoted_comma",
+            "args": [
+              "name,city\n\"Doe, Jane\",Paris"
+            ],
+            "expect": [
+              [
+                "name",
+                "city"
+              ],
+              [
+                "Doe, Jane",
+                "Paris"
+              ]
+            ]
+          },
+          {
+            "name": "quoted_newline",
+            "args": [
+              "id,address\n7,\"12 Main St\nApt 4\"\n8,x"
+            ],
+            "expect": [
+              [
+                "id",
+                "address"
+              ],
+              [
+                "7",
+                "12 Main St\nApt 4"
+              ],
+              [
+                "8",
+                "x"
+              ]
+            ]
+          },
+          {
+            "name": "quoted_crlf_kept",
+            "args": [
+              "\"line1\r\nline2\",z\r\n"
+            ],
+            "expect": [
+              [
+                "line1\r\nline2",
+                "z"
+              ]
+            ]
+          },
+          {
+            "name": "doubled_quotes",
+            "args": [
+              "\"He said \"\"hi\"\"\",ok"
+            ],
+            "expect": [
+              [
+                "He said \"hi\"",
+                "ok"
+              ]
+            ]
+          },
+          {
+            "name": "only_doubled_quote",
+            "args": [
+              "\"\"\"\""
+            ],
+            "expect": [
+              [
+                "\""
+              ]
+            ]
+          },
+          {
+            "name": "trailing_empty_field",
+            "args": [
+              "a,b,\n1,2,"
+            ],
+            "expect": [
+              [
+                "a",
+                "b",
+                ""
+              ],
+              [
+                "1",
+                "2",
+                ""
+              ]
+            ]
+          },
+          {
+            "name": "trailing_empty_quoted_field",
+            "args": [
+              "a,\"\""
+            ],
+            "expect": [
+              [
+                "a",
+                ""
+              ]
+            ]
+          },
+          {
+            "name": "all_empty_fields",
+            "args": [
+              ",,"
+            ],
+            "expect": [
+              [
+                "",
+                "",
+                ""
+              ]
+            ]
+          },
+          {
+            "name": "empty_line_in_middle",
+            "args": [
+              "a\n\nb"
+            ],
+            "expect": [
+              [
+                "a"
+              ],
+              [
+                ""
+              ],
+              [
+                "b"
+              ]
+            ]
+          },
+          {
+            "name": "empty_line_before_final_newline",
+            "args": [
+              "a\n\n"
+            ],
+            "expect": [
+              [
+                "a"
+              ],
+              [
+                ""
+              ]
+            ]
+          },
+          {
+            "name": "only_newline",
+            "args": [
+              "\n"
+            ],
+            "expect": [
+              [
+                ""
+              ]
+            ]
+          },
+          {
+            "name": "two_newlines",
+            "args": [
+              "\n\n"
+            ],
+            "expect": [
+              [
+                ""
+              ],
+              [
+                ""
+              ]
+            ]
+          },
+          {
+            "name": "quote_inside_unquoted_field",
+            "args": [
+              "ab\"c,d\"e"
+            ],
+            "expect": [
+              [
+                "ab\"c",
+                "d\"e"
+              ]
+            ]
+          },
+          {
+            "name": "text_after_closing_quote",
+            "args": [
+              "\"ab\"cd,e"
+            ],
+            "expect": [
+              [
+                "abcd",
+                "e"
+              ]
+            ]
+          },
+          {
+            "name": "leading_space_then_quote_is_literal",
+            "args": [
+              " \"x\",y"
+            ],
+            "expect": [
+              [
+                " \"x\"",
+                "y"
+              ]
+            ]
+          },
+          {
+            "name": "unterminated_quote_runs_to_end",
+            "args": [
+              "a,\"bc\nd,e"
+            ],
+            "expect": [
+              [
+                "a",
+                "bc\nd,e"
+              ]
+            ]
+          },
+          {
+            "name": "unicode_fields",
+            "args": [
+              "مدينة,😀\n\"東京, 日本\",ok"
+            ],
+            "expect": [
+              [
+                "مدينة",
+                "😀"
+              ],
+              [
+                "東京, 日本",
+                "ok"
+              ]
+            ]
+          },
+          {
+            "name": "mixed_line_endings",
+            "args": [
+              "a\r\nb\nc\r\n"
+            ],
+            "expect": [
+              [
+                "a"
+              ],
+              [
+                "b"
+              ],
+              [
+                "c"
+              ]
+            ]
+          },
+          {
+            "name": "large_input_linear_time",
+            "script": "const rows = []; for (let i = 0; i < 60000; i++) rows.push(i + ',\"name ' + i + ', with comma\",\"say \"\"hi\"\" ' + i + '\",'); const text = rows.join('\\r\\n') + '\\r\\n'; const r = parseCsv(text); return [r.length, r[59999], r.every((row) => row.length === 4)];",
+            "expect": [
+              60000,
+              [
+                "59999",
+                "name 59999, with comma",
+                "say \"hi\" 59999",
+                ""
+              ],
+              true
+            ]
+          },
+          {
+            "name": "long_quoted_field",
+            "script": "const body = 'x'.repeat(300000) + '\\n' + '\"\"'.repeat(100000); const r = parseCsv('\"' + body + '\",end'); return [r.length, r[0].length, r[0][0].length, r[0][1]];",
+            "expect": [
+              1,
+              2,
+              400001,
+              "end"
+            ]
+          }
+        ]
+      }
+    }
+  }
+]

@@ -1,0 +1,242 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quillstack — Pricing</title>
+<style>
+  :root {
+    --paper: #f7f3ec; --paper-2: #efe8dc; --card: #fffdf9; --ink: #1d1a16; --ink-2: #4a443b; --muted: #7b7365;
+    --line: #e2d9ca; --accent: #1f4d3f; --accent-2: #2f6b58; --accent-soft: #e3ece6; --gold: #b38a3e;
+    --radius: 18px; --shadow: 0 1px 2px rgba(29,26,22,.05), 0 12px 32px -12px rgba(29,26,22,.18);
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.6 var(--sans); }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 6px; }
+  .wrap { width: min(1120px, 100% - 40px); margin-inline: auto; }
+  header.top { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--serif); font-size: 22px; letter-spacing: -.01em; text-decoration: none; }
+  .brand svg { width: 28px; height: 28px; }
+  .top nav a { margin-inline-start: 22px; text-decoration: none; color: var(--ink-2); font-size: 15px; }
+  .top nav a:hover { color: var(--ink); }
+  .hero { text-align: center; padding: 56px 0 28px; }
+  .eyebrow { text-transform: uppercase; letter-spacing: .18em; font-size: 12px; color: var(--accent-2); font-weight: 600; }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(36px, 6vw, 64px); line-height: 1.05; letter-spacing: -.02em; margin: 14px auto 16px; max-width: 14ch; }
+  .lead { color: var(--ink-2); font-size: 18px; max-width: 46ch; margin: 0 auto 32px; }
+  .billing { display: inline-flex; align-items: center; gap: 14px; padding: 8px 10px; border: 1px solid var(--line); background: var(--card); border-radius: 999px; box-shadow: var(--shadow); }
+  .billing .lbl { font-weight: 600; font-size: 15px; color: var(--muted); transition: color .2s; cursor: pointer; user-select: none; }
+  .billing .lbl.on { color: var(--ink); }
+  .switch { position: relative; width: 56px; height: 32px; border-radius: 999px; border: 0; padding: 0; background: var(--accent); cursor: pointer; transition: background .25s; }
+  .switch[aria-checked="false"] { background: #b9b0a1; }
+  .switch .knob { position: absolute; top: 4px; inset-inline-start: 4px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.25); transition: transform .28s cubic-bezier(.3,1.4,.5,1); }
+  .switch[aria-checked="true"] .knob { transform: translateX(24px); }
+  .save { font-size: 12px; font-weight: 700; color: var(--accent); background: var(--accent-soft); padding: 4px 10px; border-radius: 999px; }
+  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin: 44px 0 72px; align-items: stretch; }
+  .plan { position: relative; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 30px 28px 28px; box-shadow: var(--shadow); transition: transform .25s, box-shadow .25s; }
+  .plan:hover { transform: translateY(-3px); }
+  .plan.featured { background: var(--accent); color: #f4efe6; border-color: var(--accent); box-shadow: 0 30px 60px -24px rgba(31,77,63,.55); }
+  .plan.featured .desc, .plan.featured .note, .plan.featured li { color: #d6e2db; }
+  .badge { position: absolute; top: -13px; inset-inline-start: 28px; background: var(--gold); color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 5px 12px; border-radius: 999px; }
+  .plan h2 { font-family: var(--serif); font-weight: 400; font-size: 28px; margin: 0 0 6px; }
+  .desc { color: var(--ink-2); margin: 0 0 22px; font-size: 15px; min-height: 48px; }
+  .price { display: flex; align-items: baseline; gap: 6px; height: 64px; }
+  .amount { font-family: var(--serif); font-size: 52px; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; display: inline-block; transition: opacity .18s, transform .18s; }
+  .amount.swap { opacity: 0; transform: translateY(6px); }
+  .per { color: var(--muted); font-size: 15px; }
+  .plan.featured .per { color: #b8cdc2; }
+  .note { font-size: 14px; color: var(--muted); margin: 4px 0 22px; min-height: 22px; }
+  .plan ul { list-style: none; padding: 0; margin: 0 0 28px; display: grid; gap: 10px; flex: 1; }
+  .plan li { display: flex; gap: 10px; align-items: flex-start; color: var(--ink-2); font-size: 15px; }
+  .plan li svg { flex: none; width: 18px; height: 18px; margin-top: 3px; color: var(--accent-2); }
+  .plan.featured li svg { color: #e9c77f; }
+  .cta { display: block; text-align: center; padding: 14px 18px; border-radius: 12px; font-weight: 650; font-size: 15px; text-decoration: none; border: 1px solid var(--ink); color: var(--ink); background: transparent; cursor: pointer; transition: background .2s, color .2s; min-height: 48px; }
+  .cta:hover { background: var(--ink); color: var(--paper); }
+  .plan.featured .cta { background: #f4efe6; color: var(--accent); border-color: #f4efe6; }
+  .plan.featured .cta:hover { background: #fff; }
+  section h2.sec { font-family: var(--serif); font-weight: 400; font-size: clamp(28px, 4vw, 40px); letter-spacing: -.01em; margin: 0 0 8px; }
+  .sec-sub { color: var(--ink-2); margin: 0 0 26px; }
+  .table-wrap { position: relative; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; min-width: 560px; }
+  caption { text-align: start; padding: 0; }
+  th, td { padding: 16px 20px; text-align: center; border-bottom: 1px solid var(--line); font-size: 15px; }
+  thead th { font-family: var(--serif); font-weight: 400; font-size: 20px; background: var(--paper-2); position: sticky; top: 0; }
+  thead th.hl { color: var(--accent); }
+  tbody th { text-align: start; font-weight: 500; color: var(--ink); }
+  tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: #faf6ef; }
+  td.hl { background: rgba(31,77,63,.045); }
+  .yes { color: var(--accent-2); } .no { color: #b9b0a1; }
+  .yes svg { width: 20px; height: 20px; vertical-align: middle; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  #faq { margin: 80px 0 40px; display: grid; grid-template-columns: 1fr 1.6fr; gap: 40px; }
+  details { border-bottom: 1px solid var(--line); }
+  details:first-of-type { border-top: 1px solid var(--line); }
+  summary { list-style: none; cursor: pointer; padding: 20px 4px; font-weight: 600; font-size: 17px; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+  summary::-webkit-details-marker { display: none; }
+  summary .pm { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; transition: transform .25s, background .2s; }
+  details[open] summary .pm { transform: rotate(45deg); background: var(--accent-soft); }
+  details p { margin: 0 4px 22px; color: var(--ink-2); max-width: 60ch; }
+  footer { border-top: 1px solid var(--line); margin-top: 40px; padding: 28px 0 48px; color: var(--muted); font-size: 14px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  @media (max-width: 900px) {
+    .plans { grid-template-columns: 1fr; max-width: 520px; margin-inline: auto; }
+    #faq { grid-template-columns: 1fr; gap: 12px; }
+    .top nav { display: none; }
+    .desc { min-height: 0; }
+  }
+  @media (max-width: 420px) {
+    .billing { gap: 8px; padding: 6px 8px; }
+    .billing .lbl { font-size: 14px; }
+    .save { display: none; }
+    .plan { padding: 26px 22px; }
+    th, td { padding: 12px 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="#" aria-label="Quillstack home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="8" fill="#1f4d3f"/><path d="M10 22c4-1 9-6 12-12-5 2-9 6-11 11" fill="none" stroke="#f4efe6" stroke-width="2" stroke-linecap="round"/><path d="M9 24h14" stroke="#e9c77f" stroke-width="2" stroke-linecap="round"/></svg>
+      Quillstack
+    </a>
+    <nav aria-label="Primary"><a href="#">Product</a><a href="#">Research teams</a><a href="#compare">Compare</a><a href="#faq">FAQ</a></nav>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="eyebrow">Pricing</div>
+      <h1 id="hero-title">Write papers together, without the chaos.</h1>
+      <p class="lead">Quillstack keeps drafts, citations and reviews in one calm workspace — so your lab ships manuscripts, not merge conflicts.</p>
+      <div class="billing">
+        <span class="lbl" id="lbl-monthly" data-mode="monthly">Monthly</span>
+        <button type="button" class="switch" id="billing-toggle" role="switch" aria-checked="true" aria-label="Annual billing"><span class="knob"></span></button>
+        <span class="lbl on" id="lbl-annual" data-mode="annual">Annual</span>
+        <span class="save">2 months free</span>
+      </div>
+    </section>
+
+    <section aria-label="Plans" class="plans" id="plans"></section>
+
+    <section aria-labelledby="cmp-title">
+      <h2 class="sec" id="cmp-title">Compare plans</h2>
+      <p class="sec-sub">Every plan includes unlimited collaborators on public preprints and end-to-end encrypted backups.</p>
+      <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cmp-title">
+        <table id="compare">
+          <caption class="sr">Feature comparison between Solo, Team and Institution plans</caption>
+          <thead><tr><th scope="col"><span class="sr">Feature</span></th><th scope="col">Solo</th><th scope="col" class="hl">Team</th><th scope="col">Institution</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="faq" aria-labelledby="faq-title">
+      <div>
+        <h2 class="sec" id="faq-title">Questions, answered</h2>
+        <p class="sec-sub">Still unsure? Our team replies within one working day.</p>
+      </div>
+      <div id="faq-list"></div>
+    </section>
+  </main>
+
+  <footer>
+    <span>© 2026 Quillstack (fictional). Prices in USD, excluding applicable taxes.</span>
+    <span>Annual plans can be cancelled for a pro-rata refund within 30 days.</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const PLANS = [
+    { id: 'solo', name: 'Solo', monthly: 9, perUser: false, desc: 'For independent researchers drafting their next paper.',
+      features: ['Unlimited documents', 'Citation manager (BibTeX, RIS)', '30-day version history', 'LaTeX & Markdown export', 'Email support'], cta: 'Start writing' },
+    { id: 'team', name: 'Team', monthly: 24, perUser: true, featured: true, desc: 'For labs of 2–50 co-authoring in real time.',
+      features: ['Everything in Solo', 'Real-time co-editing', 'Review workflows & approvals', '1-year version history', 'Priority support'], cta: 'Start 14-day trial' },
+    { id: 'inst', name: 'Institution', monthly: 59, perUser: true, desc: 'For departments of 51+ with compliance needs.',
+      features: ['Everything in Team', 'Single sign-on (SAML)', 'Unlimited version history', 'Dedicated success manager', 'Data residency options'], cta: 'Talk to sales' },
+  ];
+  const ROWS = [
+    ['Unlimited documents', true, true, true],
+    ['Real-time co-editing', false, true, true],
+    ['Citation manager (BibTeX, RIS)', true, true, true],
+    ['Version history', '30 days', '1 year', 'Unlimited'],
+    ['LaTeX & Markdown export', true, true, true],
+    ['Review workflows & approvals', false, true, true],
+    ['Single sign-on (SAML)', false, false, true],
+    ['Dedicated success manager', false, false, true],
+  ];
+  const FAQ = [
+    ['Can I switch plans later?', 'Yes. Upgrades apply immediately and are pro-rated to the day; downgrades take effect at the end of your current billing period.'],
+    ['Do you offer discounts for students?', 'Students and PhD candidates with a university email get Team for the price of Solo. Write to us and we will verify it within a day.'],
+    ['What counts as a user?', 'Anyone who can edit or comment in your workspace. Read-only reviewers and public preprint readers are always free.'],
+    ['Where is my data stored?', 'In EU data centres by default. Institution plans can choose EU, US or Canadian residency and receive a signed DPA.'],
+  ];
+  const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const money = (n) => '$' + (Number.isInteger(n) ? String(n) : n.toFixed(2));
+  const annualPerMonth = (p) => Math.round((p.monthly * 10 / 12) * 100) / 100;
+  let annual = true;
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function renderPlans() {
+    document.getElementById('plans').innerHTML = PLANS.map((p) => `
+      <article class="plan${p.featured ? ' featured' : ''}" aria-labelledby="pl-${p.id}">
+        ${p.featured ? '<span class="badge">Most popular</span>' : ''}
+        <h2 id="pl-${p.id}">${esc(p.name)}</h2>
+        <p class="desc">${esc(p.desc)}</p>
+        <div class="price"><span class="amount" data-plan="${p.id}"></span><span class="per">${p.perUser ? 'per user / month' : '/ month'}</span></div>
+        <p class="note" data-note="${p.id}"></p>
+        <ul>${p.features.map((f) => `<li>${CHECK}<span>${esc(f)}</span></li>`).join('')}</ul>
+        <a class="cta" href="#">${esc(p.cta)}</a>
+      </article>`).join('');
+  }
+
+  function renderTable() {
+    const cell = (v, i) => {
+      const hl = i === 1 ? ' hl' : '';
+      if (v === true) return `<td class="yes${hl}">${CHECK}<span class="sr">Included</span></td>`;
+      if (v === false) return `<td class="no${hl}"><span aria-hidden="true">—</span><span class="sr">Not included</span></td>`;
+      return `<td class="${hl.trim()}">${esc(v)}</td>`;
+    };
+    document.querySelector('#compare tbody').innerHTML = ROWS.map(([name, ...v]) => `<tr><th scope="row">${esc(name)}</th>${v.map(cell).join('')}</tr>`).join('');
+  }
+
+  function renderFaq() {
+    document.getElementById('faq-list').innerHTML = FAQ.map(([q, a]) => `
+      <details><summary>${esc(q)}<span class="pm" aria-hidden="true">+</span></summary><p>${esc(a)}</p></details>`).join('');
+  }
+
+  function updatePrices(animate) {
+    PLANS.forEach((p) => {
+      const amount = document.querySelector(`.amount[data-plan="${p.id}"]`);
+      const note = document.querySelector(`.note[data-note="${p.id}"]`);
+      const value = annual ? annualPerMonth(p) : p.monthly;
+      const apply = () => {
+        amount.textContent = money(value);
+        note.textContent = annual ? `Billed ${money(p.monthly * 10)} yearly${p.perUser ? ' per user' : ''}` : 'Billed monthly';
+        amount.classList.remove('swap');
+      };
+      if (animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) { amount.classList.add('swap'); setTimeout(apply, 160); } else apply();
+    });
+    const t = document.getElementById('billing-toggle');
+    t.setAttribute('aria-checked', String(annual));
+    document.getElementById('lbl-annual').classList.toggle('on', annual);
+    document.getElementById('lbl-monthly').classList.toggle('on', !annual);
+  }
+
+  renderPlans(); renderTable(); renderFaq(); updatePrices(false);
+  document.getElementById('billing-toggle').addEventListener('click', () => { annual = !annual; updatePrices(true); });
+  document.querySelectorAll('.billing .lbl').forEach((l) => l.addEventListener('click', () => {
+    const want = l.dataset.mode === 'annual';
+    if (want !== annual) { annual = want; updatePrices(true); }
+  }));
+})();
+</script>
+</body>
+</html>

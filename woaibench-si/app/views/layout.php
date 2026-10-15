@@ -1,18 +1,24 @@
 <?php
 /**
  * Public layout. Variables: see View.php docblock. $content = rendered page.
+ * Error templates rendered through abort() get noindex automatically (an integer $code >= 400).
  */
 defined('WB') || exit;
 
 $siteName = (string) setting('site_name', 'WOAIBench');
 $tagline = lang() === 'ar' ? (string) setting('tagline_ar') : (string) setting('tagline_en');
 $pageTitle = isset($title) && $title !== '' ? $title . ' · ' . $siteName : $siteName . ' — ' . $tagline;
-$desc = $description ?? $tagline;
+$desc = isset($description) && $description !== '' ? $description : $tagline;
 $canon = $canonical ?? url(current_path(), [], true);
 $ogImg = $og_image ?? url('/assets/img/og.png', [], true);
 $page_css = $page_css ?? [];
 $page_js = $page_js ?? [];
 $nav_active = $nav_active ?? '';
+$robots = $robots ?? ((isset($code) && is_int($code) && $code >= 400) ? 'noindex' : null);
+$altQuery = static fn(string $l): string => url(current_path(), array_merge(array_filter($_GET, 'is_string'), ['lang' => $l]), true);
+$fontPreload = lang() === 'ar'
+    ? ['fonts/ibm-plex-sans-arabic-arabic-400-normal.woff2', 'fonts/noto-kufi-arabic-arabic-wght-normal.woff2']
+    : ['fonts/inter-latin-wght-normal.woff2', 'fonts/instrument-serif-latin-400-normal.woff2'];
 ?><!doctype html>
 <html lang="<?= e(lang()) ?>" dir="<?= e(text_dir()) ?>" data-theme="dark">
 <head>
@@ -20,23 +26,32 @@ $nav_active = $nav_active ?? '';
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title><?= e($pageTitle) ?></title>
 <meta name="description" content="<?= e($desc) ?>">
-<?php if (!empty($robots)): ?><meta name="robots" content="<?= e($robots) ?>"><?php endif; ?>
+<?php if (!empty($robots)): ?><meta name="robots" content="<?= e($robots) ?>">
+<?php endif; ?>
 <link rel="canonical" href="<?= e($canon) ?>">
-<link rel="alternate" hreflang="ar" href="<?= e(url(current_path(), array_merge($_GET, ['lang' => 'ar']), true)) ?>">
-<link rel="alternate" hreflang="en" href="<?= e(url(current_path(), array_merge($_GET, ['lang' => 'en']), true)) ?>">
+<link rel="alternate" hreflang="ar" href="<?= e($altQuery('ar')) ?>">
+<link rel="alternate" hreflang="en" href="<?= e($altQuery('en')) ?>">
+<link rel="alternate" hreflang="x-default" href="<?= e($altQuery((string) setting('default_lang', 'ar'))) ?>">
 <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
-<meta name="theme-color" content="#07080C">
+<meta name="theme-color" content="#08090C">
+<meta name="color-scheme" content="dark light">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="<?= e($siteName) ?>">
+<meta property="og:locale" content="<?= lang() === 'ar' ? 'ar_AR' : 'en_US' ?>">
 <meta property="og:title" content="<?= e($pageTitle) ?>">
 <meta property="og:description" content="<?= e($desc) ?>">
 <meta property="og:image" content="<?= e($ogImg) ?>">
+<?php if (!isset($og_image)): ?><meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<?php endif; ?>
 <meta property="og:url" content="<?= e($canon) ?>">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="<?= e(asset('img/favicon.svg')) ?>" type="image/svg+xml">
 <link rel="apple-touch-icon" href="<?= e(asset('img/apple-touch-icon.png')) ?>">
 <link rel="manifest" href="<?= e(url('/site.webmanifest')) ?>">
-<script<?= nonce_attr() ?>>(function(){try{var t=localStorage.getItem('wb_theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}else if(window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches){document.documentElement.setAttribute('data-theme','light');}}catch(e){}})();</script>
+<script<?= nonce_attr() ?>>(function(){var d=document.documentElement;d.className+=' js';try{var t=localStorage.getItem('wb_theme');if(t==='light'||t==='dark'){d.setAttribute('data-theme',t);}else if(window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches){d.setAttribute('data-theme','light');}}catch(e){}})();</script>
+<?php foreach ($fontPreload as $font): ?><link rel="preload" href="<?= e(base_path() . '/assets/' . $font) ?>" as="font" type="font/woff2" crossorigin>
+<?php endforeach; ?>
 <link rel="stylesheet" href="<?= e(asset('css/fonts.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
 <?php foreach ($page_css as $css): ?><link rel="stylesheet" href="<?= e(asset($css)) ?>">
@@ -47,9 +62,9 @@ $nav_active = $nav_active ?? '';
 <body class="<?= e($body_class ?? '') ?>">
 <a class="skip-link" href="#main"><?= _e('common.skip') ?></a>
 <?php if (empty($hide_chrome)) { echo partial('partials/header', ['nav_active' => $nav_active]); } ?>
-<main id="main">
+<main id="main" tabindex="-1">
 <?php foreach (flashes() as $f): ?>
-  <div class="container"><div class="alert alert-<?= e($f['type']) ?>" role="status"><?= e($f['message']) ?></div></div>
+  <div class="container"><div class="alert alert-<?= e($f['type']) ?>" role="status"><?= ui_icon(['success' => 'check-circle', 'error' => 'x-circle', 'warn' => 'alert'][$f['type']] ?? 'info', 18) ?><div class="flex-1"><?= e($f['message']) ?></div><button class="btn-icon" type="button" data-dismiss aria-label="<?= _e('design.dismiss') ?>"><?= ui_icon('x', 16) ?></button></div></div>
 <?php endforeach; ?>
 <?= $content ?>
 </main>

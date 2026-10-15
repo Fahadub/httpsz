@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurora Notes</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font: 16px/1.6 system-ui, sans-serif; background: radial-gradient(circle at 20% 10%, #24324f, #0b0d14 60%); color: #eef; min-height: 100vh; }
+  header { padding: 32px 24px 8px; max-width: 880px; margin: 0 auto; }
+  h1 { font-size: clamp(28px, 6vw, 52px); margin: 0; letter-spacing: -1px; }
+  main { max-width: 880px; margin: 0 auto; padding: 16px 24px 48px; display: grid; gap: 16px; }
+  .card { padding: 20px; border-radius: 16px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); }
+  .orb { width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg,#7cf,#c8f); animation: float 2s ease-in-out infinite alternate; }
+  @keyframes float { to { transform: translateY(-12px) rotate(25deg); } }
+  button { font: inherit; padding: 10px 18px; border-radius: 10px; border: 0; background: #7cf; color: #001; cursor: pointer; }
+  #panel[hidden] { display: none; }
+  label { display: block; margin-bottom: 6px; }
+  input { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid #556; background: #111827; color: #eef; width: 100%; box-sizing: border-box; }
+</style>
+</head>
+<body>
+<header><h1>Aurora Notes</h1><p>A tiny, accessible notes widget used by the verifier tests.</p></header>
+<main>
+  <section class="card">
+    <div class="orb" role="img" aria-label="Decorative orb"></div>
+    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Ccircle cx='20' cy='20' r='18' fill='%23fc6'/%3E%3C/svg%3E" alt="Sun icon" width="40" height="40">
+  </section>
+  <section class="card">
+    <button id="toggle" type="button" aria-expanded="false">Show details</button>
+    <div id="panel" hidden><p>Details are now visible.</p></div>
+  </section>
+  <section class="card">
+    <label for="note">New note</label>
+    <input id="note" type="text" placeholder="Type…">
+    <p>Counter: <output id="count">0</output> (use → / ←)</p>
+  </section>
+</main>
+<script>
+  const btn = document.getElementById('toggle');
+  const panel = document.getElementById('panel');
+  btn.addEventListener('click', () => {
+    const open = panel.hidden;
+    panel.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+    btn.textContent = open ? 'Hide details' : 'Show details';
+  });
+  let n = 0;
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') n++;
+    if (e.key === 'ArrowLeft') n--;
+    document.getElementById('count').textContent = n;
+  });
+</script>
+</body>
+</html>

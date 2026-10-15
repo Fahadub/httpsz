@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Spinning Prism</title>
+<style>html,body{margin:0;height:100%;background:#000}canvas{display:block;width:100%;height:100%}</style></head>
+<body>
+<canvas id="gl"></canvas>
+<script>
+  const cv = document.getElementById('gl');
+  cv.width = innerWidth; cv.height = innerHeight;
+  const gl = cv.getContext('webgl'); // preserveDrawingBuffer is NOT requested: the probe pre-script adds it
+  const vs = 'attribute vec2 p; attribute vec3 col; uniform float a; varying vec3 v; void main(){ float c=cos(a), s=sin(a); gl_Position=vec4(p.x*c-p.y*s, p.x*s+p.y*c, 0.0, 1.0); v=col; }';
+  const fs = 'precision mediump float; varying vec3 v; void main(){ gl_FragColor=vec4(v,1.0); }';
+  function sh(t, src) { const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); return s; }
+  const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(pr); gl.useProgram(pr);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,0.8, 1,0.3,0.3,  -0.7,-0.5, 0.3,1,0.4,  0.7,-0.5, 0.3,0.5,1]), gl.STATIC_DRAW);
+  const P = gl.getAttribLocation(pr, 'p'), C = gl.getAttribLocation(pr, 'col');
+  gl.enableVertexAttribArray(P); gl.vertexAttribPointer(P, 2, gl.FLOAT, false, 20, 0);
+  gl.enableVertexAttribArray(C); gl.vertexAttribPointer(C, 3, gl.FLOAT, false, 20, 8);
+  const A = gl.getUniformLocation(pr, 'a');
+  function frame(ts) { gl.viewport(0, 0, cv.width, cv.height); gl.clearColor(0.02, 0.02, 0.06, 1); gl.clear(gl.COLOR_BUFFER_BIT); gl.uniform1f(A, ts / 700); gl.drawArrays(gl.TRIANGLES, 0, 3); requestAnimationFrame(frame); }
+  requestAnimationFrame(frame);
+</script>
+</body></html>

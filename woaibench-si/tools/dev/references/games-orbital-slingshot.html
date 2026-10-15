@@ -1,0 +1,274 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Slingshot — orbital puzzle</title>
+<style>
+  :root { --bg: #04050c; --panel: rgba(12,15,30,.78); --line: rgba(160,180,255,.18); --text: #eef1ff; --muted: #98a0c4; --accent: #7cf0d0; --warn: #ff7a6b; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.35 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+  #space { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+  .hud { position: fixed; top: 12px; inset-inline: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; pointer-events: none; }
+  .chip { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-weight: 600; backdrop-filter: blur(6px); font-variant-numeric: tabular-nums; }
+  #level { color: var(--accent); }
+  .tools { margin-inline-start: auto; display: flex; gap: 6px; pointer-events: auto; }
+  .tools button { font: inherit; font-weight: 600; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; cursor: pointer; min-height: 36px; }
+  .tools button[aria-pressed="true"] { background: rgba(124,240,208,.18); border-color: var(--accent); color: var(--accent); }
+  .help { position: fixed; bottom: 10px; inset-inline: 0; text-align: center; color: var(--muted); font-size: 12px; pointer-events: none; padding: 0 12px; }
+  .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(2,3,10,.55); backdrop-filter: blur(3px); }
+  .overlay[hidden] { display: none; }
+  .card { background: #0d1124; border: 1px solid var(--line); border-radius: 18px; padding: 24px 30px; text-align: center; max-width: 90%; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+  .card h2 { margin: 0 0 6px; font-size: 26px; }
+  .stars { font-size: 30px; letter-spacing: 6px; color: #ffd36e; margin: 4px 0 8px; }
+  .stars .off { color: #3a3f5c; }
+  .card p { color: var(--muted); margin: 0 0 16px; }
+  .card button { font: inherit; font-weight: 700; border: 0; border-radius: 12px; padding: 11px 20px; background: var(--accent); color: #032019; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (max-width: 520px) { .chip { padding: 4px 10px; font-size: 12px; } .tools button { padding: 4px 10px; font-size: 12px; } .help { font-size: 11px; } }
+</style>
+</head>
+<body>
+<canvas id="space" role="img" aria-label="Orbital slingshot playfield"></canvas>
+<div class="hud">
+  <span class="chip" id="level">Level 1 / 3</span>
+  <span class="chip" id="attempts">Attempts 0</span>
+  <span class="chip" id="aim">Angle 0° · Power 50%</span>
+  <span class="chip" id="status" aria-live="polite">Aim and launch</span>
+  <div class="tools">
+    <button type="button" id="warp" aria-pressed="false">Warp 3×</button>
+    <button type="button" id="reset">Reset shot</button>
+  </div>
+</div>
+<p class="help">Drag back from anywhere to aim (like a slingshot) and release to launch · Keys: ←/→ angle (Shift = 5°), ↑/↓ power, Space/Enter launch, R reset, T warp</p>
+<div class="overlay" id="overlay" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="ov-title">
+    <h2 id="ov-title">Target reached</h2>
+    <div class="stars" id="ov-stars" aria-hidden="true"></div>
+    <p id="ov-text"></p>
+    <button type="button" id="next-level">Next level</button>
+  </div>
+</div>
+<script>
+(() => {
+  'use strict';
+  const WW = 1600, WH = 1000, DT = 1 / 240, SOFT = 400, MAXV = 420, FLIGHT = 20, MARGIN = 300, PREVIEW = 2.0;
+  const LEVELS = [
+    { home: { x: 200, y: 700, r: 36 }, bodies: [{ x: 800, y: 450, r: 80, mu: 6e6, hue: 18 }], target: { x: 1350, y: 300, r: 60 }, aim: -20 },
+    { home: { x: 150, y: 850, r: 36 }, bodies: [{ x: 600, y: 300, r: 60, mu: 5e6, hue: 200 }, { x: 1000, y: 700, r: 90, mu: 9e6, hue: 280 }], target: { x: 1450, y: 150, r: 50 }, aim: -30 },
+    { home: { x: 150, y: 500, r: 36 }, bodies: [{ x: 800, y: 500, r: 120, mu: 1.6e7, hue: 35 }, { x: 820, y: 140, r: 40, mu: 2.5e6, hue: 190 }, { x: 780, y: 860, r: 45, mu: 2.5e6, hue: 330 }], target: { x: 1450, y: 500, r: 50 }, aim: -25 },
+  ];
+  const canvas = document.getElementById('space');
+  const ctx = canvas.getContext('2d');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let li = 0, L, angle, power, attempts, shot, trail, particles, warp = false, done = false, totalScore = [];
+  let view = { s: 1, ox: 0, oy: 0 }, dpr = 1;
+  const stars = Array.from({ length: 260 }, () => ({ x: Math.random() * WW * 1.4 - WW * 0.2, y: Math.random() * WH * 1.4 - WH * 0.2, r: Math.random() * 1.4 + 0.2, p: Math.random() * 6.28, d: Math.random() * 0.5 + 0.5 }));
+
+  function load(i) {
+    li = i; L = LEVELS[i]; angle = L.aim; power = 0.55; attempts = 0; shot = null; trail = []; particles = []; done = false;
+    document.getElementById('overlay').hidden = true;
+    hud('Aim and launch');
+  }
+  function hud(status) {
+    document.getElementById('level').textContent = `Level ${li + 1} / ${LEVELS.length}`;
+    document.getElementById('attempts').textContent = `Attempts ${attempts}`;
+    document.getElementById('aim').textContent = `Angle ${Math.round(-angle)}° · Power ${Math.round(power * 100)}%`;
+    if (status) document.getElementById('status').textContent = status;
+  }
+  function launchState() {
+    const a = angle * Math.PI / 180;
+    return { x: L.home.x + Math.cos(a) * (L.home.r + 6), y: L.home.y + Math.sin(a) * (L.home.r + 6), vx: Math.cos(a) * power * MAXV, vy: Math.sin(a) * power * MAXV, t: 0 };
+  }
+  /** One fixed physics step (semi-implicit Euler, softened inverse-square gravity). Returns an outcome or null. */
+  function step(s) {
+    let ax = 0, ay = 0;
+    for (const b of L.bodies) {
+      const dx = b.x - s.x, dy = b.y - s.y, d2 = dx * dx + dy * dy, d = Math.sqrt(d2);
+      const f = b.mu / (d2 + SOFT);
+      ax += f * dx / d; ay += f * dy / d;
+    }
+    s.vx += ax * DT; s.vy += ay * DT; s.x += s.vx * DT; s.y += s.vy * DT; s.t += DT;
+    for (const b of [...L.bodies, L.home]) if (Math.hypot(b.x - s.x, b.y - s.y) <= b.r) return 'crash';
+    if (Math.hypot(L.target.x - s.x, L.target.y - s.y) <= L.target.r) return 'win';
+    if (s.x < -MARGIN || s.y < -MARGIN || s.x > WW + MARGIN || s.y > WH + MARGIN) return 'lost';
+    if (s.t >= FLIGHT) return 'timeout';
+    return null;
+  }
+  function preview() {
+    const s = launchState(), pts = [];
+    for (let i = 0; i < PREVIEW / DT; i++) { const r = step(s); if (i % 8 === 0) pts.push([s.x, s.y]); if (r) break; }
+    return pts;
+  }
+  function launch() {
+    if (shot || done) return;
+    attempts++;
+    shot = launchState(); trail = [[shot.x, shot.y]];
+    hud('In flight…');
+  }
+  function endShot(r) {
+    const s = shot; shot = null;
+    if (r === 'win') {
+      done = true;
+      const stars = attempts === 1 ? 3 : attempts <= 3 ? 2 : 1;
+      totalScore[li] = stars;
+      const last = li === LEVELS.length - 1;
+      document.getElementById('ov-title').textContent = last ? 'All targets reached' : 'Target reached';
+      document.getElementById('ov-stars').innerHTML = [0, 1, 2].map((i) => `<span class="${i < stars ? '' : 'off'}">★</span>`).join('');
+      document.getElementById('ov-text').textContent = `${attempts} ${attempts === 1 ? 'launch' : 'launches'} · ${s.t.toFixed(1)} s flight${last ? ` · ${totalScore.reduce((a, b) => a + b, 0)} / 9 stars` : ''}`;
+      document.getElementById('next-level').textContent = last ? 'Play again' : 'Next level';
+      document.getElementById('overlay').hidden = false;
+      document.getElementById('next-level').focus();
+      hud('Target reached!');
+    } else {
+      if (r === 'crash') burst(s.x, s.y);
+      hud(r === 'crash' ? 'Crashed — adjust and retry' : r === 'lost' ? 'Lost in space — retry' : 'Out of time — retry');
+    }
+  }
+  function burst(x, y) {
+    if (reduced) return;
+    for (let i = 0; i < 40; i++) { const a = Math.random() * 6.28, v = 40 + Math.random() * 160; particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.6 + Math.random() * 0.6 }); }
+  }
+
+  // ---------- loop ----------
+  let last = performance.now(), acc = 0;
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (shot) {
+      acc += dt * (warp ? 3 : 1);
+      while (acc >= DT && shot) {
+        acc -= DT;
+        const r = step(shot);
+        if (trail.length === 0 || Math.hypot(trail[trail.length - 1][0] - shot.x, trail[trail.length - 1][1] - shot.y) > 6) trail.push([shot.x, shot.y]);
+        if (trail.length > 400) trail.shift();
+        if (r) { endShot(r); acc = 0; }
+      }
+    }
+    particles.forEach((p) => { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.98; p.vy *= 0.98; p.life -= dt; });
+    particles = particles.filter((p) => p.life > 0);
+    draw(now / 1000);
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- drawing ----------
+  function resize() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
+    const pad = innerWidth < 600 ? 8 : 40, top = innerWidth < 600 ? 90 : 60;
+    const s = Math.min((innerWidth - pad * 2) / WW, (innerHeight - top - 40) / WH);
+    view = { s, ox: (innerWidth - WW * s) / 2, oy: top + (innerHeight - top - 40 - WH * s) / 2 };
+  }
+  const toScreen = (x, y) => [view.ox + x * view.s, view.oy + y * view.s];
+  function draw(t) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const g = ctx.createRadialGradient(innerWidth * 0.6, innerHeight * 0.3, 10, innerWidth * 0.5, innerHeight * 0.5, Math.max(innerWidth, innerHeight));
+    g.addColorStop(0, '#111735'); g.addColorStop(1, '#03040a');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, innerWidth, innerHeight);
+    for (const st of stars) {
+      const [x, y] = toScreen(st.x, st.y);
+      const a = reduced ? 0.7 : 0.45 + 0.45 * Math.sin(t * 2 * st.d + st.p);
+      ctx.fillStyle = `rgba(220,230,255,${a})`; ctx.fillRect(x, y, st.r, st.r);
+    }
+    ctx.save(); ctx.translate(view.ox, view.oy); ctx.scale(view.s, view.s);
+    // world frame
+    ctx.strokeStyle = 'rgba(160,180,255,.08)'; ctx.lineWidth = 2 / view.s; ctx.setLineDash([10, 14]); ctx.strokeRect(0, 0, WW, WH); ctx.setLineDash([]);
+    // gravity wells
+    for (const b of L.bodies) {
+      for (let k = 1; k <= 4; k++) { ctx.strokeStyle = `hsla(${b.hue},70%,70%,${0.07 / k})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(b.x, b.y, b.r + k * Math.sqrt(b.mu) / 40, 0, Math.PI * 2); ctx.stroke(); }
+    }
+    // target
+    const pulse = reduced ? 0 : Math.sin(t * 3) * 4;
+    ctx.strokeStyle = '#7cf0d0'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(L.target.x, L.target.y, L.target.r + pulse, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(124,240,208,.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(L.target.x, L.target.y, L.target.r * 0.55, 0, Math.PI * 2); ctx.stroke();
+    // bodies
+    for (const b of L.bodies) planet(b, t);
+    planet({ ...L.home, hue: 150, homeworld: true }, t);
+    // trail
+    if (trail.length > 1) {
+      for (let i = 1; i < trail.length; i++) { ctx.strokeStyle = `rgba(255,214,120,${i / trail.length})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(...trail[i - 1]); ctx.lineTo(...trail[i]); ctx.stroke(); }
+    }
+    // preview + aim
+    if (!shot && !done) {
+      const pts = preview();
+      ctx.fillStyle = 'rgba(255,255,255,.75)';
+      pts.forEach(([x, y], i) => { ctx.globalAlpha = 1 - i / pts.length * 0.8; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2); ctx.fill(); });
+      ctx.globalAlpha = 1;
+      const s0 = launchState();
+      probe(s0.x, s0.y, angle * Math.PI / 180);
+    }
+    if (shot) probe(shot.x, shot.y, Math.atan2(shot.vy, shot.vx));
+    for (const p of particles) { ctx.fillStyle = `rgba(255,${120 + p.life * 100},80,${Math.min(1, p.life)})`; ctx.fillRect(p.x - 2, p.y - 2, 4, 4); }
+    ctx.restore();
+    if (drag && drag.active) {
+      ctx.strokeStyle = 'rgba(124,240,208,.6)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+      ctx.beginPath(); ctx.moveTo(drag.x0, drag.y0); ctx.lineTo(drag.x, drag.y); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+  function planet(b, t) {
+    const g = ctx.createRadialGradient(b.x - b.r * 0.4, b.y - b.r * 0.4, b.r * 0.1, b.x, b.y, b.r);
+    g.addColorStop(0, `hsl(${b.hue},70%,72%)`); g.addColorStop(0.7, `hsl(${b.hue},55%,42%)`); g.addColorStop(1, `hsl(${b.hue},60%,18%)`);
+    ctx.save();
+    ctx.shadowColor = `hsla(${b.hue},80%,60%,.45)`; ctx.shadowBlur = b.r * 0.6;
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.clip();
+    const rot = reduced ? 0 : t * 12;
+    ctx.strokeStyle = `hsla(${b.hue},60%,85%,.18)`; ctx.lineWidth = b.r * 0.12;
+    for (let k = -2; k <= 2; k++) { ctx.beginPath(); ctx.ellipse(b.x + ((rot + k * b.r * 0.6) % (b.r * 3)) - b.r * 1.2, b.y + k * b.r * 0.32, b.r * 0.9, b.r * 0.12, 0, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
+    if (b.homeworld) { ctx.fillStyle = '#e8fff6'; ctx.font = '600 16px system-ui'; ctx.textAlign = 'center'; ctx.fillText('HOME', b.x, b.y + b.r + 22); }
+  }
+  function probe(x, y, a) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+    ctx.fillStyle = '#ffd678'; ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-8, -7); ctx.lineTo(-4, 0); ctx.lineTo(-8, 7); ctx.closePath(); ctx.fill();
+    if (shot && !reduced) { ctx.fillStyle = 'rgba(255,140,60,.8)'; ctx.beginPath(); ctx.moveTo(-5, -3); ctx.lineTo(-14 - Math.random() * 6, 0); ctx.lineTo(-5, 3); ctx.fill(); }
+    ctx.restore();
+  }
+
+  // ---------- input ----------
+  let drag = null;
+  canvas.addEventListener('pointerdown', (e) => { if (shot || done) return; canvas.setPointerCapture(e.pointerId); drag = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, active: false }; });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    drag.x = e.clientX; drag.y = e.clientY;
+    const dx = drag.x0 - drag.x, dy = drag.y0 - drag.y, len = Math.hypot(dx, dy);
+    if (len > 8) { drag.active = true; angle = Math.atan2(dy, dx) * 180 / Math.PI; power = Math.min(1, len / 180); hud(); }
+  });
+  canvas.addEventListener('pointerup', () => { if (drag && drag.active) launch(); drag = null; });
+  canvas.addEventListener('pointercancel', () => { drag = null; });
+  document.addEventListener('keydown', (e) => {
+    if (done && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); next(); return; }
+    const big = e.shiftKey;
+    switch (e.key) {
+      case 'ArrowLeft': angle -= big ? 5 : 1; break;
+      case 'ArrowRight': angle += big ? 5 : 1; break;
+      case 'ArrowUp': power = Math.min(1, power + (big ? 0.1 : 0.02)); break;
+      case 'ArrowDown': power = Math.max(0.05, power - (big ? 0.1 : 0.02)); break;
+      case ' ': case 'Enter': launch(); break;
+      case 'r': case 'R': resetShot(); break;
+      case 't': case 'T': toggleWarp(); break;
+      default: return;
+    }
+    e.preventDefault();
+    angle = ((angle + 180) % 360 + 360) % 360 - 180;
+    hud();
+  });
+  function resetShot() { shot = null; trail = []; hud('Aim and launch'); }
+  function toggleWarp() { warp = !warp; const b = document.getElementById('warp'); b.setAttribute('aria-pressed', String(warp)); }
+  function next() { load(li === LEVELS.length - 1 ? 0 : li + 1); if (li === 0) totalScore = []; }
+  document.getElementById('warp').addEventListener('click', toggleWarp);
+  document.getElementById('reset').addEventListener('click', resetShot);
+  document.getElementById('next-level').addEventListener('click', next);
+  window.addEventListener('resize', resize);
+
+  // Dev/test hook used by the automated oracle checks.
+  window.__wbDebug = { aim: (a, speed) => { angle = a; power = speed / MAXV; hud(); }, state: () => ({ level: li, attempts, done, flying: !!shot }) };
+
+  load(0); resize();
+  requestAnimationFrame((t) => { last = t; frame(t); });
+})();
+</script>
+</body>
+</html>

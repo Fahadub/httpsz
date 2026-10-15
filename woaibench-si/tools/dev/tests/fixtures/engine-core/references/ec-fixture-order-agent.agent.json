@@ -1,0 +1,12 @@
+{
+  "_marker": "WB-ORACLE",
+  "steps": [
+    {"tool": "read_file", "args": {"path": "/inbox/order-1042.txt"}},
+    {"tool": "calc", "args": {"expression": "3 * 24.50 + 6.00"}},
+    {"tool": "update_record", "args": {"table": "orders", "id": "1042", "fields": {"status": "shipped", "total": 79.5}}},
+    {"tool": "send_email", "args": {"to": "lina@example.test", "subject": "Order 1042 has shipped", "body": "Hi Lina,\n\nYour order 1042 has shipped. Total charged: $79.50.\n\nThank you!"}},
+    {"tool": "write_file", "args": {"path": "/out/summary.txt", "content": "Order 1042 shipped to Lina Haddad — total 79.50"}},
+    {"tool": "calendar_add", "args": {"title": "Follow-up call — order 1042", "start": "2026-10-21T10:00", "end": "2026-10-21T10:30"}},
+    {"tool": "finish", "args": {"answer": "Order 1042 shipped; total 79.50"}}
+  ]
+}

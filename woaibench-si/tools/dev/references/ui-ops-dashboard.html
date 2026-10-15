@@ -1,0 +1,300 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Velora — Fleet overview</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #141a23; --panel-2: #1a2230; --line: #263142; --text: #e8edf4; --muted: #8b98ab; --faint: #5f6c80;
+    --accent: #7ee0c3; --accent-2: #3fb68f; --blue: #79a8ff; --amber: #f2c46d; --red: #ff7b7b;
+    --ok-bg: rgba(63,182,143,.14); --low-bg: rgba(242,196,109,.14); --off-bg: rgba(255,123,123,.14);
+    --radius: 14px; --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--sans); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+  button { font: inherit; color: inherit; }
+  .app { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 100vh; }
+  aside.side { background: var(--panel); border-inline-end: 1px solid var(--line); padding: 22px 16px; position: sticky; top: 0; height: 100vh; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: .01em; padding: 0 8px 22px; }
+  .logo svg { width: 30px; height: 30px; }
+  .side nav a { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; color: var(--muted); text-decoration: none; font-weight: 500; }
+  .side nav a svg { width: 18px; height: 18px; }
+  .side nav a:hover { background: var(--panel-2); color: var(--text); }
+  .side nav a[aria-current="page"] { background: rgba(126,224,195,.1); color: var(--accent); }
+  .side .foot { position: absolute; bottom: 20px; inset-inline: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); font-size: 12px; }
+  .side .foot b { color: var(--text); display: block; font-size: 13px; }
+  main { padding: 26px clamp(16px, 3vw, 36px) 48px; min-width: 0; }
+  .topbar { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+  .topbar h1 { margin: 0; font-size: 24px; letter-spacing: -.01em; }
+  .topbar .date { color: var(--muted); font-size: 13px; }
+  .topbar .live { margin-inline-start: auto; display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; border: 1px solid var(--line); padding: 6px 12px; border-radius: 999px; }
+  .live i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-2); box-shadow: 0 0 0 4px rgba(63,182,143,.18); }
+  #menu-toggle { display: none; width: 42px; height: 42px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
+  #menu-toggle svg { width: 20px; height: 20px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 18px; }
+  .kpi { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 18px 14px; position: relative; overflow: hidden; }
+  .kpi .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .kpi .value { font-size: 30px; font-weight: 700; letter-spacing: -.02em; margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+  .kpi .hint { color: var(--faint); font-size: 12px; }
+  .kpi svg { position: absolute; inset-inline-end: 16px; bottom: 16px; width: 76px; height: 30px; opacity: .9; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 2.6fr); gap: 16px; align-items: start; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; min-width: 0; }
+  .card h2 { margin: 0 0 4px; font-size: 15px; }
+  .card .sub { color: var(--muted); font-size: 12px; margin: 0 0 14px; }
+  #district-chart { width: 100%; height: auto; display: block; }
+  #district-chart text { fill: var(--muted); font-size: 12px; font-family: var(--sans); }
+  #district-chart .val { fill: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  #district-chart .bar { fill: url(#barGrad); }
+  .tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+  .search { position: relative; flex: 1 1 220px; }
+  .search svg { position: absolute; inset-inline-start: 12px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%); color: var(--faint); }
+  .search input { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; color: var(--text); padding: 10px 12px 10px 36px; font: inherit; min-height: 40px; }
+  .search input::placeholder { color: var(--faint); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { border: 1px solid var(--line); background: transparent; padding: 7px 12px; border-radius: 999px; cursor: pointer; color: var(--muted); font-size: 13px; min-height: 36px; }
+  .chip[aria-pressed="true"] { background: rgba(126,224,195,.12); color: var(--accent); border-color: rgba(126,224,195,.4); }
+  .count { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; min-width: 560px; }
+  th, td { padding: 11px 12px; text-align: start; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; background: var(--panel-2); }
+  th button { background: none; border: 0; padding: 0; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; color: inherit; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; font-weight: 700; }
+  th button:hover { color: var(--text); }
+  th .arrow { opacity: .3; font-size: 10px; }
+  th[aria-sort="ascending"] .arrow, th[aria-sort="descending"] .arrow { opacity: 1; color: var(--accent); }
+  td.num, th.num { text-align: end; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+  th.num button { flex-direction: row-reverse; }
+  tbody tr:hover td { background: rgba(255,255,255,.02); }
+  tbody tr:last-child td { border-bottom: 0; }
+  .st-name { font-weight: 600; } .st-id { color: var(--faint); font-family: var(--mono); font-size: 11px; margin-inline-end: 8px; }
+  .fill { display: inline-flex; align-items: center; gap: 10px; }
+  .fill .track { width: 52px; height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
+  .fill .track i { display: block; height: 100%; background: var(--blue); border-radius: 99px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ok { color: var(--accent-2); background: var(--ok-bg); } .pill.low { color: var(--amber); background: var(--low-bg); } .pill.offline { color: var(--red); background: var(--off-bg); }
+  .empty td { text-align: center; color: var(--muted); padding: 30px; }
+  .backdrop { display: none; }
+  @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid2 { grid-template-columns: 1fr; } }
+  @media (max-width: 767px) {
+    .app { grid-template-columns: 1fr; }
+    aside.side { position: fixed; z-index: 30; inset-block: 0; inset-inline-start: 0; width: 270px; transform: translateX(-105%); transition: transform .25s ease; }
+    aside.side.open { transform: none; box-shadow: 20px 0 60px rgba(0,0,0,.5); }
+    .backdrop.open { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 20; }
+    #menu-toggle { display: grid; place-items: center; }
+    .topbar { flex-wrap: wrap; }
+    .topbar .live { display: none; }
+    .kpi .value { font-size: 24px; }
+    .kpi svg { display: none; }
+    main { padding-top: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="sidebar" aria-label="Main navigation">
+    <div class="logo">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="9" cy="21" r="6" fill="none" stroke="#7ee0c3" stroke-width="2.4"/><circle cx="23" cy="21" r="6" fill="none" stroke="#7ee0c3" stroke-width="2.4"/><path d="M9 21l5-10h7l2 10M14 11l-2-4h-3" fill="none" stroke="#e8edf4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Velora
+    </div>
+    <nav>
+      <a href="#" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Overview</a>
+      <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>Stations</a>
+      <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg>Rebalancing</a>
+      <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4l-2.5 2.5-2.5-.5-.5-2.5z"/></svg>Maintenance</a>
+      <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>Settings</a>
+    </nav>
+    <div class="foot"><b>Shift lead: Dana R.</b>Dispatch line 04 · 3 vans on route</div>
+  </aside>
+  <div class="backdrop" id="backdrop"></div>
+
+  <main id="main">
+    <header class="topbar">
+      <button type="button" id="menu-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="sidebar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <div><h1>Fleet overview</h1><div class="date">Thursday, 15 October 2026</div></div>
+      <span class="live"><i></i>Live · updated 2 min ago</span>
+    </header>
+
+    <section class="kpis" aria-label="Key metrics" id="kpis"></section>
+
+    <div class="grid2">
+      <section class="card" aria-labelledby="dc-title">
+        <h2 id="dc-title">Trips by district</h2>
+        <p class="sub">Total trips started today</p>
+        <svg id="district-chart" role="img" aria-labelledby="dc-title dc-desc" viewBox="0 0 250 200"><desc id="dc-desc"></desc></svg>
+      </section>
+
+      <section class="card" aria-labelledby="st-title">
+        <h2 id="st-title">Stations</h2>
+        <p class="sub">12 docking stations across 4 districts</p>
+        <div class="tools">
+          <div class="search">
+            <label for="search" class="sr">Search stations</label>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+            <input id="search" type="search" placeholder="Search station or district" autocomplete="off">
+          </div>
+          <div class="chips" role="group" aria-label="Filter by status" id="status-chips"></div>
+        </div>
+        <p class="count" id="count" aria-live="polite"></p>
+        <div class="table-wrap" tabindex="0" role="region" aria-labelledby="st-title">
+          <table id="stations">
+            <thead><tr></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const CSV = `S01,Harbour Gate,Old Port,4,20,132,low
+S02,Linden Square,Old Port,11,18,98,ok
+S03,Mill Street,Old Port,0,16,41,offline
+S04,Observatory Hill,Northfield,14,24,77,ok
+S05,Tram Depot,Northfield,9,20,115,ok
+S06,Riverside Market,Northfield,2,22,146,low
+S07,University Gardens,Campus,17,30,203,ok
+S08,Library Steps,Campus,6,14,88,ok
+S09,Science Park,Campus,3,26,64,low
+S10,Ferry Terminal,Eastbank,12,20,121,ok
+S11,Glassworks,Eastbank,0,12,0,offline
+S12,Canal Basin,Eastbank,8,16,57,ok`;
+  const STATIONS = CSV.split('\n').map((l) => {
+    const [id, name, district, bikes, docks, trips, status] = l.split(',');
+    return { id, name, district, bikes: +bikes, docks: +docks, trips: +trips, status };
+  });
+  const STATUS_LABEL = { ok: 'OK', low: 'Low stock', offline: 'Offline' };
+  const STATUS_RANK = { offline: 0, low: 1, ok: 2 };
+  const COLUMNS = [
+    { key: 'name', label: 'Station', type: 'text' },
+    { key: 'district', label: 'District', type: 'text' },
+    { key: 'fill', label: 'Bikes / Docks', type: 'num', value: (s) => s.bikes / s.docks },
+    { key: 'trips', label: 'Trips', type: 'num', id: 'sort-trips' },
+    { key: 'status', label: 'Status', type: 'num', value: (s) => STATUS_RANK[s.status] },
+  ];
+  const nf = new Intl.NumberFormat('en-US');
+  const sum = (k) => STATIONS.reduce((a, s) => a + s[k], 0);
+  const state = { sortKey: null, dir: 1, query: '', status: 'all' };
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function sparkline(values, color) {
+    const max = Math.max(...values), min = Math.min(...values);
+    const pts = values.map((v, i) => `${(i / (values.length - 1)) * 84},${30 - ((v - min) / (max - min || 1)) * 26}`).join(' ');
+    return `<svg viewBox="0 0 84 34" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+
+  function renderKpis() {
+    const trips = sum('trips'), bikes = sum('bikes'), docks = sum('docks');
+    const attention = STATIONS.filter((s) => s.status !== 'ok').length;
+    const fill = (bikes / docks * 100).toFixed(1) + '%';
+    const kpis = [
+      { label: 'Trips today', value: nf.format(trips), hint: 'Across all 12 stations', spark: [40, 52, 48, 70, 66, 88, 94], color: '#7ee0c3' },
+      { label: 'Bikes available', value: nf.format(bikes), hint: `${nf.format(docks)} docks in total`, spark: [96, 92, 90, 88, 91, 87, 86], color: '#79a8ff' },
+      { label: 'Fleet fill rate', value: fill, hint: 'Bikes ÷ docks', spark: [41, 40, 39, 38, 38, 37, 36], color: '#f2c46d' },
+      { label: 'Needs attention', value: String(attention), hint: 'Low stock or offline', spark: [2, 3, 3, 4, 4, 5, 5], color: '#ff7b7b' },
+    ];
+    document.getElementById('kpis').innerHTML = kpis.map((k) => `
+      <article class="kpi"><div class="label">${k.label}</div><div class="value">${k.value}</div><div class="hint">${k.hint}</div>${sparkline(k.spark, k.color)}</article>`).join('');
+  }
+
+  function renderChart() {
+    const byDistrict = {};
+    STATIONS.forEach((s) => { byDistrict[s.district] = (byDistrict[s.district] || 0) + s.trips; });
+    const rows = Object.entries(byDistrict).sort((a, b) => b[1] - a[1]);
+    const max = Math.max(...rows.map((r) => r[1]));
+    const x0 = 76, w = 136, bh = 24, gap = 22;
+    let svg = `<defs><linearGradient id="barGrad" x1="0" x2="1"><stop offset="0" stop-color="#3fb68f"/><stop offset="1" stop-color="#7ee0c3"/></linearGradient></defs>`;
+    svg += `<desc id="dc-desc">${rows.map(([d, v]) => `${d}: ${v} trips`).join(', ')}</desc>`;
+    rows.forEach(([d, v], i) => {
+      const y = 14 + i * (bh + gap);
+      const len = Math.max(2, (v / max) * w);
+      svg += `<text x="${x0 - 10}" y="${y + bh / 2 + 4}" text-anchor="end">${esc(d)}</text>`;
+      svg += `<rect x="${x0}" y="${y}" width="${w}" height="${bh}" rx="6" fill="rgba(255,255,255,.035)"/>`;
+      svg += `<rect class="bar" x="${x0}" y="${y}" width="${len.toFixed(1)}" height="${bh}" rx="6"><title>${esc(d)}: ${v} trips</title></rect>`;
+      svg += `<text class="val" x="${(x0 + len + 8).toFixed(1)}" y="${y + bh / 2 + 4}">${nf.format(v)}</text>`;
+    });
+    document.getElementById('district-chart').innerHTML = svg;
+  }
+
+  function renderHead() {
+    document.querySelector('#stations thead tr').innerHTML = COLUMNS.map((c) => `
+      <th scope="col" class="${c.type === 'num' && c.key !== 'status' ? 'num' : ''}" data-key="${c.key}" aria-sort="none">
+        <button type="button"${c.id ? ` id="${c.id}"` : ''} data-key="${c.key}">${c.label}<span class="arrow" aria-hidden="true">▲</span></button>
+      </th>`).join('');
+    document.querySelectorAll('#stations th button').forEach((b) => b.addEventListener('click', () => sortBy(b.dataset.key)));
+  }
+
+  function renderChips() {
+    const chips = [['all', 'All'], ['ok', 'OK'], ['low', 'Low'], ['offline', 'Offline']];
+    const box = document.getElementById('status-chips');
+    box.innerHTML = chips.map(([k, l]) => `<button type="button" class="chip" data-status="${k}" aria-pressed="${k === state.status}">${l}</button>`).join('');
+    box.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => { state.status = c.dataset.status; renderChips(); renderRows(); }));
+  }
+
+  function sortBy(key) {
+    if (state.sortKey === key) state.dir = -state.dir; else { state.sortKey = key; state.dir = key === 'trips' || key === 'fill' ? -1 : 1; }
+    document.querySelectorAll('#stations th').forEach((th) => th.setAttribute('aria-sort', th.dataset.key === key ? (state.dir === 1 ? 'ascending' : 'descending') : 'none'));
+    document.querySelectorAll('#stations th .arrow').forEach((a) => { a.textContent = '▲'; });
+    const arrow = document.querySelector(`#stations th[data-key="${key}"] .arrow`);
+    if (arrow) arrow.textContent = state.dir === 1 ? '▲' : '▼';
+    renderRows();
+  }
+
+  function visibleRows() {
+    const q = state.query.trim().toLowerCase();
+    let rows = STATIONS.filter((s) => (state.status === 'all' || s.status === state.status)
+      && (!q || s.name.toLowerCase().includes(q) || s.district.toLowerCase().includes(q)));
+    if (state.sortKey) {
+      const col = COLUMNS.find((c) => c.key === state.sortKey);
+      const val = col.value || ((s) => s[col.key]);
+      rows = rows.map((s, i) => ({ s, i })).sort((a, b) => {
+        const va = val(a.s), vb = val(b.s);
+        const c = col.type === 'num' ? va - vb : String(va).localeCompare(String(vb));
+        return c * state.dir || a.i - b.i;
+      }).map((x) => x.s);
+    }
+    return rows;
+  }
+
+  function renderRows() {
+    const rows = visibleRows();
+    const tb = document.querySelector('#stations tbody');
+    tb.innerHTML = rows.length ? rows.map((s) => `
+      <tr>
+        <td><span class="st-id">${s.id}</span><span class="st-name">${esc(s.name)}</span></td>
+        <td>${esc(s.district)}</td>
+        <td class="num"><span class="fill"><span class="track" aria-hidden="true"><i style="width:${(s.bikes / s.docks * 100).toFixed(0)}%"></i></span>${s.bikes} / ${s.docks}</span></td>
+        <td class="num">${nf.format(s.trips)}</td>
+        <td><span class="pill ${s.status}">${STATUS_LABEL[s.status]}</span></td>
+      </tr>`).join('') : `<tr class="empty"><td colspan="5">No stations match your filters.</td></tr>`;
+    document.getElementById('count').textContent = `Showing ${rows.length} of ${STATIONS.length} stations`;
+  }
+
+  function setupDrawer() {
+    const btn = document.getElementById('menu-toggle'), side = document.getElementById('sidebar'), bd = document.getElementById('backdrop');
+    const set = (open) => {
+      side.classList.toggle('open', open); bd.classList.toggle('open', open);
+      btn.setAttribute('aria-expanded', String(open));
+      btn.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+      if (open) side.querySelector('a').focus(); else if (document.activeElement && side.contains(document.activeElement)) btn.focus();
+    };
+    btn.addEventListener('click', () => set(btn.getAttribute('aria-expanded') !== 'true'));
+    bd.addEventListener('click', () => set(false));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && side.classList.contains('open')) set(false); });
+  }
+
+  renderKpis(); renderChart(); renderHead(); renderChips(); renderRows(); setupDrawer();
+  document.getElementById('search').addEventListener('input', (e) => { state.query = e.target.value; renderRows(); });
+})();
+</script>
+</body>
+</html>

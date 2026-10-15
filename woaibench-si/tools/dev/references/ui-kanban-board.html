@@ -1,0 +1,306 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sprint 42 — Board</title>
+<style>
+  :root {
+    --bg: #eef0f4; --col: #e3e6ec; --card: #ffffff; --text: #171a21; --muted: #646b7a; --faint: #98a0ae; --line: #d6dae2;
+    --accent: #2563eb; --warn: #c2410c; --warn-bg: #fff1e8; --radius: 12px;
+    --t-ui: #7c3aed; --t-backend: #0e7490; --t-growth: #c2410c;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  header.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 20px clamp(16px, 3vw, 32px) 8px; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: -.01em; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .spacer { flex: 1; }
+  .filters { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .filters .lbl { color: var(--muted); font-size: 12px; margin-inline-end: 4px; }
+  .chip { min-height: 34px; min-width: 40px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font: inherit; font-weight: 600; font-size: 12px; cursor: pointer; color: var(--muted); }
+  .chip[aria-pressed="true"] { background: var(--text); color: #fff; border-color: var(--text); }
+  #add-card { min-height: 38px; padding: 0 16px; border-radius: 10px; border: 0; background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+  #add-card:hover { background: #1d4ed8; }
+  .hint { padding: 0 clamp(16px, 3vw, 32px); color: var(--faint); font-size: 12px; margin: 4px 0 10px; }
+  #board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 14px; padding: 6px clamp(16px, 3vw, 32px) 32px; align-items: start; }
+  .column { background: var(--col); border-radius: 14px; padding: 10px; min-height: 200px; display: flex; flex-direction: column; border: 2px solid transparent; transition: border-color .15s, background .15s; }
+  .column.drop-target { border-color: rgba(37,99,235,.45); background: #dfe5f1; }
+  .column.over { background: var(--warn-bg); border-color: rgba(194,65,12,.35); }
+  .col-head { display: flex; align-items: center; gap: 8px; padding: 4px 6px 10px; }
+  .col-head h2 { font-size: 13px; margin: 0; text-transform: uppercase; letter-spacing: .06em; }
+  .col-head .cnt { font-size: 12px; font-weight: 700; color: var(--muted); background: rgba(255,255,255,.7); padding: 1px 8px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+  .col-head .pts { margin-inline-start: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .over-badge { display: none; font-size: 11px; font-weight: 700; color: var(--warn); }
+  .column.over .over-badge { display: inline; }
+  .column.over .cnt { color: var(--warn); }
+  .cards { display: flex; flex-direction: column; gap: 8px; min-height: 60px; flex: 1; }
+  .card { position: relative; background: var(--card); border-radius: var(--radius); padding: 12px 12px 10px 30px; box-shadow: 0 1px 2px rgba(16,24,40,.08), 0 0 0 1px rgba(16,24,40,.04); cursor: grab; user-select: none; -webkit-user-select: none; transition: opacity .2s, box-shadow .2s; touch-action: manipulation; }
+  .card:hover { box-shadow: 0 4px 12px rgba(16,24,40,.1), 0 0 0 1px rgba(16,24,40,.06); }
+  .card.dim { opacity: .28; }
+  .card.grabbed { box-shadow: 0 0 0 2px var(--accent), 0 10px 24px rgba(37,99,235,.25); }
+  .card .grip { position: absolute; inset-inline-start: 4px; top: 8px; bottom: 8px; width: 22px; display: grid; place-items: center; color: var(--faint); cursor: grab; touch-action: none; border-radius: 6px; }
+  .card .grip:hover { background: #f1f3f7; }
+  .card .grip svg { width: 12px; height: 18px; }
+  .card .title { font-weight: 600; margin-bottom: 10px; }
+  .card .row { display: flex; align-items: center; gap: 8px; }
+  .tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+  .tag.UI { color: var(--t-ui); background: #f1eafe; } .tag.Backend { color: var(--t-backend); background: #e2f4f7; } .tag.Growth { color: var(--t-growth); background: #fdeee4; }
+  .avatar { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 800; color: #fff; margin-inline-start: auto; }
+  .points { font-size: 11px; font-weight: 700; color: var(--muted); background: #f1f3f7; border-radius: 6px; padding: 2px 6px; font-variant-numeric: tabular-nums; }
+  .placeholder { border: 2px dashed rgba(37,99,235,.45); border-radius: var(--radius); background: rgba(37,99,235,.06); }
+  .ghost { position: fixed; z-index: 100; pointer-events: none; margin: 0; transform-origin: 50% 50%; box-shadow: 0 18px 40px rgba(16,24,40,.25), 0 0 0 1px rgba(16,24,40,.06); cursor: grabbing; }
+  body.dragging, body.dragging * { cursor: grabbing !important; }
+  form.new { background: var(--card); border-radius: var(--radius); padding: 10px; display: grid; gap: 8px; box-shadow: 0 0 0 2px var(--accent); }
+  form.new input, form.new select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; min-height: 38px; width: 100%; }
+  form.new .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  form.new .btns { display: flex; gap: 8px; justify-content: flex-end; }
+  form.new button { font: inherit; font-weight: 600; border-radius: 8px; padding: 6px 12px; min-height: 36px; cursor: pointer; border: 1px solid var(--line); background: #fff; }
+  form.new #new-save { background: var(--accent); color: #fff; border-color: var(--accent); }
+  form.new .err { color: #b91c1c; font-size: 12px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (max-width: 860px) {
+    #board { grid-template-columns: repeat(4, 85vw); overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+    .column { scroll-snap-align: center; }
+    header.top .spacer { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { .card, .column { transition: none; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div><h1>Sprint 42 · Product team</h1><div class="meta">Oct 13 – Oct 24 · 10 issues</div></div>
+  <div class="spacer"></div>
+  <div class="filters" role="group" aria-label="Filter by assignee" id="filters"></div>
+  <button type="button" id="add-card"><span aria-hidden="true">＋</span> Add card</button>
+</header>
+<p class="hint">Drag cards by their handle (touch) or anywhere (mouse). Keyboard: focus a card, press Space to pick it up, arrows to move, Space to drop, Esc to cancel.</p>
+<main id="board" aria-label="Sprint board"></main>
+<div id="announcer" class="sr" aria-live="assertive" aria-atomic="true"></div>
+
+<script>
+(() => {
+  'use strict';
+  const PEOPLE = { MK: '#d97706', JS: '#7c3aed', AR: '#0e7490', LT: '#be185d' };
+  const SEED = [
+    ['Audit onboarding emails', 'backlog', 'Growth', 'MK', 3], ['Dark mode for reports', 'backlog', 'UI', 'JS', 5],
+    ['Rate-limit public API', 'backlog', 'Backend', 'AR', 8], ['Invoice PDF redesign', 'backlog', 'UI', 'LT', 3],
+    ['Migrate cron jobs to queue', 'progress', 'Backend', 'AR', 5], ['Empty-state illustrations', 'progress', 'UI', 'JS', 2],
+    ['Referral program experiment', 'progress', 'Growth', 'MK', 5], ['Fix timezone bug in exports', 'review', 'Backend', 'LT', 2],
+    ['Accessibility pass on forms', 'done', 'UI', 'JS', 3], ['Set up error tracking', 'done', 'Backend', 'AR', 1],
+  ];
+  const columns = [
+    { id: 'backlog', title: 'Backlog', limit: null, cards: [] },
+    { id: 'progress', title: 'In progress', limit: 3, cards: [] },
+    { id: 'review', title: 'Review', limit: 2, cards: [] },
+    { id: 'done', title: 'Done', limit: null, cards: [] },
+  ];
+  const cards = {};
+  let nextId = 1;
+  SEED.forEach(([title, col, tag, who, pts]) => { const id = 'c' + nextId++; cards[id] = { id, title, tag, who, pts }; columns.find((c) => c.id === col).cards.push(id); });
+
+  const board = document.getElementById('board');
+  const announcer = document.getElementById('announcer');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let filter = 'All';
+  let grabbed = null;      // keyboard grab: {id, from:{col, index}}
+  let adding = false;
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const say = (msg) => { announcer.textContent = ''; requestAnimationFrame(() => { announcer.textContent = msg; }); };
+  const locate = (id) => { for (const c of columns) { const i = c.cards.indexOf(id); if (i >= 0) return { col: c, index: i }; } return null; };
+
+  // ---------- rendering with FLIP ----------
+  function rects() { const m = new Map(); board.querySelectorAll('.card').forEach((el) => m.set(el.dataset.id, el.getBoundingClientRect())); return m; }
+  function flip(before) {
+    if (reduced) return;
+    board.querySelectorAll('.card').forEach((el) => {
+      const a = before.get(el.dataset.id); if (!a) return;
+      const b = el.getBoundingClientRect();
+      const dx = a.left - b.left, dy = a.top - b.top;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    });
+  }
+  function cardHtml(c) {
+    return `<div class="card${filter !== 'All' && c.who !== filter ? ' dim' : ''}${grabbed && grabbed.id === c.id ? ' grabbed' : ''}" tabindex="0" data-id="${c.id}"
+      aria-roledescription="draggable card" aria-label="${esc(c.title)}, ${esc(c.tag)}, ${c.pts} points, assigned to ${c.who}">
+      <span class="grip" aria-hidden="true"><svg viewBox="0 0 12 18"><g fill="currentColor"><circle cx="3" cy="3" r="1.5"/><circle cx="9" cy="3" r="1.5"/><circle cx="3" cy="9" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="3" cy="15" r="1.5"/><circle cx="9" cy="15" r="1.5"/></g></svg></span>
+      <div class="title">${esc(c.title)}</div>
+      <div class="row"><span class="tag ${esc(c.tag)}">${esc(c.tag)}</span><span class="points" title="Story points">${c.pts} pt</span><span class="avatar" style="background:${PEOPLE[c.who]}" title="${c.who}">${c.who}</span></div>
+    </div>`;
+  }
+  function render(focusId) {
+    const before = rects();
+    board.innerHTML = columns.map((col) => {
+      const n = col.cards.length, pts = col.cards.reduce((a, id) => a + cards[id].pts, 0);
+      const over = col.limit !== null && n > col.limit;
+      return `<section class="column${over ? ' over' : ''}" data-col="${col.id}" aria-labelledby="h-${col.id}">
+        <div class="col-head"><h2 id="h-${col.id}">${col.title}</h2>
+          <span class="cnt">${col.limit !== null ? `${n} / ${col.limit}` : n}</span><span class="over-badge">Over limit</span>
+          <span class="pts">${pts} pts</span></div>
+        <div class="cards">${col.id === 'backlog' && adding ? newFormHtml() : ''}${col.cards.map((id) => cardHtml(cards[id])).join('')}</div>
+      </section>`;
+    }).join('');
+    flip(before);
+    if (adding) bindNewForm();
+    if (focusId) { const el = board.querySelector(`.card[data-id="${focusId}"]`); if (el) el.focus({ preventScroll: false }); }
+  }
+  function renderFilters() {
+    const box = document.getElementById('filters');
+    box.innerHTML = '<span class="lbl">Assignee</span>' + ['All', ...Object.keys(PEOPLE)].map((p) => `<button type="button" class="chip" data-who="${p}" aria-pressed="${p === filter}">${p}</button>`).join('');
+    box.querySelectorAll('.chip').forEach((b) => b.addEventListener('click', () => { filter = b.dataset.who; renderFilters(); render(); }));
+  }
+
+  // ---------- add card ----------
+  function newFormHtml() {
+    return `<form class="new" id="new-form" novalidate><label class="sr" for="new-title">Card title</label><input id="new-title" placeholder="Card title" autocomplete="off">
+      <div class="two"><label class="sr" for="new-tag">Tag</label><select id="new-tag"><option>UI</option><option>Backend</option><option>Growth</option></select>
+      <label class="sr" for="new-pts">Story points</label><select id="new-pts"><option>1</option><option>2</option><option selected>3</option><option>5</option><option>8</option></select></div>
+      <div class="err" id="new-err" aria-live="polite"></div>
+      <div class="btns"><button type="button" id="new-cancel">Cancel</button><button type="button" id="new-save">Add</button></div></form>`;
+  }
+  function bindNewForm() {
+    const form = document.getElementById('new-form'), title = document.getElementById('new-title');
+    title.focus();
+    // No reliance on the submit event: sandboxed frames without allow-forms never fire it.
+    const save = () => {
+      const t = title.value.trim();
+      if (!t) { document.getElementById('new-err').textContent = 'A title is required.'; title.focus(); return; }
+      const id = 'c' + nextId++;
+      cards[id] = { id, title: t, tag: document.getElementById('new-tag').value, who: Object.keys(PEOPLE)[nextId % 4], pts: +document.getElementById('new-pts').value };
+      columns[0].cards.unshift(id);
+      adding = false; render(id); say(`Added “${t}” to Backlog.`);
+    };
+    form.addEventListener('submit', (e) => e.preventDefault());
+    document.getElementById('new-save').addEventListener('click', save);
+    form.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); save(); } });
+    form.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); adding = false; render(); document.getElementById('add-card').focus(); } });
+    document.getElementById('new-cancel').addEventListener('click', () => { adding = false; render(); document.getElementById('add-card').focus(); });
+  }
+  document.getElementById('add-card').addEventListener('click', () => { if (!adding) { adding = true; render(); } else document.getElementById('new-title').focus(); });
+
+  // ---------- keyboard ----------
+  function describe(id) { const l = locate(id); return `${l.col.title}, position ${l.index + 1} of ${l.col.cards.length}`; }
+  function moveTo(id, colIdx, index) {
+    const from = locate(id);
+    from.col.cards.splice(from.index, 1);
+    const col = columns[colIdx];
+    col.cards.splice(Math.max(0, Math.min(index, col.cards.length)), 0, id);
+  }
+  board.addEventListener('keydown', (e) => {
+    const el = e.target.closest('.card'); if (!el || e.target !== el) return;
+    const id = el.dataset.id, loc = locate(id), ci = columns.indexOf(loc.col);
+    if (!grabbed) {
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); grabbed = { id, from: { ci, index: loc.index } }; render(id); say(`Picked up “${cards[id].title}”. ${describe(id)}. Use arrow keys to move, Space to drop, Escape to cancel.`); }
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const sib = loc.col.cards[loc.index + (e.key === 'ArrowDown' ? 1 : -1)]; if (sib) board.querySelector(`.card[data-id="${sib}"]`).focus(); }
+      else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); const nc = columns[ci + (e.key === 'ArrowRight' ? 1 : -1)]; if (nc && nc.cards.length) board.querySelector(`.card[data-id="${nc.cards[Math.min(loc.index, nc.cards.length - 1)]}"]`).focus(); }
+      return;
+    }
+    if (grabbed.id !== id) return;
+    let moved = true;
+    if (e.key === 'ArrowUp') moveTo(id, ci, loc.index - 1);
+    else if (e.key === 'ArrowDown') moveTo(id, ci, loc.index + 1);
+    else if (e.key === 'ArrowLeft' && ci > 0) moveTo(id, ci - 1, loc.index);
+    else if (e.key === 'ArrowRight' && ci < columns.length - 1) moveTo(id, ci + 1, loc.index);
+    else moved = false;
+    if (moved) { e.preventDefault(); render(id); say(`Moved “${cards[id].title}” to ${describe(id)}.`); return; }
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); grabbed = null; render(id); say(`Dropped “${cards[id].title}” in ${describe(id)}.`); }
+    else if (e.key === 'Escape') { e.preventDefault(); const f = grabbed.from; grabbed = null; moveTo(id, f.ci, f.index); render(id); say(`Cancelled. “${cards[id].title}” returned to ${describe(id)}.`); }
+  });
+  board.addEventListener('focusout', (e) => {
+    if (grabbed && e.target.closest && e.target.closest('.card') && !board.contains(e.relatedTarget)) { /* keep grab while focus stays on the board */ }
+  });
+
+  // ---------- pointer drag & drop ----------
+  let drag = null;
+  board.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest('.card');
+    if (!el || e.button !== 0 || grabbed) return;
+    const onGrip = !!e.target.closest('.grip');
+    if (e.pointerType !== 'mouse' && !onGrip) return; // touch/pen: drag from the handle so the page can still scroll
+    drag = { id: el.dataset.id, el, startX: e.clientX, startY: e.clientY, pointerId: e.pointerId, active: false, origin: locate(el.dataset.id) };
+    drag.origin = { ci: columns.indexOf(drag.origin.col), index: drag.origin.index };
+    if (onGrip) e.preventDefault();
+  });
+  window.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    if (!drag.active) {
+      if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 6) return;
+      startDrag(e);
+    }
+    e.preventDefault();
+    const g = drag.ghost;
+    g.style.left = (e.clientX - drag.offX) + 'px';
+    g.style.top = (e.clientY - drag.offY) + 'px';
+    updatePlaceholder(e.clientX, e.clientY);
+  }, { passive: false });
+  window.addEventListener('pointerup', (e) => { if (drag && e.pointerId === drag.pointerId) finishDrag(true, e); });
+  window.addEventListener('pointercancel', (e) => { if (drag && e.pointerId === drag.pointerId) finishDrag(false, e); });
+  document.addEventListener('touchmove', (e) => { if (drag && drag.active) e.preventDefault(); }, { passive: false });
+
+  function startDrag(e) {
+    const r = drag.el.getBoundingClientRect();
+    drag.active = true;
+    drag.offX = drag.startX - r.left; drag.offY = drag.startY - r.top;
+    const ghost = drag.el.cloneNode(true);
+    ghost.classList.add('ghost');
+    ghost.removeAttribute('tabindex');
+    Object.assign(ghost.style, { width: r.width + 'px', left: r.left + 'px', top: r.top + 'px' });
+    document.body.appendChild(ghost);
+    if (!reduced) ghost.animate([{ transform: 'none' }, { transform: 'rotate(2deg) scale(1.03)' }], { duration: 120, fill: 'forwards' });
+    drag.ghost = ghost;
+    const ph = document.createElement('div');
+    ph.className = 'placeholder';
+    ph.style.height = r.height + 'px';
+    drag.el.replaceWith(ph);
+    drag.ph = ph;
+    document.body.classList.add('dragging');
+  }
+  function updatePlaceholder(x, y) {
+    const colEl = [...board.querySelectorAll('.column')].find((c) => { const r = c.getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top - 40 && y <= r.bottom + 80; });
+    board.querySelectorAll('.column').forEach((c) => c.classList.toggle('drop-target', c === colEl));
+    drag.overCol = colEl || null;
+    if (!colEl) return;
+    const list = colEl.querySelector('.cards');
+    const siblings = [...list.querySelectorAll('.card')];
+    let before = null;
+    for (const s of siblings) { const r = s.getBoundingClientRect(); if (y < r.top + r.height / 2) { before = s; break; } }
+    if ((before && drag.ph.nextElementSibling === before && drag.ph.parentNode === list) || (!before && drag.ph.parentNode === list && !drag.ph.nextElementSibling)) return;
+    const prev = rects();
+    if (before) list.insertBefore(drag.ph, before); else list.appendChild(drag.ph);
+    flip(prev);
+  }
+  function finishDrag(commit, e) {
+    const d = drag; drag = null;
+    if (!d.active) return;
+    document.body.classList.remove('dragging');
+    board.querySelectorAll('.column').forEach((c) => c.classList.remove('drop-target'));
+    const valid = commit && d.overCol && d.ph.parentNode;
+    let target;
+    if (valid) {
+      const colIdx = columns.findIndex((c) => c.id === d.overCol.dataset.col);
+      const idx = [...d.ph.parentNode.children].filter((n) => n.classList.contains('card') || n === d.ph).indexOf(d.ph);
+      target = { ci: colIdx, index: idx };
+    } else target = d.origin;
+    const from = locate(d.id); from.col.cards.splice(from.index, 1);
+    columns[target.ci].cards.splice(target.index, 0, d.id);
+    const ghostRect = d.ghost.getBoundingClientRect();
+    d.ghost.remove();
+    render();
+    const el = board.querySelector(`.card[data-id="${d.id}"]`);
+    if (el && !reduced) {
+      const r = el.getBoundingClientRect();
+      el.animate([{ transform: `translate(${ghostRect.left - r.left}px, ${ghostRect.top - r.top}px) rotate(2deg) scale(1.03)` }, { transform: 'none' }], { duration: 200, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    }
+    say(valid ? `Moved “${cards[d.id].title}” to ${describe(d.id)}.` : `Drag cancelled. “${cards[d.id].title}” returned to ${describe(d.id)}.`);
+  }
+
+  renderFilters();
+  render();
+})();
+</script>
+</body>
+</html>

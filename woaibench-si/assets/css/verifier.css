@@ -1,0 +1,300 @@
+/*!
+ * WOAIBench.si — Verification Station (module: verifier). Uses design tokens from app.css only.
+ */
+
+/* ---------------------------------------------------------------- console bar */
+.vs-console {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s4) clamp(18px, 2.4vw, 28px);
+  position: relative;
+  overflow: hidden;
+}
+.vs-console::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-line) 30%, var(--gold) 50%, var(--gold-line) 70%, transparent);
+  opacity: .5;
+}
+.vs-console-status { display: flex; align-items: center; gap: var(--s3); min-width: 0; }
+.vs-console-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.vs-console-state { font-family: var(--font-display); font-size: clamp(20px, 2.2vw, 26px); line-height: 1.1; color: var(--text); letter-spacing: -.01em; }
+.vs-console-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.vs-console-meta strong { color: var(--text); font-weight: 600; }
+.vs-dot-sep { color: var(--text-faint); }
+.vs-console-actions { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s3); }
+.vs-conc { display: flex; flex-direction: column; gap: 6px; }
+.vs-conc .label { font-size: 12.5px; color: var(--text-muted); }
+.vs-conc .select { min-width: 92px; }
+
+/* status orb */
+.vs-orb {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 35% 30%, var(--surface-3), var(--surface));
+}
+.vs-orb span { width: 12px; height: 12px; border-radius: 50%; background: var(--text-faint); transition: background-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+[data-state="running"] .vs-orb { border-color: var(--gold-line); box-shadow: var(--glow); }
+[data-state="running"] .vs-orb span { background: var(--gold); box-shadow: 0 0 0 4px var(--gold-soft), 0 0 18px var(--gold); }
+[data-state="running"] .vs-orb::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 1px solid var(--gold);
+  animation: vs-ping 2.2s var(--ease) infinite;
+}
+[data-state="stopping"] .vs-orb span { background: var(--amber); box-shadow: 0 0 0 4px var(--amber-soft); }
+[data-state="running"] .vs-console-state { background: var(--gold-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
+@keyframes vs-ping { 0% { transform: scale(1); opacity: .7; } 80%, 100% { transform: scale(1.55); opacity: 0; } }
+
+/* ---------------------------------------------------------------- layout */
+.vs-kpis .stat-value { font-size: clamp(24px, 2.6vw, 32px); }
+.vs-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); gap: var(--gap); align-items: start; }
+.vs-aside { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
+.vs-stage-card { min-width: 0; }
+.vs-stage { padding: clamp(14px, 2vw, 22px); min-height: 280px; }
+.vs-stage-empty .empty-state { min-height: 240px; }
+@media (max-width: 1100px) {
+  .vs-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------------------------------------------------------------- slots (lanes) */
+.vs-slots { display: grid; gap: var(--s4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); }
+.vs-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  min-width: 0;
+}
+.vs-slot.is-busy { border-color: var(--gold-line); box-shadow: var(--glow); }
+.vs-slot.is-done { border-color: color-mix(in srgb, var(--green) 40%, transparent); }
+.vs-slot.is-error { border-color: color-mix(in srgb, var(--red) 45%, transparent); }
+.vs-slot.is-busy::before {
+  content: "";
+  position: absolute;
+  inset-inline: 18px;
+  inset-block-start: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  background-size: 50% 100%;
+  background-repeat: no-repeat;
+  animation: vs-sheen 1.8s linear infinite;
+}
+@keyframes vs-sheen { from { background-position: -50% 0; } to { background-position: 150% 0; } }
+.vs-slot-head { display: flex; align-items: center; gap: var(--s3); min-width: 0; }
+.vs-slot-no {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  color: var(--gold);
+  font-size: 12.5px;
+  background: var(--gold-soft);
+}
+.vs-slot-meta { flex: 1; min-width: 0; }
+.vs-slot-title { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vs-slot-sub { color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vs-slot-phase { flex: none; white-space: nowrap; }
+.vs-progress { height: 3px; }
+.vs-progress .progress-bar { transition: width 420ms var(--ease); }
+
+/* devices */
+.vs-devices { display: grid; grid-template-columns: minmax(0, 3.3fr) minmax(0, 1fr); gap: var(--s3); align-items: end; }
+.vs-device { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.vs-device figcaption { color: var(--text-faint); text-align: center; direction: ltr; }
+.vs-screen {
+  position: relative;
+  overflow: hidden;
+  direction: ltr;
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background:
+    linear-gradient(45deg, var(--surface-2) 25%, transparent 25%, transparent 75%, var(--surface-2) 75%) 0 0 / 16px 16px,
+    linear-gradient(45deg, var(--surface-2) 25%, transparent 25%, transparent 75%, var(--surface-2) 75%) 8px 8px / 16px 16px,
+    var(--surface);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25), var(--shadow-sm);
+}
+.vs-device-desktop .vs-screen { border-top-width: 14px; border-top-color: var(--surface-3); }
+.vs-device-desktop .vs-screen::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: -10px;
+  left: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  box-shadow: 10px 0 0 var(--text-faint), 20px 0 0 var(--text-faint);
+  opacity: .55;
+}
+.vs-device-mobile .vs-screen { border-radius: 14px; border-width: 4px; border-color: var(--surface-3); }
+.vs-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 0;
+  transform-origin: 0 0;
+  background: #fff;
+  pointer-events: none;
+}
+.vs-shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top left; animation: vs-fade 420ms var(--ease) both; }
+.vs-screen-empty { position: absolute; inset: 0; display: grid; place-items: center; }
+.vs-screen-empty::after { content: ""; width: 28%; max-width: 40px; aspect-ratio: 1; border-radius: 50%; border: 1px dashed var(--border-strong); }
+.vs-screen.is-live::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 30%;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, var(--gold-soft) 85%, color-mix(in srgb, var(--gold) 55%, transparent) 100%);
+  animation: vs-scan 2.4s var(--ease) infinite;
+}
+@keyframes vs-scan { from { transform: translateY(-100%); } to { transform: translateY(340%); } }
+@keyframes vs-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* check chips */
+.vs-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; min-height: 0; }
+.vs-checks:empty { display: none; }
+.vs-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  cursor: default;
+}
+.vs-check-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); }
+.vs-check.is-pass { border-color: color-mix(in srgb, var(--green) 35%, transparent); background: var(--green-soft); color: var(--text); }
+.vs-check.is-pass .vs-check-dot { background: var(--green); }
+.vs-check.is-fail { border-color: color-mix(in srgb, var(--red) 35%, transparent); background: var(--red-soft); color: var(--text); }
+.vs-check.is-fail .vs-check-dot { background: var(--red); }
+
+/* docked previews (stage scrolled out of view: keep frames visible so they are not throttled) */
+.vs-slots.is-docked {
+  position: fixed;
+  z-index: 80;
+  inset-block-end: 16px;
+  inset-inline-end: 16px;
+  width: min(400px, calc(100vw - 32px));
+  max-height: min(70vh, 640px);
+  overflow: auto;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s2);
+  padding: var(--s2);
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius-lg);
+  background: var(--glass-strong, var(--glass));
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-lg);
+}
+.vs-slots.is-docked .vs-slot { padding: var(--s2); gap: var(--s2); }
+.vs-slots.is-docked .vs-checks, .vs-slots.is-docked .vs-device figcaption, .vs-slots.is-docked .vs-slot-sub { display: none; }
+.vs-slots.is-docked .vs-slot-no { width: 26px; height: 26px; }
+
+/* ---------------------------------------------------------------- log */
+.vs-log-card { min-width: 0; }
+.vs-log {
+  list-style: none;
+  margin: 0;
+  padding: var(--s2) 0;
+  max-height: 380px;
+  overflow: auto;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.vs-log:empty::before { content: "—"; display: block; padding: var(--s4); color: var(--text-faint); text-align: center; }
+.vs-log li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 6px clamp(16px, 2vw, 22px);
+  border-inline-start: 2px solid transparent;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.vs-log li + li { border-top: 1px solid var(--border); }
+.vs-log time { color: var(--text-faint); font-size: 11.5px; direction: ltr; }
+.vs-log .vs-log-ok { border-inline-start-color: var(--green); color: var(--text); }
+.vs-log .vs-log-warn { border-inline-start-color: var(--amber); }
+.vs-log .vs-log-error { border-inline-start-color: var(--red); color: var(--text); }
+.vs-log li:first-child { animation: vs-fade 300ms var(--ease) both; }
+
+/* ---------------------------------------------------------------- headless + tips */
+.vs-cmd { position: relative; }
+.vs-cmd .code-block { margin: 0; padding-inline-end: 84px; font-size: 12.5px; }
+.vs-cmd-copy { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; }
+.vs-tip-list { list-style: none; margin: 0; display: flex; flex-direction: column; gap: var(--s3); }
+.vs-tip-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; font-size: 13.5px; color: var(--text-muted); line-height: 1.55; }
+.vs-tip-list .icon { color: var(--gold); margin-top: 3px; }
+
+/* ---------------------------------------------------------------- recent */
+.vs-thumb {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 60px;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-faint);
+}
+.vs-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top left; transition: transform var(--dur) var(--ease); }
+a.vs-thumb:hover img { transform: scale(1.06); }
+.vs-recent-title { color: var(--text); font-weight: 550; }
+.vs-recent-title:hover { color: var(--gold); }
+.vs-recent-checks { min-width: 120px; }
+.vs-recent-checks .scorebar { display: block; margin-top: 6px; max-width: 140px; }
+
+/* ---------------------------------------------------------------- compact widget (embedded in the Console) */
+.vs-host { min-width: 0; }
+.vs-mini { margin-top: var(--s3); border-top: 1px solid var(--border); }
+.vs-mini-stats { padding: var(--s3) 0; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.vs-mini-log { max-height: 220px; padding: 0; }
+
+/* ---------------------------------------------------------------- responsive + motion */
+@media (max-width: 640px) {
+  .vs-console { flex-direction: column; align-items: stretch; }
+  .vs-console-actions { justify-content: space-between; }
+  .vs-console-actions .btn { flex: 1 1 auto; justify-content: center; }
+  .vs-slots { grid-template-columns: minmax(0, 1fr); }
+  .vs-recent .table th:nth-child(3), .vs-recent .table td:nth-child(3),
+  .vs-recent .table th:nth-child(6), .vs-recent .table td:nth-child(6) { display: none; }
+  .vs-thumb { width: 72px; height: 46px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vs-slot.is-busy::before, .vs-screen.is-live::after, [data-state="running"] .vs-orb::after { animation: none; }
+  .vs-shot, .vs-log li:first-child { animation: none; }
+}

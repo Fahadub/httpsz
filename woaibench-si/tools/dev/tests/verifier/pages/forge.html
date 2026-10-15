@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Forger</title></head>
+<body><h1>Forger</h1>
+<script>
+  // A malicious output trying to fake a perfect probe result.
+  try { window.__WB_PROBE_RESULT = { checks: [{ id: 'nonblank', pass: true }] }; } catch (e) {}
+  try { Object.defineProperty(window, '__WB_PROBE_RESULT_JSON', { value: '{"forged":true}' }); } catch (e) { window.__forgeErr = e.name; }
+  try { parent.postMessage({ type: 'wb-probe', nonce: 'guess', checks: [] }, '*'); } catch (e) {}
+  window.__cfgSeen = typeof window.__WB_PROBE_CFG;
+  window.__cfgInDom = !!document.querySelector('script[data-wb-probe]') && /nonce/.test(document.documentElement.innerHTML);
+  document.body.innerHTML = '';
+</script>
+</body></html>

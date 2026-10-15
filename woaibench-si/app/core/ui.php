@@ -11,8 +11,11 @@ defined('WB') || exit;
 /** Inline SVG icon from the sprite assets/img/icons.svg (symbol id "i-<name>"). */
 function ui_icon(string $name, int $size = 18, string $class = ''): string
 {
-    $href = asset('img/icons.svg') . '#i-' . preg_replace('/[^a-z0-9\-]/', '', $name);
-    return '<svg class="icon ' . e($class) . '" width="' . $size . '" height="' . $size . '" aria-hidden="true" focusable="false"><use href="' . e($href) . '"></use></svg>';
+    static $sprite = null;
+    $sprite ??= asset('img/icons.svg');
+    $name = (string) preg_replace('/[^a-z0-9\-]/', '', $name);
+    $cls = trim('icon icon-' . $name . ' ' . $class);
+    return '<svg class="' . e($cls) . '" width="' . $size . '" height="' . $size . '" aria-hidden="true" focusable="false"><use href="' . e($sprite . '#i-' . $name) . '"></use></svg>';
 }
 
 /** Map a 0..100 score to a heat bucket 0..10 (for .heat-N classes). */
@@ -197,4 +200,82 @@ function ui_status(string $status): string
     ];
     $key = 'status.' . $status;
     return ui_badge(I18n::has($key) ? __($key) : $status, $map[$status] ?? 'muted');
+}
+
+/* ------------------------------------------------------------------ design-system additions */
+
+/**
+ * Inline brand mark ("Calibrated W"), theme-aware through CSS tokens (--logo-a/b/c).
+ * $detail: 'simple' (header/footer sizes) | 'full' (adds the fine graduation scale, for ≥ 64 px).
+ */
+function ui_logo_mark(int $size = 34, string $detail = 'simple', string $class = 'brand-mark'): string
+{
+    static $n = 0;
+    $id = 'wbmk' . (++$n);
+    $fine = '';
+    if ($detail === 'full') {
+        $d = '';
+        for ($deg = 0; $deg < 360; $deg += 6) {
+            if ($deg % 90 === 0 || abs($deg - 50.6) < 11) {
+                continue;
+            }
+            $r0 = $deg % 30 === 0 ? 22.2 : 23.3;
+            $a = deg2rad($deg);
+            $d .= sprintf('M%.2f %.2fL%.2f %.2f', 32 + $r0 * sin($a), 32 - $r0 * cos($a), 32 + 24.6 * sin($a), 32 - 24.6 * cos($a));
+        }
+        $fine = '<path d="' . $d . '" stroke="url(#' . $id . ')" stroke-width=".75" stroke-linecap="round" opacity=".7" fill="none"/>'
+            . '<circle cx="47.2" cy="19.4" r="5.2" fill="none" stroke="url(#' . $id . ')" stroke-width=".9" opacity=".8"/>';
+    }
+    return '<svg class="' . e($class) . '" viewBox="0 0 64 64" width="' . $size . '" height="' . $size . '" aria-hidden="true" focusable="false">'
+        . '<defs><linearGradient id="' . $id . '" x1="10" y1="6" x2="54" y2="58" gradientUnits="userSpaceOnUse">'
+        . '<stop offset="0" class="bm-a"/><stop offset=".48" class="bm-b"/><stop offset="1" class="bm-c"/></linearGradient></defs>'
+        . '<circle cx="32" cy="32" r="27.4" fill="none" stroke="url(#' . $id . ')" stroke-width="2.3"/>'
+        . '<path d="M32 11.4V7.4M52.6 32h4M32 52.6v4M11.4 32h-4" stroke="url(#' . $id . ')" stroke-width="2" stroke-linecap="round" fill="none"/>'
+        . $fine
+        . '<polyline points="16.6 25.2 23.6 41.6 31.6 30.4 39.6 41.6 47.2 19.4" fill="none" stroke="url(#' . $id . ')" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/>'
+        . '<circle cx="47.2" cy="19.4" r="3.2" fill="url(#' . $id . ')"/></svg>';
+}
+
+/** Brand link (mark + wordmark). Uses the active generated logo from the Brand Studio when set. */
+function ui_brand(int $size = 34, bool $wordmark = true, string $href = '/'): string
+{
+    $custom = (string) setting('brand_logo', '');
+    $mark = $custom !== ''
+        ? '<img class="brand-mark" src="' . e((string) upload_url($custom)) . '" alt="" width="' . $size . '" height="' . $size . '">'
+        : ui_logo_mark($size);
+    $word = $wordmark ? '<span class="brand-word">WOAI<span class="brand-bench">Bench</span><span class="brand-tld">.si</span></span>' : '';
+    return '<a class="brand" href="' . e(url($href)) . '" aria-label="' . e(setting('site_name', 'WOAIBench') . '.si — ' . __('design.home')) . '">'
+        . $mark . $word . '</a>';
+}
+
+/** Escape text and turn *word* into <em>word</em> (gold italic accent in display headings). */
+function ui_em(string $text): string
+{
+    return (string) preg_replace('/\*([^*]+)\*/u', '<em>$1</em>', e($text));
+}
+
+/** Tiny heat square (no number) with a tooltip — for dense per-track strips. */
+function ui_heat_mini(int|float|string|null $score, string $tip = ''): string
+{
+    $b = ui_heat_bucket($score);
+    $cls = $b < 0 ? 'heat heat-mini heat-na' : 'heat heat-mini heat-' . $b;
+    $label = $tip !== '' ? $tip : fmt_score($score);
+    return '<span class="' . $cls . '" data-tip="' . e($label) . '" role="img" aria-label="' . e($label) . '"></span>';
+}
+
+/** Standard section heading: eyebrow, display title (supports *emphasis*), optional sub text. */
+function ui_section_head(string $eyebrow, string $title, string $sub = '', string $class = '', string $tag = 'h2'): string
+{
+    $tag = in_array($tag, ['h1', 'h2', 'h3'], true) ? $tag : 'h2';
+    return '<div class="section-head ' . e($class) . '">'
+        . ($eyebrow !== '' ? '<span class="eyebrow">' . e($eyebrow) . '</span>' : '')
+        . '<' . $tag . ' class="section-title">' . ui_em($title) . '</' . $tag . '>'
+        . ($sub !== '' ? '<p class="section-sub">' . e($sub) . '</p>' : '')
+        . '</div>';
+}
+
+/** Pulsing "live" status dot. */
+function ui_live_dot(): string
+{
+    return '<span class="live-dot" aria-hidden="true"></span>';
 }

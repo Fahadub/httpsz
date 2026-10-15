@@ -1,0 +1,290 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Crate Courier — puzzle</title>
+<style>
+  :root { --bg: #1b1a24; --bg2: #24222f; --panel: #2c2a39; --text: #f3ead8; --muted: #a59f92; --gold: #f0b85a; --teal: #64d3c2; --line: #3a3748; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: radial-gradient(1200px 600px at 50% -10%, #2f2b40, var(--bg)); color: var(--text); font: 15px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
+  header { width: min(860px, 100%); padding: 16px 16px 8px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: .02em; }
+  h1 span { color: var(--gold); }
+  .hud { display: flex; gap: 8px; margin-inline-start: auto; flex-wrap: wrap; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; min-width: 76px; text-align: center; }
+  .stat b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .stat small { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+  #level { font-weight: 700; color: var(--gold); padding: 6px 12px; border: 1px solid rgba(240,184,90,.35); border-radius: 10px; background: rgba(240,184,90,.08); }
+  main { position: relative; width: min(860px, 100%); flex: 1; display: flex; flex-direction: column; align-items: center; padding: 8px 16px 16px; min-height: 0; }
+  .stage { position: relative; width: 100%; flex: 1; min-height: 260px; display: grid; place-items: center; }
+  canvas { display: block; border-radius: 14px; box-shadow: 0 30px 60px -30px rgba(0,0,0,.8); touch-action: none; }
+  .controls { display: flex; gap: 22px; align-items: center; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+  .dpad { display: grid; grid-template-columns: repeat(3, 54px); grid-template-rows: repeat(2, 54px); gap: 6px; }
+  .dpad button, .tool { width: 54px; height: 54px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 20px; cursor: pointer; display: grid; place-items: center; touch-action: manipulation; }
+  .dpad button:active, .tool:active { background: #3a3750; transform: translateY(1px); }
+  #btn-up { grid-column: 2; } #btn-left { grid-column: 1; grid-row: 2; } #btn-down { grid-column: 2; grid-row: 2; } #btn-right { grid-column: 3; grid-row: 2; }
+  .tools { display: flex; gap: 8px; }
+  .tool { width: auto; padding: 0 16px; font-size: 14px; font-weight: 600; gap: 8px; display: inline-flex; }
+  .tool kbd { font: 600 11px ui-monospace, Menlo, monospace; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(20,18,28,.62); backdrop-filter: blur(3px); border-radius: 14px; }
+  .overlay[hidden] { display: none; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 26px 30px; text-align: center; box-shadow: 0 30px 80px rgba(0,0,0,.5); animation: pop .3s cubic-bezier(.2,1.4,.4,1); max-width: 90%; }
+  @keyframes pop { from { transform: scale(.85); opacity: 0; } }
+  .card h2 { margin: 0 0 6px; font-size: 24px; color: var(--gold); }
+  .card p { margin: 0 0 18px; color: var(--muted); }
+  .card button { font: inherit; font-weight: 700; padding: 12px 22px; border-radius: 12px; border: 0; background: var(--gold); color: #2a1f0b; cursor: pointer; min-height: 46px; }
+  .help { color: var(--muted); font-size: 12px; text-align: center; margin: 10px 0 0; }
+  @media (max-width: 520px) { header { padding-bottom: 4px; } .stat { min-width: 64px; padding: 4px 8px; } .stat b { font-size: 16px; } .help { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Crate <span>Courier</span></h1>
+  <div class="hud" aria-live="polite">
+    <div id="level">Level 1 / 3</div>
+    <div class="stat"><b id="moves">0</b><small>Moves</small></div>
+    <div class="stat"><b id="pushes">0</b><small>Pushes</small></div>
+  </div>
+</header>
+<main>
+  <div class="stage" id="stage">
+    <canvas id="board" role="img" aria-label="Puzzle board"></canvas>
+    <div class="overlay" id="overlay" hidden>
+      <div class="card" role="dialog" aria-modal="true" aria-labelledby="ov-title">
+        <h2 id="ov-title">Level complete</h2>
+        <p id="ov-text"></p>
+        <button type="button" id="next-level">Next level</button>
+      </div>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="dpad" aria-label="Movement">
+      <button type="button" id="btn-up" aria-label="Move up">▲</button>
+      <button type="button" id="btn-left" aria-label="Move left">◀</button>
+      <button type="button" id="btn-down" aria-label="Move down">▼</button>
+      <button type="button" id="btn-right" aria-label="Move right">▶</button>
+    </div>
+    <div class="tools">
+      <button type="button" class="tool" id="undo">Undo <kbd>Z</kbd></button>
+      <button type="button" class="tool" id="restart">Restart <kbd>R</kbd></button>
+    </div>
+  </div>
+  <p class="help">Arrows / WASD to move · Z or U to undo · R to restart · swipe on the board</p>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const LEVELS = [
+    ['########', '#  .   #', '# $##  #', '#@ $ . #', '#      #', '########'],
+    ['  ######', '  #    #', '###$##.#', '#  $  .#', '# @ $# #', '##   ..#', ' ##$#  #', '  #    #', '  ######'],
+    ['#########', '#   #   #', '# $ . $ #', '## # # ##', '#.  @  .#', '## # # ##', '# $ . $ #', '#   #   #', '#########'],
+  ];
+  const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  const KEYMAP = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right', W: 'up', S: 'down', A: 'left', D: 'right' };
+  const STEP_MS = 100;
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let L;            // current level state
+  let levelIndex = 0;
+  let queue = [];
+  let anim = null;  // {from:{x,y}, to:{x,y}, crate: idx|null, crateFrom, t0}
+  let tile = 48, ox = 0, oy = 0;
+  let won = false;
+
+  function parse(rows) {
+    const h = rows.length, w = Math.max(...rows.map((r) => r.length));
+    const grid = [], goals = new Set(), crates = [];
+    let player = null;
+    rows.forEach((r, y) => [...r.padEnd(w)].forEach((ch, x) => {
+      grid[y * w + x] = ch === '#' ? 'wall' : 'void';
+      if ('.*+'.includes(ch)) goals.add(y * w + x);
+      if ('$*'.includes(ch)) crates.push({ x, y });
+      if ('@+'.includes(ch)) player = { x, y };
+    }));
+    // flood fill from the player marks the playable interior as floor (spaces outside walls stay void)
+    const stack = [player.y * w + player.x];
+    while (stack.length) {
+      const k = stack.pop();
+      if (grid[k] !== 'void') continue;
+      grid[k] = 'floor';
+      const x = k % w, y = (k / w) | 0;
+      if (x > 0) stack.push(k - 1); if (x < w - 1) stack.push(k + 1); if (y > 0) stack.push(k - w); if (y < h - 1) stack.push(k + w);
+    }
+    return { w, h, grid, goals, crates, player, moves: 0, pushes: 0, history: [] };
+  }
+
+  const at = (x, y) => (x < 0 || y < 0 || x >= L.w || y >= L.h) ? 'wall' : L.grid[y * L.w + x];
+  const crateAt = (x, y) => L.crates.findIndex((c) => c.x === x && c.y === y);
+  const solved = () => L.crates.every((c) => L.goals.has(c.y * L.w + c.x));
+
+  function load(i) {
+    levelIndex = i; L = parse(LEVELS[i]); queue = []; anim = null; won = false;
+    overlay.hidden = true;
+    resize(); hud();
+  }
+  function hud() {
+    document.getElementById('level').textContent = `Level ${levelIndex + 1} / ${LEVELS.length}`;
+    document.getElementById('moves').textContent = L.moves;
+    document.getElementById('pushes').textContent = L.pushes;
+  }
+
+  function tryMove(dir) {
+    const [dx, dy] = DIRS[dir];
+    const nx = L.player.x + dx, ny = L.player.y + dy;
+    if (at(nx, ny) !== 'floor') return false;
+    const ci = crateAt(nx, ny);
+    if (ci >= 0) {
+      const bx = nx + dx, by = ny + dy;
+      if (at(bx, by) !== 'floor' || crateAt(bx, by) >= 0) return false;
+    }
+    L.history.push({ player: { ...L.player }, crates: L.crates.map((c) => ({ ...c })), moves: L.moves, pushes: L.pushes });
+    anim = { from: { ...L.player }, to: { x: nx, y: ny }, crate: ci >= 0 ? ci : null, crateFrom: ci >= 0 ? { ...L.crates[ci] } : null, t0: performance.now() };
+    L.player = { x: nx, y: ny };
+    if (ci >= 0) { L.crates[ci] = { x: nx + dx, y: ny + dy }; L.pushes++; }
+    L.moves++;
+    hud();
+    return true;
+  }
+  function undo() {
+    if (won || !L.history.length) return;
+    const s = L.history.pop();
+    L.player = s.player; L.crates = s.crates; L.moves = s.moves; L.pushes = s.pushes;
+    anim = null; queue = [];
+    hud();
+  }
+  function input(dir) {
+    if (won) return;
+    if (anim && !reduced) { if (queue.length < 2) queue.push(dir); return; }
+    if (tryMove(dir) && reduced) { anim = null; checkWin(); }
+  }
+  function checkWin() {
+    if (!solved()) return;
+    won = true; queue = [];
+    const last = levelIndex === LEVELS.length - 1;
+    document.getElementById('ov-title').textContent = last ? 'All levels solved' : 'Level complete';
+    document.getElementById('ov-text').textContent = `${L.moves} moves · ${L.pushes} pushes${last ? ' — thanks for playing!' : ''}`;
+    const btn = document.getElementById('next-level');
+    btn.textContent = last ? 'Play again' : 'Next level';
+    setTimeout(() => { overlay.hidden = false; btn.focus(); }, reduced ? 0 : 160);
+  }
+  function next() { if (won) load(levelIndex === LEVELS.length - 1 ? 0 : levelIndex + 1); }
+
+  // ---------- rendering ----------
+  function resize() {
+    const stage = document.getElementById('stage');
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const maxW = stage.clientWidth, maxH = Math.max(240, stage.clientHeight);
+    tile = Math.max(16, Math.floor(Math.min(maxW / L.w, maxH / L.h, 64)));
+    const cw = tile * L.w, ch = tile * L.h;
+    canvas.width = cw * dpr; canvas.height = ch * dpr;
+    canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  const ease = (t) => 1 - Math.pow(1 - t, 3);
+  function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+  function drawWall(x, y) {
+    const t = tile;
+    ctx.fillStyle = '#4a4560'; rr(x * t + 1, y * t + 1, t - 2, t - 2, t * 0.18); ctx.fill();
+    ctx.fillStyle = '#5a5474'; rr(x * t + 1, y * t + 1, t - 2, t * 0.55, t * 0.18); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x * t + t * 0.5, y * t + t * 0.55); ctx.lineTo(x * t + t * 0.5, y * t + t - 2); ctx.stroke();
+  }
+  function drawFloor(x, y) {
+    const t = tile;
+    ctx.fillStyle = (x + y) % 2 ? '#2f2c3c' : '#332f42';
+    ctx.fillRect(x * t, y * t, t, t);
+  }
+  function drawGoal(x, y, time) {
+    const t = tile, cx = x * t + t / 2, cy = y * t + t / 2;
+    const pulse = reduced ? 0 : Math.sin(time / 400 + x + y) * 0.04;
+    ctx.strokeStyle = 'rgba(100,211,194,.85)'; ctx.lineWidth = Math.max(2, t * 0.06);
+    ctx.beginPath(); ctx.arc(cx, cy, t * (0.22 + pulse), 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(100,211,194,.25)'; ctx.beginPath(); ctx.arc(cx, cy, t * 0.12, 0, Math.PI * 2); ctx.fill();
+  }
+  function drawCrate(px, py, onGoal) {
+    const t = tile, x = px * t, y = py * t, m = t * 0.1;
+    ctx.fillStyle = 'rgba(0,0,0,.28)'; rr(x + m + 2, y + m + 4, t - 2 * m, t - 2 * m, t * 0.14); ctx.fill();
+    ctx.fillStyle = onGoal ? '#64d3c2' : '#d9963e'; rr(x + m, y + m, t - 2 * m, t - 2 * m, t * 0.14); ctx.fill();
+    ctx.strokeStyle = onGoal ? '#2c8a7c' : '#9b6224'; ctx.lineWidth = Math.max(2, t * 0.07);
+    rr(x + m * 2.2, y + m * 2.2, t - 4.4 * m, t - 4.4 * m, t * 0.08); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + m * 2.2, y + m * 2.2); ctx.lineTo(x + t - m * 2.2, y + t - m * 2.2); ctx.stroke();
+    if (onGoal) { ctx.fillStyle = '#ffffff'; ctx.font = `700 ${t * 0.32}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('✓', x + t / 2, y + t / 2 + 1); }
+  }
+  function drawPlayer(px, py, time, moving) {
+    const t = tile, cx = px * t + t / 2, cy = py * t + t / 2;
+    const bob = reduced ? 0 : Math.sin(time / (moving ? 60 : 300)) * t * (moving ? 0.03 : 0.015);
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(cx, cy + t * 0.32, t * 0.26, t * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f0b85a'; ctx.beginPath(); ctx.arc(cx, cy + bob, t * 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2a1f0b'; ctx.beginPath(); ctx.arc(cx - t * 0.1, cy - t * 0.04 + bob, t * 0.045, 0, Math.PI * 2); ctx.arc(cx + t * 0.1, cy - t * 0.04 + bob, t * 0.045, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#c0392b'; rr(cx - t * 0.3, cy - t * 0.3 + bob, t * 0.6, t * 0.12, t * 0.05); ctx.fill();
+  }
+  function frame(time) {
+    let p = L.player, crateOverride = null, moving = false;
+    if (anim) {
+      const k = Math.min(1, (time - anim.t0) / STEP_MS), e = ease(k);
+      moving = true;
+      p = { x: anim.from.x + (anim.to.x - anim.from.x) * e, y: anim.from.y + (anim.to.y - anim.from.y) * e };
+      if (anim.crate !== null) {
+        const to = L.crates[anim.crate];
+        crateOverride = { i: anim.crate, x: anim.crateFrom.x + (to.x - anim.crateFrom.x) * e, y: anim.crateFrom.y + (to.y - anim.crateFrom.y) * e };
+      }
+      if (k >= 1) {
+        anim = null;
+        checkWin();
+        if (!won && queue.length) tryMove(queue.shift());
+      }
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+      const c = L.grid[y * L.w + x];
+      if (c === 'floor') drawFloor(x, y);
+    }
+    for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+      if (L.grid[y * L.w + x] === 'wall') drawWall(x, y);
+      if (L.goals.has(y * L.w + x)) drawGoal(x, y, time);
+    }
+    L.crates.forEach((c, i) => {
+      if (crateOverride && crateOverride.i === i) drawCrate(crateOverride.x, crateOverride.y, false);
+      else drawCrate(c.x, c.y, L.goals.has(c.y * L.w + c.x));
+    });
+    drawPlayer(p.x, p.y, time, moving);
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- input ----------
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (won && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); next(); return; }
+    const dir = KEYMAP[e.key];
+    if (dir) { e.preventDefault(); input(dir); return; }
+    const k = e.key.toLowerCase();
+    if (k === 'z' || k === 'u') { e.preventDefault(); undo(); }
+    else if (k === 'r') { e.preventDefault(); load(levelIndex); }
+  });
+  for (const dir of Object.keys(DIRS)) document.getElementById('btn-' + dir).addEventListener('click', () => input(dir));
+  document.getElementById('undo').addEventListener('click', undo);
+  document.getElementById('restart').addEventListener('click', () => load(levelIndex));
+  document.getElementById('next-level').addEventListener('click', next);
+  let touch = null;
+  canvas.addEventListener('pointerdown', (e) => { touch = { x: e.clientX, y: e.clientY }; });
+  canvas.addEventListener('pointerup', (e) => {
+    if (!touch) return;
+    const dx = e.clientX - touch.x, dy = e.clientY - touch.y; touch = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+    input(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+  });
+  window.addEventListener('resize', resize);
+
+  load(0);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

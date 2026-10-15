@@ -1,0 +1,1048 @@
+[
+  {
+    "slug": "games-crate-pusher",
+    "track": "games",
+    "title_en": "Crate-Pushing Puzzle with Undo",
+    "title_ar": "لعبة ألغاز دفع الصناديق مع التراجع",
+    "summary_en": "A Sokoban-style puzzle with three given levels: exact push rules, unlimited undo, move/push counters, queued animated movement and touch controls.",
+    "summary_ar": "لعبة ألغاز على نمط «سوكوبان» بثلاث مراحل محددة: قواعد دفع دقيقة، وتراجع غير محدود، وعدّاد للحركات والدفعات، وحركة متحركة مع طابور للمدخلات، وأزرار لمس.",
+    "prompt": "Build a polished crate-pushing puzzle game (the Sokoban genre) with exactly these three levels, in this order.\nNotation: # wall, @ player, + player on goal, $ crate, * crate on goal, . goal, space = floor. Spaces outside the outer walls are empty void, not floor.\n\nLevel 1\n########\n#  .   #\n# $##  #\n#@ $ . #\n#      #\n########\n\nLevel 2\n  ######\n  #    #\n###$##.#\n#  $  .#\n# @ $# #\n##   ..#\n ##$#  #\n  #    #\n  ######\n\nLevel 3\n#########\n#   #   #\n# $ . $ #\n## # # ##\n#.  @  .#\n## # # ##\n# $ . $ #\n#   #   #\n#########\n\nRules and features\n1. Arrow keys and WASD move the player one tile. Moving into a crate pushes it if the tile behind it is floor or goal; the player can never pull and cannot push two crates at once; walls block.\n2. HUD: an element id=\"level\" showing \"Level 1 / 3\" (current / total), an element id=\"moves\" with the move count and an element id=\"pushes\" with the push count, updated on every move.\n3. Undo: the Z or U key and a button id=\"undo\" undo one move at a time, all the way back to the level start (crate positions and both counters included). Restart: the R key and a button id=\"restart\".\n4. A level is solved when every crate stands on a goal: show a \"Level complete\" overlay with the move and push counts and a button id=\"next-level\" (Enter also works). After level 3 show \"All levels solved\".\n5. Movement is animated (a ~80–120 ms slide per step) but input is never lost: key presses during an animation are queued (up to 2), and holding a key keeps moving.\n6. Crates on goals look clearly different from crates elsewhere; goals stay visible under the player.\n7. Touch: an on-screen D-pad with four buttons id=\"btn-up\", id=\"btn-down\", id=\"btn-left\" and id=\"btn-right\" (each with an aria-label) plus undo and restart. Swiping on the board is a welcome extra.\n8. The board scales to fit the viewport (crisp, never blurry), stays centred and never causes horizontal scrolling.\n9. Render with <canvas> or DOM/SVG — your choice. Draw all art in code.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
+    "output_type": "html",
+    "difficulty": 2,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "rules",
+        "label_en": "Rules correctness",
+        "label_ar": "صحة القواعد",
+        "weight": 3,
+        "guide": "No pulling, no double pushes, walls block, win detected only when every crate is on a goal, undo restores crates and both counters exactly, restart resets, levels parsed exactly as given (void outside the walls not drawn as floor). Any rule bug that breaks a level caps this at 3."
+      },
+      {
+        "key": "feel",
+        "label_en": "Controls & game feel",
+        "label_ar": "التحكم والإحساس باللعب",
+        "weight": 2,
+        "guide": "Smooth slide animation with queued input (no lost or doubled moves when typing fast), key repeat works, D-pad responsive on touch, no movement while an overlay is open."
+      },
+      {
+        "key": "progression",
+        "label_en": "Progression & UI",
+        "label_ar": "التقدم والواجهة",
+        "weight": 2,
+        "guide": "Clear HUD, completion overlay with stats, Enter/next button, final \"All levels solved\" state, undo/restart easy to discover."
+      },
+      {
+        "key": "visual",
+        "label_en": "Visual design",
+        "label_ar": "التصميم البصري",
+        "weight": 2,
+        "guide": "Cohesive art direction drawn in code, crates-on-goal clearly distinct, crisp scaling at every size, pleasant palette and small touches (shadows, bobbing, goal pulse)."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Game state is data (grid + crate list + history stack) separate from rendering. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 0.5,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 120000,
+          "weight": 0.5,
+          "label_en": "Under 120 KB",
+          "label_ar": "حجم الملف أقل من 120 كيلوبايت"
+        },
+        {
+          "id": "has_moves",
+          "type": "selector",
+          "sel": "#moves",
+          "weight": 1,
+          "label_en": "Move counter #moves in markup",
+          "label_ar": "عدّاد الحركات ‎#moves‎ موجود"
+        },
+        {
+          "id": "has_undo",
+          "type": "selector",
+          "sel": "#undo",
+          "weight": 1,
+          "label_en": "Undo button #undo in markup",
+          "label_ar": "زر التراجع ‎#undo‎ موجود"
+        },
+        {
+          "id": "has_dpad",
+          "type": "selector",
+          "sel": "#btn-right",
+          "weight": 1,
+          "label_en": "D-pad buttons in markup",
+          "label_ar": "أزرار الاتجاهات موجودة"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "level_label",
+          "type": "text",
+          "contains": "Level 1 / 3",
+          "ci": true,
+          "weight": 2,
+          "label_en": "Shows \"Level 1 / 3\"",
+          "label_ar": "يعرض «Level 1 / 3»"
+        },
+        {
+          "id": "pushes",
+          "type": "selector",
+          "sel": "#pushes",
+          "weight": 1,
+          "label_en": "Push counter #pushes",
+          "label_ar": "عدّاد الدفعات ‎#pushes‎"
+        },
+        {
+          "id": "keys_move",
+          "type": "keyboard",
+          "keys": [
+            "ArrowRight"
+          ],
+          "weight": 3,
+          "label_en": "Arrow key moves the player",
+          "label_ar": "مفتاح السهم يحرّك اللاعب"
+        },
+        {
+          "id": "dpad_move",
+          "type": "click",
+          "sel": "#btn-right",
+          "weight": 2,
+          "label_en": "D-pad button moves the player",
+          "label_ar": "زر الاتجاه يحرّك اللاعب"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "games-falling-blocks",
+    "track": "games",
+    "title_en": "Falling-Block Puzzle with Modern Rules",
+    "title_ar": "لعبة الكتل المتساقطة بقواعد حديثة",
+    "summary_en": "A tight falling-block puzzle: 7-bag randomiser, wall kicks, hold, ghost piece, lock delay, DAS/ARR, exact scoring and level speed curve.",
+    "summary_ar": "لعبة كتل متساقطة محكمة: مولّد عشوائي بنظام الحقيبة السباعية، وارتدادات الجدار عند التدوير، وحفظ القطعة، والقطعة الشبحية، وتأخير التثبيت، والتكرار التلقائي للحركة، مع نقاط ومنحنى سرعة دقيقين.",
+    "prompt": "Build a modern falling-block puzzle game (the classic tetromino genre) that feels tight and fair.\n\nRules\n1. Well: 10 columns × 20 visible rows (plus 2 hidden spawn rows above), drawn on a <canvas id=\"well\">.\n2. Pieces: the seven tetrominoes I, O, T, S, Z, J, L, each with its own colour. Randomiser: 7-bag (each bag is a shuffled set of all seven pieces).\n3. Spawn: pieces appear at the top — I in columns 4–7, O in columns 5–6, the others in columns 4–6 (columns numbered 1–10). If a newly spawned piece overlaps the stack, the game is over.\n4. Keyboard: ArrowLeft/ArrowRight move; ArrowDown soft drop (+1 point per cell); Space hard drop (+2 points per cell); ArrowUp or X rotate clockwise; Z rotate counter-clockwise; C or Shift hold; P or Escape pause/resume.\n   - Holding Left/Right auto-repeats after a 170 ms delay, then every 50 ms (implement this yourself; do not rely on the OS key repeat).\n   - Rotation uses wall kicks: the standard SRS kick tables, or at minimum try the offsets (+1,0), (−1,0), (+2,0), (−2,0), (0,−1) in that order when the rotated piece collides.\n   - Hold swaps the current piece with the held one (or takes the next piece when hold is empty); it can be used once per piece until that piece locks.\n5. Gravity: the piece falls one row every (0.8 − (level − 1) × 0.007)^(level − 1) seconds, time-based (not frame-count based). Level starts at 1 and increases by 1 every 10 cleared lines.\n6. Lock delay: a piece resting on the stack locks after 500 ms; each successful move or rotation resets that timer, at most 15 times per piece.\n7. Line clears: full rows flash briefly (≤ 250 ms), are removed, and the rows above fall. Score: 1 line = 100, 2 = 300, 3 = 500, 4 = 800, each multiplied by the current level.\n8. A ghost piece shows where the current piece would land.\n9. Side panels: the next 3 pieces in an element id=\"next\", the held piece in id=\"hold\", and the numbers in elements id=\"score\", id=\"lines\" and id=\"level\".\n10. The game starts immediately when the page loads (no start screen). Game over shows an overlay with the final score and \"Press Enter to play again\" (plus a button). Pause shows a \"Paused\" overlay.\n11. Touch: on small screens, on-screen buttons (left, right, rotate, soft drop, hard drop, hold), each with an aria-label.\n12. The well scales to the available height and stays crisp; at 390 × 844 the whole game (well, next, hold, score and touch buttons) fits without horizontal scrolling.\n13. Use requestAnimationFrame for the game loop.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
+    "output_type": "html",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "rules",
+        "label_en": "Rules fidelity",
+        "label_ar": "الالتزام بالقواعد",
+        "weight": 3,
+        "guide": "7-bag randomiser, correct piece shapes and spawn columns, working wall kicks (a T or I rotates against walls), once-per-piece hold, exact scoring table × level and level-up every 10 lines, gravity follows the given formula, game over on blocked spawn."
+      },
+      {
+        "key": "feel",
+        "label_en": "Game feel",
+        "label_ar": "الإحساس باللعب",
+        "weight": 3,
+        "guide": "Lock delay with capped resets, DAS 170 ms / ARR 50 ms independent of OS repeat, instant hard drop, ghost piece, no input lag or dropped keys, line-clear flash that does not stall input. Sluggish or frame-rate-dependent controls score ≤ 4."
+      },
+      {
+        "key": "ui",
+        "label_en": "Interface & visuals",
+        "label_ar": "الواجهة والرسوم",
+        "weight": 2,
+        "guide": "Readable next/hold/score panels, distinct piece colours with subtle shading, crisp scaling, sensible mobile layout with touch buttons."
+      },
+      {
+        "key": "robustness",
+        "label_en": "Robustness",
+        "label_ar": "المتانة",
+        "weight": 1,
+        "guide": "Pause/resume, game over and restart work repeatedly with no stuck state or console errors; window resize handled."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Piece/rotation data in tables, collision as one pure function, time-based loop. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 0.5,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 120000,
+          "weight": 0.5,
+          "label_en": "Under 120 KB",
+          "label_ar": "حجم الملف أقل من 120 كيلوبايت"
+        },
+        {
+          "id": "uses_raf",
+          "type": "contains",
+          "pattern": "requestAnimationFrame",
+          "weight": 1,
+          "label_en": "Uses requestAnimationFrame",
+          "label_ar": "يستخدم requestAnimationFrame"
+        },
+        {
+          "id": "has_well",
+          "type": "selector",
+          "sel": "#well",
+          "weight": 1,
+          "label_en": "Canvas #well in markup",
+          "label_ar": "لوحة اللعب ‎#well‎ موجودة"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "canvas",
+          "type": "canvas",
+          "weight": 2,
+          "label_en": "Draws on a canvas",
+          "label_ar": "يرسم على عنصر canvas"
+        },
+        {
+          "id": "has_score",
+          "type": "selector",
+          "sel": "#score",
+          "weight": 1,
+          "label_en": "Score element #score",
+          "label_ar": "عنصر النقاط ‎#score‎"
+        },
+        {
+          "id": "has_next",
+          "type": "selector",
+          "sel": "#next",
+          "weight": 1,
+          "label_en": "Next-piece panel #next",
+          "label_ar": "لوحة القطع التالية ‎#next‎"
+        },
+        {
+          "id": "has_hold",
+          "type": "selector",
+          "sel": "#hold",
+          "weight": 1,
+          "label_en": "Hold panel #hold",
+          "label_ar": "لوحة القطعة المحفوظة ‎#hold‎"
+        },
+        {
+          "id": "animates",
+          "type": "animates",
+          "weight": 2,
+          "label_en": "Pieces fall on their own",
+          "label_ar": "القطع تسقط تلقائيًا"
+        },
+        {
+          "id": "keys_play",
+          "type": "keyboard",
+          "keys": [
+            "ArrowLeft",
+            "ArrowLeft",
+            "ArrowDown"
+          ],
+          "weight": 2,
+          "label_en": "Keyboard moves the piece",
+          "label_ar": "لوحة المفاتيح تحرّك القطعة"
+        },
+        {
+          "id": "fps",
+          "type": "fps",
+          "min": 50,
+          "weight": 1,
+          "label_en": "Holds at least 50 fps",
+          "label_ar": "يحافظ على 50 إطارًا في الثانية على الأقل"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "games-tile-platformer",
+    "track": "games",
+    "title_en": "Tile-Based Platformer with Great Jump Feel",
+    "title_ar": "لعبة منصات مبنية على البلاطات بإحساس قفز متقن",
+    "summary_en": "A side-scrolling platformer from a given tile map: fixed-timestep physics, coyote time, jump buffering, variable jumps, one-way platforms, enemies, checkpoints and a smooth camera.",
+    "summary_ar": "لعبة منصات جانبية من خريطة بلاطات محددة: فيزياء بخطوة زمنية ثابتة، ومهلة «الذئب» للقفز، وتخزين القفز المسبق، وارتفاع قفز متغير، ومنصات أحادية الاتجاه، وأعداء، ونقاط حفظ، وكاميرا سلسة.",
+    "prompt": "Build a side-scrolling platformer level from this exact 80 × 15 tile map (rows top to bottom):\n\n................................................................................\n................................................................................\n................................................................................\n................................................................................\n................................................................o.o.............\n...............................................................=====............\n................................................................................\n...........................................................o....................\n.................ooo...........o..........................====.........o........\n................=====..........................Moo....................====......\n.......................o......##.............=======....#.......................\n.....ooo......................##..........o............##..................o....\n..P......M..##................##.C..^^...M............###...........C........E..\n######################...######################....############...##############\n######################^^^######################^^^^############...##############\n\nLegend: # solid ground · = one-way platform (stand on it, jump up through it) · ^ spikes · o coin · C checkpoint flag · E exit door · P player start · M patrolling enemy · . empty. The left and right edges of the map are walls; falling below the bottom row is fatal.\n\nRequirements\n1. Render on a <canvas id=\"game\"> with crisp integer pixel scaling (no blurry smoothing). Draw all art in code.\n2. Physics must be frame-rate independent: a fixed timestep (e.g. 1/120 s) with an accumulator, rendering interpolated between steps. Tune it so the player (about 0.75 × 0.95 tile) can jump at least 3.5 tiles high and clear a 4-tile gap at full speed — the level is designed for that.\n3. Movement feel: acceleration and deceleration (no instant full speed), less air control, variable jump height (releasing jump early cuts the jump), coyote time ≈ 100 ms, jump buffering ≈ 120 ms. Input is never lost: a key pressed and released between two frames still takes effect.\n4. Collision: robust axis-separated tile collision with no tunnelling, no sticking to walls, no snagging on tile seams; one-way platforms only collide from above.\n5. Enemies walk back and forth on the surface they stand on, turning at walls, ledges and spikes. Landing on an enemy from above defeats it and bounces the player; touching it otherwise costs a life.\n6. Lives: 3. Spikes, enemies and falling out of the level cost a life and respawn the player at the last checkpoint touched (or the start) with ~1 s of blinking invulnerability. At 0 lives show \"Game over\" with a restart (Enter and a button).\n7. Coins: collected coins stay collected after a death. HUD elements: id=\"coins\" showing \"Coins <collected> / <total>\" where total is the number of coins in the map, id=\"lives\" showing the remaining lives, id=\"time\" showing elapsed time.\n8. Reaching the exit shows \"Level complete\" with time and coins, and Enter restarts.\n9. Camera follows the player smoothly with a small dead zone, clamped to the level bounds, with a subtle parallax background.\n10. Controls: ArrowLeft/ArrowRight or A/D to run; Space, ArrowUp or W to jump. On touch screens show on-screen buttons (left, right, jump) with aria-labels; they must support holding.\n11. The world is alive even when the player stands still (coins bob or spin, enemies patrol).\n12. It must fit a 390 × 844 portrait screen (smaller scale, touch buttons visible) and a 1280 × 800 desktop.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
+    "output_type": "html",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "feel",
+        "label_en": "Movement feel",
+        "label_ar": "إحساس الحركة",
+        "weight": 3,
+        "guide": "Acceleration/deceleration, reduced air control, variable jump height, coyote time and jump buffering all present and tuned; consistent at any frame rate thanks to the fixed timestep. Floaty, instant or frame-rate-dependent movement scores ≤ 4."
+      },
+      {
+        "key": "collision",
+        "label_en": "Collision robustness",
+        "label_ar": "متانة التصادم",
+        "weight": 3,
+        "guide": "No tunnelling at full fall speed, no wall sticking or seam snagging, one-way platforms only from above, spikes and enemy stomps resolved fairly (stomp vs side hit), enemies turn at ledges/walls/spikes."
+      },
+      {
+        "key": "systems",
+        "label_en": "Level systems",
+        "label_ar": "أنظمة المرحلة",
+        "weight": 2,
+        "guide": "Map parsed exactly; lives, checkpoints, coin persistence, HUD with correct coin total, game over and level complete flows, restart works."
+      },
+      {
+        "key": "visual",
+        "label_en": "Visuals & camera",
+        "label_ar": "الرسوم والكاميرا",
+        "weight": 2,
+        "guide": "Crisp pixel scaling, readable tiles, juicy feedback (dust, coin sparkle, squash), smooth clamped camera with parallax, mobile layout with touch buttons."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Fixed-timestep loop, physics separated from rendering, entities as data. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 0.5,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 150000,
+          "weight": 0.5,
+          "label_en": "Under 150 KB",
+          "label_ar": "حجم الملف أقل من 150 كيلوبايت"
+        },
+        {
+          "id": "uses_raf",
+          "type": "contains",
+          "pattern": "requestAnimationFrame",
+          "weight": 1,
+          "label_en": "Uses requestAnimationFrame",
+          "label_ar": "يستخدم requestAnimationFrame"
+        },
+        {
+          "id": "has_canvas",
+          "type": "selector",
+          "sel": "#game",
+          "weight": 1,
+          "label_en": "Canvas #game in markup",
+          "label_ar": "اللوحة ‎#game‎ موجودة"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "canvas",
+          "type": "canvas",
+          "weight": 2,
+          "label_en": "Draws on a canvas",
+          "label_ar": "يرسم على عنصر canvas"
+        },
+        {
+          "id": "coin_hud",
+          "type": "text",
+          "contains": "Coins 0 / 16",
+          "ci": true,
+          "weight": 2,
+          "label_en": "Coin HUD counts the map correctly",
+          "label_ar": "عدّاد العملات يحصي عملات الخريطة بدقة"
+        },
+        {
+          "id": "has_lives",
+          "type": "selector",
+          "sel": "#lives",
+          "weight": 1,
+          "label_en": "Lives HUD #lives",
+          "label_ar": "عدّاد الأرواح ‎#lives‎"
+        },
+        {
+          "id": "has_time",
+          "type": "selector",
+          "sel": "#time",
+          "weight": 0.5,
+          "label_en": "Timer #time",
+          "label_ar": "المؤقت ‎#time‎"
+        },
+        {
+          "id": "animates",
+          "type": "animates",
+          "weight": 2,
+          "label_en": "World animates on its own",
+          "label_ar": "العالم يتحرك تلقائيًا"
+        },
+        {
+          "id": "keys_move",
+          "type": "keyboard",
+          "keys": [
+            "ArrowRight",
+            "ArrowRight",
+            "ArrowUp"
+          ],
+          "weight": 2,
+          "label_en": "Keyboard controls the player",
+          "label_ar": "لوحة المفاتيح تتحكم باللاعب"
+        },
+        {
+          "id": "fps",
+          "type": "fps",
+          "min": 50,
+          "weight": 1,
+          "label_en": "Holds at least 50 fps",
+          "label_ar": "يحافظ على 50 إطارًا في الثانية على الأقل"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "games-orbital-slingshot",
+    "track": "games",
+    "title_en": "Orbital Slingshot Physics Puzzle",
+    "title_ar": "لغز فيزيائي للمقلاع المداري",
+    "summary_en": "Launch a probe through multi-body gravity to hit a target ring: a deterministic fixed-step integrator, a trajectory preview that matches the real flight, slingshot aiming and three given levels.",
+    "summary_ar": "أطلق مسبارًا عبر جاذبية عدة أجرام لإصابة حلقة الهدف: مُكامِل عددي حتمي بخطوة ثابتة، ومعاينة مسار تطابق الرحلة الفعلية، وتصويب بأسلوب المقلاع، وثلاث مراحل محددة.",
+    "prompt": "Build a physics puzzle game: launch a probe from a home planet so that gravity bends its path into a target ring.\n\nWorld and physics (follow exactly — the levels are tuned for it)\n- World: 1600 × 1000 units, y pointing down, scaled uniformly to fit the screen (letterboxed, centred).\n- Each body pulls the probe with acceleration a = μ / (d² + 400) towards the body's centre (d = distance in world units).\n- Integrate with a fixed timestep of 1/240 s using semi-implicit (symplectic) Euler (update velocity from acceleration, then position from the new velocity), independent of the display frame rate.\n- Launch: the probe starts 6 units outside the home planet's surface in the aim direction; launch speed is 0–420 units/s.\n- Outcomes, checked after every step: touching any body or the home planet (d ≤ radius) = crash; centre within the target ring's radius = success; more than 300 units outside the world in any direction = lost; 20 s of flight = timeout.\n- The home planet has no gravity.\n\nLevels (x, y, radius, μ):\n- Level 1: home (200, 700, r 36); planet (800, 450, r 80, μ 6,000,000); target ring (1350, 300, r 60).\n- Level 2: home (150, 850, r 36); planets (600, 300, r 60, μ 5,000,000) and (1000, 700, r 90, μ 9,000,000); target (1450, 150, r 50).\n- Level 3: home (150, 500, r 36); planets (800, 500, r 120, μ 16,000,000), (820, 140, r 40, μ 2,500,000) and (780, 860, r 45, μ 2,500,000); target (1450, 500, r 50).\n\nGameplay & UI\n1. Aiming: drag anywhere on the playfield and release, like a slingshot — the launch direction is opposite to the drag vector and the speed is proportional to the drag length (full speed at ~180 CSS px). Keyboard: ArrowLeft/ArrowRight change the angle by 1° (5° with Shift), ArrowUp/ArrowDown change the power, Space or Enter launches.\n2. Trajectory preview: while aiming, show the first 2 seconds of the predicted path as dots, computed with exactly the same integrator so it matches the real flight; it stops at a collision.\n3. During flight draw a fading trail; on a crash show a small explosion. Only one probe flies at a time; R or a button id=\"reset\" aborts the flight.\n4. HUD: an element id=\"level\" showing \"Level 1 / 3\", an element id=\"attempts\" with the number of launches on this level, a readout of angle and power, and a status line (in flight / crashed / lost / success).\n5. A toggle button id=\"warp\" (aria-pressed) runs the simulation 3× faster without changing the result (more fixed steps per frame, not a bigger timestep).\n6. Success shows an overlay \"Target reached\" with 3 stars for 1 launch, 2 stars for 2–3 launches, 1 star otherwise, and a button id=\"next-level\". After level 3 show the total stars.\n7. Visuals: starfield, shaded planets with some surface detail, a hint of each body's gravity well, a pulsing target ring. The scene is never static (stars twinkle, planets rotate).\n8. Use requestAnimationFrame. Works with mouse and touch (pointer events) and at 390 × 844.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
+    "output_type": "html",
+    "difficulty": 4,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "physics",
+        "label_en": "Physics correctness",
+        "label_ar": "صحة الفيزياء",
+        "weight": 3,
+        "guide": "Exact force law with softening, semi-implicit Euler at a fixed 1/240 s step decoupled from frame rate, warp changes speed but not outcomes, collisions/target/out-of-bounds/timeout checked every step. Frame-rate-dependent or explicit-Euler drift caps this at 4."
+      },
+      {
+        "key": "aiming",
+        "label_en": "Aiming UX & preview",
+        "label_ar": "تجربة التصويب والمعاينة",
+        "weight": 3,
+        "guide": "Natural slingshot drag on mouse and touch, keyboard fine-tuning with Shift, readable angle/power, preview that exactly matches the real flight path and stops at collisions."
+      },
+      {
+        "key": "levels",
+        "label_en": "Levels & progression",
+        "label_ar": "المراحل والتقدم",
+        "weight": 1,
+        "guide": "Levels match the given data, attempts counted per level, star rating as specified, smooth level transitions and total at the end."
+      },
+      {
+        "key": "visual",
+        "label_en": "Visuals & juice",
+        "label_ar": "الرسوم والمؤثرات",
+        "weight": 2,
+        "guide": "Atmospheric space scene: twinkling stars, shaded planets, gravity-well hints, glowing trail, explosion particles, crisp scaling on any screen."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. One step() function shared by preview and flight; level data separate from logic. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 0.5,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 120000,
+          "weight": 0.5,
+          "label_en": "Under 120 KB",
+          "label_ar": "حجم الملف أقل من 120 كيلوبايت"
+        },
+        {
+          "id": "uses_raf",
+          "type": "contains",
+          "pattern": "requestAnimationFrame",
+          "weight": 1,
+          "label_en": "Uses requestAnimationFrame",
+          "label_ar": "يستخدم requestAnimationFrame"
+        },
+        {
+          "id": "has_attempts",
+          "type": "selector",
+          "sel": "#attempts",
+          "weight": 1,
+          "label_en": "Attempts counter #attempts in markup",
+          "label_ar": "عدّاد المحاولات ‎#attempts‎ موجود"
+        },
+        {
+          "id": "has_warp",
+          "type": "selector",
+          "sel": "#warp",
+          "weight": 1,
+          "label_en": "Warp toggle #warp in markup",
+          "label_ar": "زر التسريع ‎#warp‎ موجود"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "canvas",
+          "type": "canvas",
+          "weight": 2,
+          "label_en": "Draws on a canvas",
+          "label_ar": "يرسم على عنصر canvas"
+        },
+        {
+          "id": "level_label",
+          "type": "text",
+          "contains": "Level 1 / 3",
+          "ci": true,
+          "weight": 1,
+          "label_en": "Shows \"Level 1 / 3\"",
+          "label_ar": "يعرض «Level 1 / 3»"
+        },
+        {
+          "id": "has_reset",
+          "type": "selector",
+          "sel": "#reset",
+          "weight": 1,
+          "label_en": "Reset button #reset",
+          "label_ar": "زر إعادة الطلقة ‎#reset‎"
+        },
+        {
+          "id": "animates",
+          "type": "animates",
+          "weight": 2,
+          "label_en": "Scene is alive",
+          "label_ar": "المشهد حيّ ومتحرك"
+        },
+        {
+          "id": "keys_launch",
+          "type": "keyboard",
+          "keys": [
+            "ArrowUp",
+            "ArrowUp",
+            "Enter"
+          ],
+          "weight": 3,
+          "label_en": "Keyboard aims and launches",
+          "label_ar": "لوحة المفاتيح تصوّب وتطلق"
+        },
+        {
+          "id": "warp_toggle",
+          "type": "click",
+          "sel": "#warp",
+          "weight": 1,
+          "label_en": "Warp toggle responds",
+          "label_ar": "زر التسريع يستجيب"
+        },
+        {
+          "id": "fps",
+          "type": "fps",
+          "min": 50,
+          "weight": 1,
+          "label_en": "Holds at least 50 fps",
+          "label_ar": "يحافظ على 50 إطارًا في الثانية على الأقل"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "games-tower-defense",
+    "track": "games",
+    "title_en": "Tower Defense with Waves and Economy",
+    "title_ar": "لعبة دفاع الأبراج بموجات واقتصاد",
+    "summary_en": "A complete tower defense on a given map: path following, two tower types with targeting, slow and splash, upgrades and selling, six specified waves and a balanced gold economy.",
+    "summary_ar": "لعبة دفاع أبراج متكاملة على خريطة محددة: تتبع المسار، ونوعان من الأبراج مع الاستهداف والإبطاء والضرر المتناثر، وتطوير الأبراج وبيعها، وست موجات محددة، واقتصاد ذهب متوازن.",
+    "prompt": "Build a complete tower defense game on this exact 16 × 10 map (rows top to bottom):\n\n.............T..\nS#######........\n.......#........\n....T..#..#####.\n.......#..#...#.\n..######..#...#.\n..#.......#.T.#.\n..#.......#...#X\nT.#########.....\n.....T..........\n\nLegend: S = enemy entrance, X = exit, # = path, T = rock (not buildable), . = buildable grass. Enemies walk along the centre of the path from S to X.\n\nTowers\n- Arrow tower: cost 50, range 2.5 tiles, fires every 0.6 s, 12 damage to one target.\n- Frost tower: cost 70, range 2.0 tiles, fires every 1.0 s, 4 damage to the target and every enemy within 0.8 tiles of the impact, and slows them by 40% for 1.5 s.\n- Targeting: the enemy furthest along the path within range (\"first\").\n- Projectiles travel visibly (no instant hits) and home in on their target.\n- Upgrade (once per tower): costs 60, +50% damage and +0.5 tile range. Sell: refunds 70% of everything spent on that tower (rounded down).\n\nEconomy & waves\n- Start with 150 gold and 20 lives. Each enemy reaching X costs 1 life; each kill pays its bounty; clearing a wave pays a 25 gold bonus.\n- Waves (count × hp, speed in tiles/s, bounty, seconds between spawns):\n  1: 8 × 30 hp, 1.0, 5, 1.0\n  2: 10 × 45 hp, 1.0, 5, 0.9\n  3: 12 × 40 hp, 1.6, 6, 0.7\n  4: 6 × 160 hp, 0.7, 15, 1.6\n  5: 16 × 70 hp, 1.2, 7, 0.6\n  6: 20 × 90 hp, 1.1, 8, 0.5\n- A wave starts only when the player presses the button id=\"start-wave\" (or Space). Clearing all 6 waves shows \"Victory\"; reaching 0 lives shows \"Defeat\"; both offer a restart.\n\nUI\n1. Render the field on a <canvas> that scales to the available width (16:10).\n2. HUD elements: id=\"gold\", id=\"lives\", and id=\"wave\" showing \"Wave N / 6\" (the current wave, or the next one between waves).\n3. A shop element id=\"shop\" with buttons id=\"buy-arrow\" and id=\"buy-frost\" (showing costs, aria-pressed when selected, disabled when unaffordable). After choosing a tower, hovering a tile previews it (green if buildable and affordable, red otherwise) with its range circle; clicking/tapping places it.\n4. Clicking a placed tower selects it: show its range and a panel with its stats and Upgrade / Sell buttons.\n5. Enemies show health bars; slowed enemies are tinted; kills show a floating \"+bounty\".\n6. A toggle button id=\"speed\" (aria-pressed) doubles the game speed.\n7. Keyboard: 1 and 2 choose a tower, Escape cancels, Space starts the next wave.\n8. At 390 px the field shrinks to fit and the shop/controls move below it; everything stays usable by touch.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
+    "output_type": "html",
+    "difficulty": 4,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "systems",
+        "label_en": "Game systems correctness",
+        "label_ar": "صحة أنظمة اللعبة",
+        "weight": 3,
+        "guide": "Path derived from the map and followed exactly, \"first\" targeting, frost splash + 40% slow with duration, homing projectiles, upgrade/sell maths (70% rounded down), wave table, bounties, wave bonus and lives exactly as specified."
+      },
+      {
+        "key": "balance",
+        "label_en": "Balance & strategy",
+        "label_ar": "التوازن والاستراتيجية",
+        "weight": 2,
+        "guide": "Winnable with sensible play but punishing for careless placement; the two towers have distinct roles; speed toggle does not change outcomes; no exploits (placing on path, negative gold, double-starting waves)."
+      },
+      {
+        "key": "ux",
+        "label_en": "Placement UX & information",
+        "label_ar": "تجربة البناء والمعلومات",
+        "weight": 2,
+        "guide": "Clear affordability states, hover/tap preview with range, selection panel, readable HUD and wave status, works with touch and keyboard."
+      },
+      {
+        "key": "visual",
+        "label_en": "Visual feedback",
+        "label_ar": "التغذية البصرية",
+        "weight": 2,
+        "guide": "Readable battlefield, turrets aim at targets, visible projectiles, health bars, slow tint, kill popups, end-of-game screens."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Data-driven towers and waves; simulation step separated from rendering; time-based updates. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 0.5,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 150000,
+          "weight": 0.5,
+          "label_en": "Under 150 KB",
+          "label_ar": "حجم الملف أقل من 150 كيلوبايت"
+        },
+        {
+          "id": "uses_raf",
+          "type": "contains",
+          "pattern": "requestAnimationFrame",
+          "weight": 1,
+          "label_en": "Uses requestAnimationFrame",
+          "label_ar": "يستخدم requestAnimationFrame"
+        },
+        {
+          "id": "has_start",
+          "type": "selector",
+          "sel": "#start-wave",
+          "weight": 1,
+          "label_en": "Start-wave button in markup",
+          "label_ar": "زر بدء الموجة موجود"
+        },
+        {
+          "id": "has_shop",
+          "type": "selector",
+          "sel": "#shop",
+          "weight": 1,
+          "label_en": "Shop #shop in markup",
+          "label_ar": "المتجر ‎#shop‎ موجود"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "canvas",
+          "type": "canvas",
+          "weight": 2,
+          "label_en": "Draws on a canvas",
+          "label_ar": "يرسم على عنصر canvas"
+        },
+        {
+          "id": "has_gold",
+          "type": "selector",
+          "sel": "#gold",
+          "weight": 1,
+          "label_en": "Gold HUD #gold",
+          "label_ar": "عدّاد الذهب ‎#gold‎"
+        },
+        {
+          "id": "has_lives",
+          "type": "selector",
+          "sel": "#lives",
+          "weight": 1,
+          "label_en": "Lives HUD #lives",
+          "label_ar": "عدّاد الأرواح ‎#lives‎"
+        },
+        {
+          "id": "wave_label",
+          "type": "text",
+          "contains": "Wave 1 / 6",
+          "ci": true,
+          "weight": 1,
+          "label_en": "Shows \"Wave 1 / 6\"",
+          "label_ar": "يعرض «Wave 1 / 6»"
+        },
+        {
+          "id": "start_wave",
+          "type": "click",
+          "sel": "#start-wave",
+          "weight": 3,
+          "label_en": "Starting a wave spawns enemies",
+          "label_ar": "بدء الموجة يُطلق الأعداء"
+        },
+        {
+          "id": "select_tower",
+          "type": "click",
+          "sel": "#buy-arrow",
+          "weight": 1,
+          "label_en": "Shop button selects a tower",
+          "label_ar": "زر المتجر يختار برجًا"
+        },
+        {
+          "id": "fps",
+          "type": "fps",
+          "min": 50,
+          "weight": 1,
+          "label_en": "Holds at least 50 fps",
+          "label_ar": "يحافظ على 50 إطارًا في الثانية على الأقل"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  }
+]

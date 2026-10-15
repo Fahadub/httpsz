@@ -1,0 +1,366 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team settings · Lumen Ledger</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f4ef; --surface: #ffffff; --surface-2: #f1eee7; --text: #1b1a17; --muted: #5d5a52;
+    --border: #e1dcd0; --accent: #6b4e16; --accent-ink: #ffffff; --accent-soft: #f3e7cc;
+    --danger: #a3261b; --danger-soft: #fbe9e6; --ok: #1f6b45; --ok-soft: #e3f3ea;
+    --focus: #1d4ed8; --shadow: 0 24px 60px -20px rgba(27, 26, 23, .35);
+    --radius: 14px; --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f0e0c; --surface: #191815; --surface-2: #22201c; --text: #f2efe8; --muted: #b3ada0;
+      --border: #34312a; --accent: #e3b65c; --accent-ink: #1b1505; --accent-soft: #3a2f17;
+      --danger: #ff9a8f; --danger-soft: #3b1714; --ok: #7fd6a5; --ok-soft: #12301f;
+      --focus: #8ab4ff; --shadow: 0 30px 80px -24px rgba(0, 0, 0, .8);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  html.is-locked { overflow: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 var(--font); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .skip { position: absolute; inset-inline-start: 12px; top: -48px; background: var(--surface); color: var(--text); padding: 8px 14px; border-radius: 8px; z-index: 30; }
+  .skip:focus { top: 12px; }
+
+  .topbar { display: flex; align-items: center; gap: 24px; padding: 14px clamp(16px, 4vw, 40px); border-bottom: 1px solid var(--border); background: var(--surface); }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -.01em; color: var(--text); text-decoration: none; }
+  .brand svg { width: 28px; height: 28px; }
+  .nav { display: flex; gap: 4px; margin-inline-start: auto; overflow-x: auto; }
+  .nav a { color: var(--muted); text-decoration: none; padding: 8px 12px; border-radius: 8px; font-size: .95rem; white-space: nowrap; }
+  .nav a:hover { color: var(--text); background: var(--surface-2); }
+  .nav a[aria-current="page"] { color: var(--text); background: var(--accent-soft); font-weight: 600; }
+
+  main { max-width: 980px; margin: 0 auto; padding: clamp(24px, 5vw, 56px) clamp(16px, 4vw, 40px) 96px; }
+  .page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 32px; }
+  .eyebrow { margin: 0 0 6px; color: var(--accent); font-size: .8rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+  h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 2.5rem); line-height: 1.15; letter-spacing: -.02em; }
+  .lead { margin: 8px 0 0; color: var(--muted); max-width: 52ch; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 18px; border-radius: 10px; border: 1px solid transparent; font: inherit; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s, transform .15s; }
+  .btn svg { width: 18px; height: 18px; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { filter: brightness(1.06); }
+  .btn.ghost { background: transparent; color: var(--text); border-color: var(--border); }
+  .btn.ghost:hover { background: var(--surface-2); }
+  .btn:active { transform: translateY(1px); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  .grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .card-head { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px; border-bottom: 1px solid var(--border); }
+  .card-head h2 { margin: 0; font-size: 1.05rem; }
+  .count { color: var(--muted); font-weight: 500; }
+  .members { list-style: none; margin: 0; padding: 0; }
+  .member { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 14px 22px; border-bottom: 1px solid var(--border); }
+  .member:last-child { border-bottom: 0; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .9rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+  .who { min-width: 0; }
+  .who strong { display: block; }
+  .who span { color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .tag { font-size: .78rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+  .tag.invited { background: var(--accent-soft); color: var(--text); border-color: transparent; }
+  .member.is-new { animation: arrive .6s ease both; }
+  @keyframes arrive { from { background: var(--accent-soft); } to { background: transparent; } }
+
+  .side { padding: 22px; }
+  .side h2 { margin: 0 0 6px; font-size: 1.05rem; }
+  .side p { margin: 0 0 16px; color: var(--muted); font-size: .95rem; }
+  .meter { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; border: 1px solid var(--border); }
+  .meter > span { display: block; height: 100%; width: 50%; background: var(--accent); border-radius: inherit; transition: width .4s ease; }
+  .meter-label { display: flex; justify-content: space-between; margin-top: 8px; font-size: .9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .toast { position: fixed; inset-inline: 16px; bottom: 20px; margin-inline: auto; max-width: 420px; padding: 0; z-index: 20; }
+  .toast:not(:empty) { padding: 14px 18px; background: var(--ok-soft); color: var(--text); border: 1px solid var(--ok); border-radius: 12px; box-shadow: var(--shadow); font-weight: 600; }
+
+  /* Dialog */
+  .overlay { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; }
+  .overlay[hidden] { display: none; }
+  .backdrop { position: absolute; inset: 0; background: rgba(12, 11, 9, .62); backdrop-filter: blur(3px); animation: fade .2s ease both; }
+  .dialog { position: relative; width: min(520px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); padding: 24px; animation: rise .22s cubic-bezier(.2, .8, .2, 1) both; }
+  .dialog-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  .dialog h2 { margin: 0; font-size: 1.35rem; letter-spacing: -.01em; }
+  .dialog-desc { margin: 6px 0 20px; color: var(--muted); }
+  .icon-btn { width: 44px; height: 44px; margin: -8px -8px 0 0; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+  .icon-btn:hover { background: var(--surface-2); color: var(--text); }
+  .icon-btn svg { width: 20px; height: 20px; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .optional { color: var(--muted); font-weight: 400; }
+  .field input, .field select, .field textarea { width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--muted); background: var(--surface); color: var(--text); font: inherit; }
+  .field textarea { resize: vertical; min-height: 88px; }
+  .field [aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+  .hint { margin: 6px 0 0; color: var(--muted); font-size: .9rem; }
+  .error { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--danger-soft); color: var(--danger); font-size: .92rem; font-weight: 600; }
+  .error[hidden] { display: none; }
+  .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; flex-wrap: wrap; }
+  @keyframes fade { from { opacity: 0; } }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.98); } }
+
+  @media (max-width: 760px) {
+    .grid { grid-template-columns: 1fr; }
+    .topbar { flex-wrap: wrap; gap: 8px; }
+    .nav { margin-inline-start: 0; width: 100%; }
+    .member { grid-template-columns: auto minmax(0, 1fr); }
+    .tags { grid-column: 2; justify-content: flex-start; }
+    .overlay { place-items: end center; padding: 72px 0 0; }
+    .dialog { border-radius: 20px 20px 0 0; max-height: calc(100vh - 72px); }
+    .actions .btn { flex: 1 1 140px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <a class="brand" href="#main">
+    <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="2" y="2" width="28" height="28" rx="8" fill="currentColor" opacity=".12"/><path d="M10 9v14h12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="21" cy="11" r="3" fill="#c9962f"/></svg>
+    <span>Lumen Ledger</span>
+  </a>
+  <nav class="nav" aria-label="Workspace">
+    <a href="#main">Overview</a>
+    <a href="#main">Billing</a>
+    <a href="#main" aria-current="page">Team</a>
+    <a href="#main">Security</a>
+  </nav>
+</header>
+
+<main id="main" tabindex="-1">
+  <div class="page-head">
+    <div>
+      <p class="eyebrow">Workspace · Atlas Studio</p>
+      <h1>Team settings</h1>
+      <p class="lead">Decide who can see the books, approve expenses and change billing details.</p>
+    </div>
+    <button id="open-invite" class="btn primary" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      Invite teammate
+    </button>
+  </div>
+
+  <div class="grid">
+    <section class="card" aria-labelledby="members-title">
+      <div class="card-head">
+        <h2 id="members-title">Members <span class="count" id="member-count">(4)</span></h2>
+      </div>
+      <ul class="members" id="member-list">
+        <li class="member"><span class="avatar" aria-hidden="true">NA</span><div class="who"><strong>Nadia Aziz</strong><span>nadia@atlas.studio</span></div><div class="tags"><span class="tag">Owner</span></div></li>
+        <li class="member"><span class="avatar" aria-hidden="true">TO</span><div class="who"><strong>Tomasz Olsen</strong><span>tomasz@atlas.studio</span></div><div class="tags"><span class="tag">Admin</span></div></li>
+        <li class="member"><span class="avatar" aria-hidden="true">MK</span><div class="who"><strong>Mei Kobayashi</strong><span>mei@atlas.studio</span></div><div class="tags"><span class="tag">Editor</span></div></li>
+        <li class="member"><span class="avatar" aria-hidden="true">JR</span><div class="who"><strong>Joaquín Ruiz</strong><span>joaquin@atlas.studio</span></div><div class="tags"><span class="tag">Viewer</span></div></li>
+      </ul>
+    </section>
+    <aside class="card side" aria-labelledby="seats-title">
+      <h2 id="seats-title">Seats</h2>
+      <p>Your Studio plan includes 8 seats. Pending invitations count towards the limit.</p>
+      <div class="meter" aria-hidden="true"><span id="seat-bar"></span></div>
+      <div class="meter-label"><span id="seat-used">4 of 8 used</span><span id="seat-left">4 left</span></div>
+    </aside>
+  </div>
+  <div class="toast" role="status" aria-live="polite" id="announcer"></div>
+</main>
+
+<div class="overlay" id="invite-overlay" hidden>
+  <div class="backdrop" data-close></div>
+  <div class="dialog" id="invite-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title" aria-describedby="invite-desc">
+    <div class="dialog-head">
+      <h2 id="invite-title">Invite a teammate</h2>
+      <button type="button" class="icon-btn" aria-label="Close" data-close>
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <p class="dialog-desc" id="invite-desc">They will receive an email link to join Atlas Studio. Invitations expire after 7 days.</p>
+    <form id="invite-form" novalidate>
+      <div class="field">
+        <label for="invite-email">Work email</label>
+        <input id="invite-email" name="email" type="email" autocomplete="email" required aria-describedby="invite-email-hint">
+        <p class="hint" id="invite-email-hint">Use their company address, for example name@atlas.studio.</p>
+        <p class="error" id="invite-email-error" hidden></p>
+      </div>
+      <div class="field">
+        <label for="invite-role">Role</label>
+        <select id="invite-role" name="role">
+          <option value="Viewer">Viewer — can read reports</option>
+          <option value="Editor" selected>Editor — can record transactions</option>
+          <option value="Admin">Admin — can manage billing and members</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="invite-message">Personal message <span class="optional">(optional)</span></label>
+        <textarea id="invite-message" name="message" rows="3"></textarea>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Send invite</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var SEATS = 8;
+  var opener = document.getElementById('open-invite');
+  var overlay = document.getElementById('invite-overlay');
+  var dialog = document.getElementById('invite-dialog');
+  var form = document.getElementById('invite-form');
+  var email = document.getElementById('invite-email');
+  var role = document.getElementById('invite-role');
+  var message = document.getElementById('invite-message');
+  var emailError = document.getElementById('invite-email-error');
+  var list = document.getElementById('member-list');
+  var announcer = document.getElementById('announcer');
+  var returnTo = null;
+  var announceTimer = 0;
+  var FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  function background() {
+    return Array.prototype.filter.call(document.body.children, function (el) {
+      return el !== overlay && el.tagName !== 'SCRIPT' && el.tagName !== 'STYLE';
+    });
+  }
+  function setInert(on) {
+    background().forEach(function (el) {
+      if (on) { el.setAttribute('inert', ''); el.setAttribute('aria-hidden', 'true'); }
+      else { el.removeAttribute('inert'); el.removeAttribute('aria-hidden'); }
+    });
+  }
+  function focusables() {
+    return Array.prototype.filter.call(dialog.querySelectorAll(FOCUSABLE), function (el) {
+      return el.offsetParent !== null || el === document.activeElement;
+    });
+  }
+  function isOpen() { return !overlay.hidden; }
+
+  function open() {
+    if (isOpen()) { return; }
+    returnTo = document.activeElement && document.activeElement !== document.body ? document.activeElement : opener;
+    form.reset();
+    clearError();
+    overlay.hidden = false;
+    setInert(true);
+    document.documentElement.classList.add('is-locked');
+    email.focus();
+  }
+  function close() {
+    if (!isOpen()) { return; }
+    overlay.hidden = true;
+    setInert(false);
+    document.documentElement.classList.remove('is-locked');
+    (returnTo && document.contains(returnTo) ? returnTo : opener).focus();
+  }
+
+  function clearError() {
+    email.removeAttribute('aria-invalid');
+    email.setAttribute('aria-describedby', 'invite-email-hint');
+    emailError.hidden = true;
+    emailError.textContent = '';
+  }
+  function showError(text) {
+    emailError.textContent = text;
+    emailError.hidden = false;
+    email.setAttribute('aria-invalid', 'true');
+    email.setAttribute('aria-describedby', 'invite-email-hint invite-email-error');
+  }
+  function validate() {
+    var v = email.value.trim();
+    if (!v) { return 'Enter an email address for your teammate.'; }
+    if (!/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(v)) { return 'Enter a valid email address, like name@atlas.studio.'; }
+    var taken = Array.prototype.some.call(list.querySelectorAll('.who span'), function (s) { return s.textContent.toLowerCase() === v.toLowerCase(); });
+    if (taken) { return v + ' is already a member or has a pending invitation.'; }
+    return '';
+  }
+
+  function initials(addr) {
+    var parts = addr.split('@')[0].split(/[._-]+/).filter(Boolean);
+    return ((parts[0] || '?').charAt(0) + (parts[1] || '').charAt(0)).toUpperCase();
+  }
+  function addMember(addr, r) {
+    var li = document.createElement('li');
+    li.className = 'member is-new';
+    var av = document.createElement('span');
+    av.className = 'avatar';
+    av.setAttribute('aria-hidden', 'true');
+    av.textContent = initials(addr);
+    var who = document.createElement('div');
+    who.className = 'who';
+    var strong = document.createElement('strong');
+    strong.textContent = addr.split('@')[0];
+    var span = document.createElement('span');
+    span.textContent = addr;
+    who.append(strong, span);
+    var tags = document.createElement('div');
+    tags.className = 'tags';
+    [[r, 'tag'], ['Invited', 'tag invited']].forEach(function (t) {
+      var s = document.createElement('span');
+      s.className = t[1];
+      s.textContent = t[0];
+      tags.appendChild(s);
+    });
+    li.append(av, who, tags);
+    list.appendChild(li);
+    updateSeats();
+  }
+  function updateSeats() {
+    var used = list.children.length;
+    document.getElementById('member-count').textContent = '(' + used + ')';
+    document.getElementById('seat-used').textContent = used + ' of ' + SEATS + ' used';
+    document.getElementById('seat-left').textContent = Math.max(0, SEATS - used) + ' left';
+    document.getElementById('seat-bar').style.width = Math.min(100, used / SEATS * 100) + '%';
+  }
+  function announce(text) {
+    announcer.textContent = '';
+    clearTimeout(announceTimer);
+    announceTimer = setTimeout(function () {
+      announcer.textContent = text;
+      announceTimer = setTimeout(function () { announcer.textContent = ''; }, 8000);
+    }, 120);
+  }
+
+  opener.addEventListener('click', open);
+  overlay.addEventListener('click', function (ev) {
+    if (ev.target.closest('[data-close]')) { close(); }
+  });
+  dialog.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Tab') { return; }
+    var f = focusables();
+    if (!f.length) { ev.preventDefault(); return; }
+    var first = f[0];
+    var last = f[f.length - 1];
+    if (ev.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) { ev.preventDefault(); last.focus(); }
+    else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && isOpen()) { ev.preventDefault(); close(); }
+  });
+  // Belt and braces: if focus ever lands outside an open dialog, bring it back.
+  document.addEventListener('focusin', function (ev) {
+    if (isOpen() && !dialog.contains(ev.target)) { email.focus(); }
+  });
+  email.addEventListener('input', function () { if (email.getAttribute('aria-invalid') === 'true' && !validate()) { clearError(); } });
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var problem = validate();
+    if (problem) { showError(problem); email.focus(); return; }
+    var addr = email.value.trim();
+    addMember(addr, role.value);
+    message.value = '';
+    close();
+    announce('Invitation sent to ' + addr + ' as ' + role.value + '.');
+  });
+  updateSeats();
+})();
+</script>
+</body>
+</html>

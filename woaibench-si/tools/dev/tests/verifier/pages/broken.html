@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Broken</title></head>
+<body>
+<h1>Half-finished dashboard</h1>
+<img src="missing-chart.png" alt="Chart">
+<div id="app"></div>
+<script>
+  console.error('Failed to initialise store');
+  Promise.reject(new Error('fetch rates failed'));
+  document.getElementById('chart').getContext('2d'); // TypeError: null
+</script>
+</body>
+</html>

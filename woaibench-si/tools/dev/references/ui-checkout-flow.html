@@ -1,0 +1,373 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checkout — Kettle &amp; Leaf</title>
+<style>
+  :root {
+    --bg: #f5f1ea; --card: #fffdfa; --ink: #1f2420; --ink-2: #4b524c; --muted: #7d847d; --line: #e3ddd2; --line-2: #d3cbbd;
+    --leaf: #2e6b4f; --leaf-2: #3f8a67; --leaf-soft: #e4efe8; --err: #b3261e; --err-soft: #fbeceb; --gold: #c08b3c;
+    --radius: 14px; --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  .wrap { width: min(1080px, 100% - 32px); margin: 0 auto; padding: 24px 0 64px; }
+  header.brand { display: flex; align-items: center; justify-content: space-between; margin-bottom: 26px; }
+  .logo { font-family: var(--serif); font-size: 24px; display: flex; gap: 10px; align-items: center; }
+  .logo svg { width: 30px; height: 30px; }
+  .secure { color: var(--muted); font-size: 13px; display: flex; gap: 6px; align-items: center; }
+  .secure svg { width: 16px; height: 16px; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; box-shadow: 0 10px 30px -18px rgba(31,36,32,.25); }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: 32px; margin: 0 0 18px; letter-spacing: -.01em; }
+  #steps { list-style: none; padding: 0; margin: 0 0 28px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; counter-reset: s; }
+  #steps li { counter-increment: s; font-size: 13px; color: var(--muted); padding-top: 10px; border-top: 3px solid var(--line); font-weight: 600; }
+  #steps li::before { content: counter(s) ". "; }
+  #steps li.done { color: var(--leaf); border-color: var(--leaf-2); }
+  #steps li[aria-current="step"] { color: var(--ink); border-color: var(--ink); }
+  .step h2 { font-size: 19px; margin: 0 0 4px; }
+  .step .lede { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .row.three { grid-template-columns: 1.4fr 1fr 1fr; }
+  .field { margin-bottom: 16px; min-width: 0; }
+  label, legend { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+  input[type=text], input[type=email], input[type=tel], select {
+    width: 100%; font: inherit; color: var(--ink); background: #fff; border: 1px solid var(--line-2); border-radius: 10px; padding: 12px 14px; min-height: 48px; transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--leaf); box-shadow: 0 0 0 4px rgba(46,107,79,.15); }
+  input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--err); background: var(--err-soft); }
+  .err { color: var(--err); font-size: 13px; margin-top: 6px; display: flex; gap: 6px; align-items: flex-start; }
+  .err:empty { display: none; }
+  .err::before { content: "!"; flex: none; width: 16px; height: 16px; border-radius: 50%; background: var(--err); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; margin-top: 2px; }
+  .hint { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  fieldset { border: 0; padding: 0; margin: 0 0 16px; }
+  .option { display: flex; gap: 14px; align-items: center; border: 1px solid var(--line-2); border-radius: 12px; padding: 16px; margin-bottom: 10px; cursor: pointer; background: #fff; transition: border-color .15s, background .15s; }
+  .option:has(input:checked) { border-color: var(--leaf); background: var(--leaf-soft); }
+  .option input { width: 20px; height: 20px; accent-color: var(--leaf); margin: 0; }
+  .option .t { font-weight: 600; } .option .d { color: var(--muted); font-size: 13px; }
+  .option .p { margin-inline-start: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .card-input { position: relative; }
+  .card-input .brand-ico { position: absolute; inset-inline-end: 12px; top: 50%; transform: translateY(-50%); font-size: 11px; font-weight: 800; color: var(--muted); letter-spacing: .05em; }
+  .actions { display: flex; gap: 12px; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 20px; border-top: 1px solid var(--line); }
+  .btn { font: inherit; font-weight: 650; border-radius: 12px; padding: 13px 22px; min-height: 48px; cursor: pointer; border: 1px solid var(--ink); background: transparent; color: var(--ink); }
+  .btn.primary { background: var(--leaf); border-color: var(--leaf); color: #fff; margin-inline-start: auto; }
+  .btn.primary:hover { background: #255a42; }
+  .btn[hidden] { display: none; }
+  .review dl { margin: 0 0 18px; display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; }
+  .review dt { color: var(--muted); font-size: 14px; } .review dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+  .review h3 { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px; margin: 0 0 10px; }
+  .linkbtn { background: none; border: 0; color: var(--leaf); font: inherit; font-size: 14px; font-weight: 600; text-decoration: underline; cursor: pointer; padding: 4px; }
+  .summary { position: sticky; top: 20px; }
+  .summary h2 { font-family: var(--serif); font-weight: 400; font-size: 22px; margin: 0 0 16px; }
+  .items { list-style: none; padding: 0; margin: 0 0 16px; }
+  .items li { display: grid; grid-template-columns: 48px 1fr auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--line); }
+  .thumb { width: 48px; height: 48px; border-radius: 10px; display: grid; place-items: center; position: relative; }
+  .thumb .q { position: absolute; top: -6px; inset-inline-end: -6px; background: var(--ink); color: #fff; font-size: 11px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; }
+  .items .n { font-weight: 600; font-size: 14px; } .items .v { color: var(--muted); font-size: 13px; }
+  .items .pr { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .totals { display: grid; grid-template-columns: 1fr auto; gap: 8px; font-variant-numeric: tabular-nums; margin: 0; }
+  .totals dt { color: var(--ink-2); } .totals dd { margin: 0; text-align: end; }
+  .totals .grand { font-size: 20px; font-weight: 700; color: var(--ink); padding-top: 10px; border-top: 1px solid var(--line); margin-top: 6px; }
+  .vat { color: var(--muted); font-size: 13px; text-align: end; margin: 6px 0 0; }
+  .free { color: var(--leaf); font-weight: 600; }
+  .sum-toggle { display: none; }
+  .confirm { text-align: center; padding: 30px 10px; }
+  .confirm svg { width: 64px; height: 64px; }
+  .confirm h2 { font-family: var(--serif); font-weight: 400; font-size: 30px; margin: 12px 0 6px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    .summary-col { order: -1; }
+    .summary { position: static; padding: 0; overflow: hidden; }
+    .sum-toggle { display: flex; width: 100%; justify-content: space-between; align-items: center; padding: 16px 18px; background: none; border: 0; font: inherit; font-weight: 600; cursor: pointer; color: var(--ink); min-height: 52px; }
+    .sum-toggle .chev { transition: transform .2s; display: inline-block; }
+    .sum-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
+    .sum-body { padding: 0 18px 18px; }
+    .sum-body[hidden] { display: none; }
+    .summary h2 { display: none; }
+    .panel.form-panel { padding: 22px 18px; }
+    .row, .row.three { grid-template-columns: 1fr; }
+    #steps li { font-size: 11px; }
+    h1 { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="brand">
+    <div class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 14h17v6a7 7 0 01-7 7h-3a7 7 0 01-7-7z" fill="#2e6b4f"/><path d="M23 16h2.5a3 3 0 010 6H22" fill="none" stroke="#2e6b4f" stroke-width="2"/><path d="M14 11c-2-3 2-5 0-8M18 11c-2-3 2-5 0-8" fill="none" stroke="#c08b3c" stroke-width="1.8" stroke-linecap="round"/></svg>Kettle &amp; Leaf</div>
+    <span class="secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>Secure checkout</span>
+  </header>
+
+  <div class="layout">
+    <main class="panel form-panel">
+      <h1>Checkout</h1>
+      <ol id="steps" aria-label="Checkout progress">
+        <li aria-current="step">Details</li><li>Delivery</li><li>Payment</li><li>Review</li>
+      </ol>
+
+      <form id="checkout" novalidate>
+        <section class="step" data-step="0" aria-labelledby="h-details">
+          <h2 id="h-details" tabindex="-1">Your details</h2>
+          <p class="lede">We only use these to deliver your order.</p>
+          <div class="field"><label for="name">Full name</label><input id="name" name="name" type="text" autocomplete="name" data-rules="required"><div class="err" id="name-err"></div></div>
+          <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" inputmode="email" autocomplete="email" data-rules="required email"><div class="err" id="email-err"></div></div>
+          <div class="field"><label for="address">Street address</label><input id="address" name="address" type="text" autocomplete="street-address" data-rules="required"><div class="err" id="address-err"></div></div>
+          <div class="row three">
+            <div class="field"><label for="city">City</label><input id="city" name="city" type="text" autocomplete="address-level2" data-rules="required"><div class="err" id="city-err"></div></div>
+            <div class="field"><label for="postal">Postal code</label><input id="postal" name="postal" type="text" autocomplete="postal-code" data-rules="required postal"><div class="err" id="postal-err"></div></div>
+            <div class="field"><label for="country">Country</label>
+              <select id="country" name="country" autocomplete="country-name" data-rules="required">
+                <option value="">Choose…</option><option>Austria</option><option>France</option><option>Germany</option><option>Ireland</option><option>Italy</option><option>Netherlands</option><option>Portugal</option><option>Slovenia</option><option>Spain</option>
+              </select><div class="err" id="country-err"></div></div>
+          </div>
+        </section>
+
+        <section class="step" data-step="1" aria-labelledby="h-delivery" hidden>
+          <h2 id="h-delivery" tabindex="-1">Delivery</h2>
+          <p class="lede">Orders placed before 14:00 leave our warehouse the same day.</p>
+          <fieldset>
+            <legend>Shipping method</legend>
+            <label class="option"><input type="radio" name="ship" value="standard" checked><span><span class="t">Standard</span><br><span class="d">3–5 working days</span></span><span class="p" id="std-price"></span></label>
+            <label class="option"><input type="radio" name="ship" value="express"><span><span class="t">Express</span><br><span class="d">Next working day</span></span><span class="p">€12.00</span></label>
+          </fieldset>
+        </section>
+
+        <section class="step" data-step="2" aria-labelledby="h-payment" hidden>
+          <h2 id="h-payment" tabindex="-1">Payment</h2>
+          <p class="lede">Card details are validated in your browser. Nothing is sent anywhere.</p>
+          <div class="field"><label for="card">Card number</label><div class="card-input"><input id="card" name="card" type="text" inputmode="numeric" autocomplete="cc-number" placeholder="1234 1234 1234 1234" data-rules="required card" aria-describedby="card-err"><span class="brand-ico" id="card-brand" aria-hidden="true"></span></div><div class="err" id="card-err"></div></div>
+          <div class="row">
+            <div class="field"><label for="exp">Expiry (MM/YY)</label><input id="exp" name="exp" type="text" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/YY" maxlength="5" data-rules="required exp"><div class="err" id="exp-err"></div></div>
+            <div class="field"><label for="cvc">CVC</label><input id="cvc" name="cvc" type="text" inputmode="numeric" autocomplete="cc-csc" placeholder="123" maxlength="4" data-rules="required cvc"><div class="err" id="cvc-err"></div></div>
+          </div>
+          <div class="field"><label for="cardname">Name on card</label><input id="cardname" name="cardname" type="text" autocomplete="cc-name" data-rules="required"><div class="err" id="cardname-err"></div></div>
+        </section>
+
+        <section class="step review" data-step="3" aria-labelledby="h-review" hidden>
+          <h2 id="h-review" tabindex="-1">Review your order</h2>
+          <p class="lede">Check everything once more before placing the order.</p>
+          <div id="review-body"></div>
+        </section>
+
+        <section class="confirm" id="confirmation" hidden aria-labelledby="h-confirm">
+          <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#e4efe8"/><path d="M20 33l8 8 16-17" fill="none" stroke="#2e6b4f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <h2 id="h-confirm" tabindex="-1">Thank you — order placed</h2>
+          <p>Your order number is <strong id="order-no"></strong>. A confirmation email is on its way.</p>
+        </section>
+
+        <div class="actions" id="actions">
+          <button type="button" class="btn" id="back" hidden>Back</button>
+          <button type="button" class="btn primary" id="next">Continue to delivery</button>
+        </div>
+        <p id="form-status" class="sr" role="status" aria-live="polite"></p>
+      </form>
+    </main>
+
+    <div class="summary-col">
+      <aside class="panel summary" id="summary" aria-labelledby="sum-title">
+        <button type="button" class="sum-toggle" id="sum-toggle" aria-expanded="false" aria-controls="sum-body"><span>Order summary <span class="chev" aria-hidden="true">▾</span></span><span id="sum-toggle-total"></span></button>
+        <div class="sum-body" id="sum-body">
+          <h2 id="sum-title">Order summary</h2>
+          <ul class="items" id="items"></ul>
+          <dl class="totals">
+            <dt>Subtotal</dt><dd id="sub"></dd>
+            <dt>Shipping</dt><dd id="ship"></dd>
+            <dt class="grand">Total</dt><dd class="grand" id="total"></dd>
+          </dl>
+          <p class="vat" id="vat"></p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const CART = [
+    { name: 'Sencha Morning', variant: '100 g', price: 14.50, qty: 2, color: '#8fb573' },
+    { name: 'Smoked Lapsang', variant: '50 g', price: 9.80, qty: 1, color: '#7a4e35' },
+    { name: 'Cast-iron kettle', variant: '0.8 L', price: 38.00, qty: 1, color: '#3b3f3c' },
+  ];
+  const SHIPPING = { standard: { label: 'Standard', price: 4.90, freeFrom: 60 }, express: { label: 'Express', price: 12.00 } };
+  const STEP_BUTTON = ['Continue to delivery', 'Continue to payment', 'Review order', 'Place order'];
+  const form = document.getElementById('checkout');
+  const steps = [...document.querySelectorAll('.step')];
+  const statusEl = document.getElementById('form-status');
+  let current = 0;
+
+  const cents = (n) => Math.round(n * 100);
+  const euro = (c) => '€' + (c / 100).toFixed(2);
+  const subtotalC = () => CART.reduce((a, i) => a + cents(i.price) * i.qty, 0);
+  const shipMethod = () => form.querySelector('input[name=ship]:checked').value;
+  const shippingC = () => {
+    const m = SHIPPING[shipMethod()];
+    return m.freeFrom !== undefined && subtotalC() >= cents(m.freeFrom) ? 0 : cents(m.price);
+  };
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function renderSummary() {
+    document.getElementById('items').innerHTML = CART.map((i) => `
+      <li><span class="thumb" style="background:${i.color}22"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9h12v5a5 5 0 01-5 5h-2a5 5 0 01-5-5z" fill="${i.color}"/></svg><span class="q" aria-label="Quantity ${i.qty}">${i.qty}</span></span>
+      <span><span class="n">${esc(i.name)}</span><br><span class="v">${esc(i.variant)} · ${euro(cents(i.price))} each</span></span>
+      <span class="pr">${euro(cents(i.price) * i.qty)}</span></li>`).join('');
+    const sub = subtotalC(), ship = shippingC(), total = sub + ship;
+    document.getElementById('sub').textContent = euro(sub);
+    const shipEl = document.getElementById('ship');
+    shipEl.textContent = ship === 0 ? 'Free' : euro(ship);
+    shipEl.classList.toggle('free', ship === 0);
+    document.getElementById('total').textContent = euro(total);
+    document.getElementById('vat').textContent = `Includes VAT ${euro(Math.round(total * 20 / 120))}`;
+    document.getElementById('sum-toggle-total').textContent = euro(total);
+    const std = SHIPPING.standard;
+    document.getElementById('std-price').textContent = sub >= cents(std.freeFrom) ? 'Free' : euro(cents(std.price));
+  }
+
+  // ---- validation ----
+  const luhn = (digits) => {
+    let s = 0;
+    for (let i = 0; i < digits.length; i++) {
+      let d = +digits[digits.length - 1 - i];
+      if (i % 2 === 1) { d *= 2; if (d > 9) d -= 9; }
+      s += d;
+    }
+    return s % 10 === 0;
+  };
+  const RULES = {
+    required: (v) => v.trim() !== '' || 'This field is required.',
+    email: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim()) || 'Enter an email address like name@example.com.',
+    postal: (v) => /^[A-Za-z0-9 -]{3,10}$/.test(v.trim()) || 'Postal codes are 3–10 letters, digits, spaces or hyphens.',
+    card: (v) => {
+      const d = v.replace(/\s+/g, '');
+      if (!/^\d+$/.test(d)) return 'Card numbers contain digits only.';
+      if (d.length < 13 || d.length > 19) return 'Card numbers have 13 to 19 digits.';
+      return luhn(d) || 'This card number is not valid — please check it.';
+    },
+    exp: (v) => {
+      const m = /^(\d{2})\/(\d{2})$/.exec(v.trim());
+      if (!m) return 'Use the format MM/YY.';
+      const mm = +m[1], yy = 2000 + +m[2];
+      if (mm < 1 || mm > 12) return 'Month must be between 01 and 12.';
+      const now = new Date();
+      if (yy < now.getFullYear() || (yy === now.getFullYear() && mm < now.getMonth() + 1)) return 'This card has expired.';
+      return true;
+    },
+    cvc: (v) => /^\d{3,4}$/.test(v.trim()) || 'CVC is the 3 or 4 digits on the back of the card.',
+  };
+  function validateField(el) {
+    const rules = (el.dataset.rules || '').split(' ').filter(Boolean);
+    let msg = '';
+    for (const r of rules) {
+      if (r !== 'required' && el.value.trim() === '') continue;
+      const res = RULES[r](el.value);
+      if (res !== true) { msg = res; break; }
+    }
+    const errEl = document.getElementById(el.id + '-err');
+    errEl.textContent = msg;
+    if (msg) { el.setAttribute('aria-invalid', 'true'); el.setAttribute('aria-describedby', errEl.id); }
+    else { el.removeAttribute('aria-invalid'); }
+    return !msg;
+  }
+  function validateStep(i) {
+    const fields = [...steps[i].querySelectorAll('[data-rules]')];
+    const bad = fields.filter((f) => !validateField(f));
+    if (bad.length) {
+      statusEl.textContent = `${bad.length} ${bad.length === 1 ? 'field needs' : 'fields need'} attention.`;
+      bad[0].focus();
+      return false;
+    }
+    statusEl.textContent = '';
+    return true;
+  }
+
+  // ---- formatting ----
+  const card = document.getElementById('card');
+  card.addEventListener('input', () => {
+    const pos = card.selectionStart;
+    const digitsBefore = card.value.slice(0, pos).replace(/\D/g, '').length;
+    const digits = card.value.replace(/\D/g, '').slice(0, 19);
+    const formatted = digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+    card.value = formatted;
+    let p = 0, seen = 0;
+    while (p < formatted.length && seen < digitsBefore) { if (/\d/.test(formatted[p])) seen++; p++; }
+    card.setSelectionRange(p, p);
+    document.getElementById('card-brand').textContent = /^4/.test(digits) ? 'VISA' : /^(5[1-5]|2[2-7])/.test(digits) ? 'MC' : /^3[47]/.test(digits) ? 'AMEX' : '';
+  });
+  const exp = document.getElementById('exp');
+  exp.addEventListener('input', (e) => {
+    let d = exp.value.replace(/\D/g, '').slice(0, 4);
+    if (d.length === 1 && +d > 1) d = '0' + d;
+    exp.value = d.length > 2 || (d.length === 2 && e.inputType !== 'deleteContentBackward') ? d.slice(0, 2) + '/' + d.slice(2) : d;
+  });
+  document.getElementById('cvc').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4); });
+  form.querySelectorAll('[data-rules]').forEach((el) => {
+    el.addEventListener('blur', () => { if (el.value !== '' || el.hasAttribute('aria-invalid')) validateField(el); });
+    el.addEventListener('input', () => { if (el.hasAttribute('aria-invalid')) validateField(el); });
+  });
+  form.querySelectorAll('input[name=ship]').forEach((r) => r.addEventListener('change', renderSummary));
+
+  // ---- steps ----
+  function renderReview() {
+    const v = (id) => esc(document.getElementById(id).value.trim());
+    const digits = card.value.replace(/\D/g, '');
+    const m = SHIPPING[shipMethod()];
+    document.getElementById('review-body').innerHTML = `
+      <h3>Details <button type="button" class="linkbtn" data-goto="0">Edit<span class="sr"> details</span></button></h3>
+      <dl><dt>Name</dt><dd>${v('name')}</dd><dt>Email</dt><dd>${v('email')}</dd><dt>Address</dt><dd>${v('address')}, ${v('postal')} ${v('city')}, ${v('country')}</dd></dl>
+      <h3>Delivery <button type="button" class="linkbtn" data-goto="1">Edit<span class="sr"> delivery</span></button></h3>
+      <dl><dt>Method</dt><dd>${m.label} · ${shippingC() === 0 ? 'Free' : euro(shippingC())}</dd></dl>
+      <h3>Payment <button type="button" class="linkbtn" data-goto="2">Edit<span class="sr"> payment</span></button></h3>
+      <dl><dt>Card</dt><dd>•••• ${digits.slice(-4)} · expires ${v('exp')}</dd><dt>Total</dt><dd>${euro(subtotalC() + shippingC())}</dd></dl>`;
+    document.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => go(+b.dataset.goto)));
+  }
+  function go(i) {
+    current = i;
+    steps.forEach((s, k) => { s.hidden = k !== i; });
+    document.querySelectorAll('#steps li').forEach((li, k) => {
+      if (k === i) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+      li.classList.toggle('done', k < i);
+    });
+    document.getElementById('back').hidden = i === 0;
+    document.getElementById('next').textContent = STEP_BUTTON[i];
+    if (i === 3) renderReview();
+    steps[i].querySelector('h2').focus();
+  }
+  // The page may run in a sandbox without allow-forms (the submit event never fires there),
+  // so navigation is driven by the button and by Enter in text fields instead of form submission.
+  function advance() {
+    if (current < 3) { if (validateStep(current)) go(current + 1); return; }
+    for (let i = 0; i < 3; i++) if (!validateStep(i)) { go(i); validateStep(i); return; }
+    steps.forEach((s) => { s.hidden = true; });
+    document.getElementById('actions').hidden = true;
+    document.getElementById('steps').hidden = true;
+    const no = 'KL-' + String(Math.floor(100000 + Math.random() * 900000));
+    document.getElementById('order-no').textContent = no;
+    const conf = document.getElementById('confirmation');
+    conf.hidden = false;
+    conf.querySelector('h2').focus();
+    statusEl.textContent = `Order ${no} placed.`;
+  }
+  document.getElementById('next').addEventListener('click', advance);
+  form.addEventListener('submit', (e) => e.preventDefault());
+  form.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); advance(); }
+  });
+  document.getElementById('back').addEventListener('click', () => go(Math.max(0, current - 1)));
+
+  // ---- mobile summary toggle ----
+  const tog = document.getElementById('sum-toggle'), body = document.getElementById('sum-body');
+  const mq = matchMedia('(max-width: 860px)');
+  const syncMq = () => { body.hidden = mq.matches && tog.getAttribute('aria-expanded') !== 'true'; };
+  tog.addEventListener('click', () => { tog.setAttribute('aria-expanded', String(tog.getAttribute('aria-expanded') !== 'true')); syncMq(); });
+  mq.addEventListener('change', syncMq);
+
+  renderSummary(); syncMq();
+})();
+</script>
+</body>
+</html>

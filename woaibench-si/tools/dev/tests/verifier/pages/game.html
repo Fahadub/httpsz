@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Orbit Dodge</title>
+<style>html,body{margin:0;height:100%;background:#05060a;overflow:hidden}canvas{display:block;width:100vw;height:100vh}</style></head>
+<body>
+<canvas id="c" aria-label="Game"></canvas>
+<script>
+  const c = document.getElementById('c'), g = c.getContext('2d');
+  function fit() { c.width = innerWidth; c.height = innerHeight; }
+  addEventListener('resize', fit); fit();
+  const p = { x: 0.5, y: 0.5 }, keys = {};
+  let hue = 0, t = 0;
+  addEventListener('keydown', (e) => { keys[e.key] = true; });
+  addEventListener('keyup', (e) => { keys[e.key] = false; });
+  c.addEventListener('click', () => { hue = (hue + 120) % 360; });
+  function loop(ts) {
+    t = ts / 1000;
+    const s = 0.012;
+    if (keys.ArrowLeft) p.x -= s; if (keys.ArrowRight) p.x += s;
+    if (keys.ArrowUp) p.y -= s; if (keys.ArrowDown) p.y += s;
+    p.x = Math.max(0.05, Math.min(0.95, p.x)); p.y = Math.max(0.05, Math.min(0.95, p.y));
+    g.fillStyle = '#05060a'; g.fillRect(0, 0, c.width, c.height);
+    // orbiting obstacle (continuous animation)
+    const ox = c.width / 2 + Math.cos(t * 2) * c.width * 0.3, oy = c.height / 2 + Math.sin(t * 2) * c.height * 0.3;
+    g.fillStyle = '#f55'; g.beginPath(); g.arc(ox, oy, 26, 0, 7); g.fill();
+    // player
+    g.fillStyle = `hsl(${hue} 80% 60%)`; g.fillRect(p.x * c.width - 30, p.y * c.height - 30, 60, 60);
+    g.fillStyle = '#fff'; g.font = '20px system-ui'; g.fillText('Orbit Dodge', 20, 34);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+</script>
+</body></html>

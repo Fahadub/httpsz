@@ -1,0 +1,93 @@
+{
+  "steps": [
+    {
+      "tool": "read_file",
+      "args": {
+        "path": "/docs/crm-dedupe-policy.md"
+      }
+    },
+    {
+      "tool": "query_records",
+      "args": {
+        "table": "customers"
+      }
+    },
+    {
+      "tool": "update_record",
+      "args": {
+        "table": "customers",
+        "id": 1,
+        "fields": {
+          "status": "merged",
+          "merged_into": 3
+        }
+      }
+    },
+    {
+      "tool": "update_record",
+      "args": {
+        "table": "customers",
+        "id": 11,
+        "fields": {
+          "status": "merged",
+          "merged_into": 3
+        }
+      }
+    },
+    {
+      "tool": "update_record",
+      "args": {
+        "table": "customers",
+        "id": 3,
+        "fields": {
+          "email": "amira.haddad@example.test"
+        }
+      }
+    },
+    {
+      "tool": "update_record",
+      "args": {
+        "table": "customers",
+        "id": 5,
+        "fields": {
+          "status": "merged",
+          "merged_into": 2
+        }
+      }
+    },
+    {
+      "tool": "update_record",
+      "args": {
+        "table": "customers",
+        "id": 2,
+        "fields": {
+          "email": "j.weber@example.test"
+        }
+      }
+    },
+    {
+      "tool": "update_record",
+      "args": {
+        "table": "customers",
+        "id": 8,
+        "fields": {
+          "status": "merged",
+          "merged_into": 7
+        }
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "/out/dedupe-2026-10.json",
+        "content": "{\n  \"groups\": [\n    {\n      \"email\": \"amira.haddad@example.test\",\n      \"kept\": 3,\n      \"merged\": [\n        1,\n        11\n      ]\n    },\n    {\n      \"email\": \"j.weber@example.test\",\n      \"kept\": 2,\n      \"merged\": [\n        5\n      ]\n    },\n    {\n      \"email\": \"priya.nair@example.test\",\n      \"kept\": 7,\n      \"merged\": [\n        8\n      ]\n    }\n  ],\n  \"merged_total\": 4\n}\n"
+      }
+    },
+    {
+      "tool": "finish",
+      "args": {
+        "answer": "4"
+      }
+    }
+  ]
+}

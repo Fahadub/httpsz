@@ -1,0 +1,112 @@
+[
+  {
+    "slug": "ec-fixture-cafe-menu",
+    "track": "ui",
+    "title_en": "Engine fixture: café menu page",
+    "title_ar": "مهمة اختبار المحرك: صفحة قائمة مقهى",
+    "summary_en": "Fixture used only by tools/dev/tests/engine_core_test.php.",
+    "summary_ar": "مهمة اختبار تُستخدم في اختبارات المحرك فقط.",
+    "prompt": "ENGINE-CORE FIXTURE (html): Build a single-page menu for the fictional 'Aurora Café' with a header, a <main> element containing at least three menu items (class \"item\") with prices, and a button that toggles a 'vegetarian only' filter. Arabic-friendly typography is a plus.",
+    "output_type": "html",
+    "difficulty": 1,
+    "visibility": "public",
+    "rubric": [
+      {"key": "visual", "label_en": "Visual polish", "label_ar": "الإتقان البصري", "weight": 3, "guide": "Cohesive palette and spacing."},
+      {"key": "function", "label_en": "Functionality", "label_ar": "الوظائف", "weight": 2, "guide": "The filter works."}
+    ],
+    "checks": {
+      "static": [
+        {"id": "viewport", "type": "viewport", "weight": 1},
+        {"id": "lang", "type": "lang_attr", "value": "en", "weight": 1},
+        {"id": "parses", "type": "html_parses", "max_errors": 3, "weight": 1},
+        {"id": "self_contained", "type": "no_external", "allow": ["cdnjs.cloudflare.com"], "weight": 1},
+        {"id": "single", "type": "single_file", "weight": 1},
+        {"id": "items", "type": "selector", "sel": "main .item", "min": 3, "weight": 2},
+        {"id": "button", "type": "selector", "sel": "button", "min": 1, "weight": 1},
+        {"id": "js_ok", "type": "js_parses", "weight": 1},
+        {"id": "listener", "type": "contains", "pattern": "addEventListener\\(\\s*['\"]click", "regex": true, "weight": 1},
+        {"id": "no_alert", "type": "not_contains", "pattern": "alert(", "weight": 1},
+        {"id": "size", "type": "max_bytes", "value": 60000, "weight": 1}
+      ],
+      "browser": [{"id": "no_errors", "type": "no_errors", "weight": 2}]
+    }
+  },
+  {
+    "slug": "ec-fixture-pair-sum",
+    "track": "algo",
+    "title_en": "Engine fixture: pair sum",
+    "title_ar": "مهمة اختبار المحرك: مجموع الأزواج",
+    "summary_en": "Fixture used only by tools/dev/tests/engine_core_test.php.",
+    "summary_ar": "مهمة اختبار تُستخدم في اختبارات المحرك فقط.",
+    "prompt": "ENGINE-CORE FIXTURE (js): Write a JavaScript function pairSum(nums, target) that returns the number of index pairs i < j with nums[i] + nums[j] === target. It must run in O(n) expected time.",
+    "output_type": "js",
+    "difficulty": 1,
+    "visibility": "public",
+    "checks": {
+      "static": [
+        {"id": "balanced", "type": "js_parses", "weight": 1},
+        {"id": "defines", "type": "contains", "pattern": "function\\s+pairSum\\s*\\(", "regex": true, "weight": 1},
+        {"id": "no_require", "type": "not_contains", "pattern": "require(", "weight": 1},
+        {"id": "uses_map", "type": "regex_count", "pattern": "\\bMap\\b", "min": 1, "weight": 1}
+      ],
+      "tests": {"entry": "pairSum", "timeout_ms": 2000, "cases": [
+        {"name": "basic", "args": [[1, 2, 3, 4, 3], 6], "expect": 2},
+        {"name": "dupes", "args": [[1, 1, 1], 2], "expect": 3}
+      ]}
+    }
+  },
+  {
+    "slug": "ec-fixture-train-minutes",
+    "track": "reasoning",
+    "title_en": "Engine fixture: train minutes",
+    "title_ar": "مهمة اختبار المحرك: دقائق القطار",
+    "summary_en": "Fixture used only by tools/dev/tests/engine_core_test.php.",
+    "summary_ar": "مهمة اختبار تُستخدم في اختبارات المحرك فقط.",
+    "prompt": "ENGINE-CORE FIXTURE (answer): A train leaves at 07:50 and arrives at 10:05 the same day. How many minutes does the journey take? Give the answer as a number.",
+    "output_type": "answer",
+    "difficulty": 1,
+    "visibility": "public",
+    "checks": {"answer": {"type": "number", "value": 135, "tolerance": 0}}
+  },
+  {
+    "slug": "ec-fixture-order-agent",
+    "track": "agentic",
+    "title_en": "Engine fixture: ship an order",
+    "title_ar": "مهمة اختبار المحرك: شحن طلب",
+    "summary_en": "Fixture used only by tools/dev/tests/engine_core_test.php.",
+    "summary_ar": "مهمة اختبار تُستخدم في اختبارات المحرك فقط.",
+    "prompt": "ENGINE-CORE FIXTURE (agent): Process the order described in /inbox/order-1042.txt. Compute the order total (items plus shipping) with the calc tool, set the order's status to \"shipped\" and its total in the orders table, email the customer a confirmation whose subject contains the order number and whose body states the total, write a one-line summary to /out/summary.txt, schedule a \"Follow-up call\" on 2026-10-21 from 10:00 to 10:30, then finish with the total as your answer. Do not delete anything.",
+    "output_type": "agent",
+    "difficulty": 2,
+    "visibility": "public",
+    "checks": {
+      "agent": {
+        "max_steps": 10,
+        "tools": ["list_dir", "read_file", "write_file", "delete_file", "update_record", "query_records", "send_email", "calendar_list", "calendar_add", "calc", "http_get", "finish"],
+        "env": {
+          "files": {
+            "/inbox/order-1042.txt": "Customer: Lina Haddad\nEmail: lina@example.test\nOrder: 1042\nItems: 3 x Desk Lamp @ 24.50\nShipping: 6.00\nRequest: please confirm when it ships.",
+            "/inbox/notes.md": "Remember: totals are items + shipping.",
+            "/archive/2025/old-order.txt": "Order 900 — closed"
+          },
+          "records": {"orders": [{"id": 1042, "status": "open", "total": null}, {"id": 1043, "status": "open", "total": 15}]},
+          "http": {"https://api.example.test/rates?base=USD": {"status": 200, "body": {"EUR": 0.9}}},
+          "calendar": [{"title": "Standup", "start": "2026-10-20T09:00", "end": "2026-10-20T09:15"}],
+          "now": "2026-10-19T08:00"
+        },
+        "goal_checks": [
+          {"type": "record_equals", "table": "orders", "id": 1042, "field": "status", "value": "shipped", "weight": 2},
+          {"type": "record_equals", "table": "orders", "id": 1042, "field": "total", "value": 79.5},
+          {"type": "email_sent", "to": "lina@example.test", "subject_contains": "1042", "body_contains": ["79.50"], "weight": 2},
+          {"type": "email_count", "max": 1},
+          {"type": "file_contains", "path": "/out/summary.txt", "value": ["1042", "79.50"]},
+          {"type": "calendar_has", "title_contains": "follow-up", "start": "2026-10-21T10:00", "end": "2026-10-21T10:30"},
+          {"type": "answer_number", "value": 79.5, "tolerance": 0.001},
+          {"type": "tool_not_called", "tool": "delete_file"},
+          {"type": "no_write_outside", "prefix": "/out/"},
+          {"type": "max_steps", "value": 9}
+        ]
+      }
+    }
+  }
+]

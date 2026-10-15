@@ -1,0 +1,350 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Register · Northlight Dev Summit 2026</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f6f5; --surface: #ffffff; --surface-2: #eef2f0; --text: #111a17; --muted: #4a5853; --border: #cfd8d4;
+    --accent: #0b6e55; --accent-ink: #ffffff; --accent-soft: #dff2ea; --danger: #b3261e; --danger-soft: #fdeceb;
+    --focus: #ffbf47; --focus-ink: #0b0c0c; --input-border: #56645f;
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #08110e; --surface: #0f1b17; --surface-2: #15241f; --text: #e9f3ef; --muted: #a8bab3; --border: #2a3d36;
+      --accent: #5fe0b8; --accent-ink: #04140f; --accent-soft: #123128; --danger: #ff9b93; --danger-soft: #3a1513;
+      --focus: #ffbf47; --focus-ink: #0b0c0c; --input-border: #8fa59d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.55 var(--font); }
+  a { color: var(--accent); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 0; box-shadow: 0 0 0 6px var(--focus-ink); }
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+  .hero { color: #f3fbf8; background:
+      radial-gradient(600px 220px at 20% 120%, rgba(95, 224, 184, .55), transparent 70%),
+      radial-gradient(500px 240px at 80% -20%, rgba(124, 92, 255, .55), transparent 70%), #07120f; }
+  .hero-inner { max-width: 760px; margin: 0 auto; padding: 40px clamp(16px, 5vw, 32px) 56px; }
+  .hero p { margin: 0; color: #c9ddd6; }
+  .hero .kicker { font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: .8rem; color: #9ff0d5; }
+  .hero h1 { margin: 8px 0 8px; font-size: clamp(2rem, 5vw, 2.8rem); line-height: 1.1; letter-spacing: -.02em; }
+
+  main { max-width: 760px; margin: -32px auto 64px; padding: 0 clamp(16px, 5vw, 32px); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: clamp(20px, 4vw, 36px); box-shadow: 0 30px 60px -40px rgba(0, 0, 0, .5); }
+  .intro { margin: 0 0 24px; color: var(--muted); }
+
+  .error-summary { border: 4px solid var(--danger); border-radius: 12px; padding: 18px 20px; margin-bottom: 28px; background: var(--danger-soft); }
+  .error-summary[hidden] { display: none; }
+  .error-summary:focus { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .error-summary h2 { margin: 0 0 8px; font-size: 1.25rem; }
+  .error-summary ul { margin: 0; padding-inline-start: 20px; }
+  .error-summary a { color: var(--danger); font-weight: 700; }
+
+  .group { margin: 0 0 26px; }
+  .group.has-error { border-inline-start: 5px solid var(--danger); padding-inline-start: 14px; }
+  label, legend { display: block; font-weight: 700; margin-bottom: 4px; }
+  .tag { display: inline-block; margin-inline-start: 6px; font-size: .78rem; font-weight: 700; letter-spacing: .02em; padding: 1px 8px; border-radius: 999px; vertical-align: 2px; }
+  .tag.req { background: var(--accent-soft); color: var(--text); }
+  .tag.opt { background: var(--surface-2); color: var(--muted); }
+  .hint { margin: 0 0 8px; color: var(--muted); font-size: .95rem; }
+  .error-message { margin: 0 0 8px; color: var(--danger); font-weight: 700; }
+  .error-message[hidden] { display: none; }
+  input[type="text"], input[type="email"], input[type="tel"], textarea {
+    width: 100%; min-height: 48px; padding: 10px 12px; font: inherit; color: var(--text); background: var(--surface);
+    border: 2px solid var(--input-border); border-radius: 8px; }
+  textarea { min-height: 110px; resize: vertical; }
+  input.short { max-width: 14em; }
+  [aria-invalid="true"]:not([type="radio"]) { border-color: var(--danger); border-width: 3px; }
+  fieldset { border: 0; padding: 0; margin: 0 0 26px; min-width: 0; }
+  .choices { display: grid; gap: 10px; }
+  .choice { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--surface); }
+  .choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .choice input { width: 24px; height: 24px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+  .choice label { margin: 0; font-weight: 600; }
+  .choice small { display: block; color: var(--muted); font-weight: 400; }
+  .conditional { margin: 10px 0 0 18px; padding-inline-start: 18px; border-inline-start: 4px solid var(--border); }
+  .conditional[hidden] { display: none; }
+  .count { margin: 6px 0 0; color: var(--muted); font-size: .95rem; }
+  .count.over { color: var(--danger); font-weight: 700; }
+  .check { display: flex; gap: 12px; align-items: flex-start; }
+  .check input { width: 26px; height: 26px; accent-color: var(--accent); margin: 0; flex: none; }
+  .check label { font-weight: 600; margin: 0; }
+  .btn { min-height: 52px; padding: 12px 26px; font: inherit; font-weight: 700; border-radius: 10px; border: 0; background: var(--accent); color: var(--accent-ink); cursor: pointer; box-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
+  .btn:hover { filter: brightness(1.07); }
+  .btn:active { transform: translateY(2px); box-shadow: none; }
+  .confirmation { text-align: center; padding: 12px 0; }
+  .confirmation h2 { font-size: 1.8rem; margin: 8px 0; }
+  .confirmation h2:focus { outline: none; }
+  .badge { display: inline-flex; width: 64px; height: 64px; border-radius: 50%; place-items: center; justify-content: center; background: var(--accent); color: var(--accent-ink); }
+  .badge svg { width: 34px; height: 34px; }
+  .ticket { display: inline-block; margin-top: 12px; padding: 10px 18px; border-radius: 10px; border: 2px dashed var(--accent); font-weight: 700; }
+  @media (prefers-reduced-motion: no-preference) {
+    .confirmation .badge { animation: pop .35s ease-out; }
+    @keyframes pop { from { transform: scale(.6); opacity: 0; } }
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="hero-inner">
+    <p class="kicker">Tromsø · 18–20 November 2026</p>
+    <h1>Northlight Dev Summit 2026</h1>
+    <p>Register for three days of talks and workshops on resilient, inclusive software.</p>
+  </div>
+</header>
+<main>
+  <div class="card" id="card">
+    <div class="error-summary" id="error-summary" tabindex="-1" aria-labelledby="error-summary-title" hidden>
+      <h2 id="error-summary-title">There is a problem</h2>
+      <ul id="error-list"></ul>
+    </div>
+
+    <form id="register" novalidate>
+      <p class="intro">Fields marked <span class="tag req">required</span> must be filled in. It takes about two minutes.</p>
+
+      <div class="group" id="group-full-name">
+        <label for="full-name">Full name <span class="tag req">required</span></label>
+        <p class="error-message" id="full-name-error" hidden></p>
+        <input type="text" id="full-name" name="name" autocomplete="name" spellcheck="false" required aria-required="true">
+      </div>
+
+      <div class="group" id="group-email">
+        <label for="email">Email address <span class="tag req">required</span></label>
+        <p class="hint" id="email-hint">We will send your ticket and venue details here.</p>
+        <p class="error-message" id="email-error" hidden></p>
+        <input type="email" id="email" name="email" autocomplete="email" spellcheck="false" required aria-required="true" aria-describedby="email-hint">
+      </div>
+
+      <div class="group" id="group-phone">
+        <label for="phone">Phone number <span class="tag opt">optional</span></label>
+        <p class="hint" id="phone-hint">Include your country code.</p>
+        <p class="error-message" id="phone-error" hidden></p>
+        <input type="tel" id="phone" name="phone" autocomplete="tel" class="short" aria-describedby="phone-hint">
+      </div>
+
+      <fieldset class="group" id="group-ticket" aria-describedby="ticket-hint">
+        <legend>Ticket type <span class="tag req">required</span></legend>
+        <p class="hint" id="ticket-hint">Prices include lunch and the evening reception.</p>
+        <p class="error-message" id="ticket-error" hidden></p>
+        <div class="choices">
+          <div class="choice"><input type="radio" id="ticket-standard" name="ticket" value="standard" required><label for="ticket-standard">Standard <small>€390 · all talks</small></label></div>
+          <div class="choice"><input type="radio" id="ticket-student" name="ticket" value="student" aria-controls="student-panel" aria-expanded="false"><label for="ticket-student">Student <small>€95 · valid student ID needed at the door</small></label></div>
+          <div class="conditional" id="student-panel" hidden>
+            <label for="student-id">Student ID <span class="tag req">required</span></label>
+            <p class="hint" id="student-id-hint">Two letters followed by six digits, for example NL123456.</p>
+            <p class="error-message" id="student-id-error" hidden></p>
+            <input type="text" id="student-id" name="student_id" class="short" autocomplete="off" spellcheck="false" aria-describedby="student-id-hint">
+          </div>
+          <div class="choice"><input type="radio" id="ticket-workshop" name="ticket" value="workshop"><label for="ticket-workshop">Workshop bundle <small>€590 · talks plus two hands-on workshops</small></label></div>
+        </div>
+      </fieldset>
+
+      <div class="group" id="group-access">
+        <label for="access">Accessibility requirements <span class="tag opt">optional</span></label>
+        <p class="hint" id="access-hint">Tell us about anything that would help you take part, such as step-free access or captions.</p>
+        <p class="error-message" id="access-error" hidden></p>
+        <textarea id="access" name="access" rows="4" aria-describedby="access-hint access-count"></textarea>
+        <p class="count" id="access-count">You have 200 characters remaining</p>
+        <div class="sr-only" aria-live="polite" id="access-live"></div>
+      </div>
+
+      <div class="group" id="group-coc">
+        <p class="error-message" id="coc-error" hidden></p>
+        <div class="check">
+          <input type="checkbox" id="coc" name="coc" required aria-required="true">
+          <label for="coc">I agree to the <a href="#coc-text">code of conduct</a> <span class="tag req">required</span></label>
+        </div>
+        <p class="hint" id="coc-text">Be kind, be curious and make space for others. Organisers may remove anyone who harasses attendees.</p>
+      </div>
+
+      <button type="submit" class="btn" id="register-submit">Register</button>
+    </form>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var MAX = 200;
+  var BASE_TITLE = document.title;
+  var form = document.getElementById('register');
+  var summary = document.getElementById('error-summary');
+  var errorList = document.getElementById('error-list');
+  var access = document.getElementById('access');
+  var count = document.getElementById('access-count');
+  var accessLive = document.getElementById('access-live');
+  var studentPanel = document.getElementById('student-panel');
+  var studentRadio = document.getElementById('ticket-student');
+  var submitted = false;
+  var liveTimer = 0;
+  var TICKETS = { standard: 'Standard', student: 'Student', workshop: 'Workshop bundle' };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var ticket = function () { var c = form.querySelector('input[name="ticket"]:checked'); return c ? c.value : ''; };
+
+  /** Rules in field order: id of the element to focus, group, error element, check → message or ''. */
+  var RULES = [
+    { field: 'full-name', check: function () { return $('full-name').value.trim() ? '' : 'Enter your full name'; } },
+    { field: 'email', check: function () {
+      var v = $('email').value.trim();
+      if (!v) { return 'Enter your email address'; }
+      return /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(v) ? '' : 'Enter an email address in the correct format, like name@example.com';
+    } },
+    { field: 'phone', check: function () {
+      var v = $('phone').value.trim();
+      if (!v) { return ''; }
+      var digits = v.replace(/[\s\-().]/g, '');
+      return /^\+\d{7,15}$/.test(digits) ? '' : 'Enter a phone number with your country code, like +47 412 34 567';
+    } },
+    { field: 'ticket', focus: 'ticket-standard', group: 'group-ticket', check: function () { return ticket() ? '' : 'Select a ticket type'; } },
+    { field: 'student-id', when: function () { return ticket() === 'student'; }, group: 'group-ticket', check: function () {
+      var v = $('student-id').value.trim().toUpperCase();
+      if (!v) { return 'Enter your student ID'; }
+      return /^[A-Z]{2}\d{6}$/.test(v) ? '' : 'Enter a student ID with two letters followed by six digits, like NL123456';
+    } },
+    { field: 'access', check: function () { var n = access.value.length; return n > MAX ? 'Accessibility requirements must be ' + MAX + ' characters or fewer (you have ' + n + ')' : ''; } },
+    { field: 'coc', check: function () { return $('coc').checked ? '' : 'Confirm that you agree to the code of conduct'; } },
+  ];
+
+  function controlsOf(rule) {
+    return rule.field === 'ticket' ? Array.prototype.slice.call(form.querySelectorAll('input[name="ticket"]')) : [$(rule.field)];
+  }
+  function describedBy(el, errorId, on) {
+    var ids = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(function (x) { return x && x !== errorId; });
+    if (on) { ids.push(errorId); }
+    if (ids.length) { el.setAttribute('aria-describedby', ids.join(' ')); } else { el.removeAttribute('aria-describedby'); }
+  }
+  function setFieldError(rule, message) {
+    var err = $(rule.field + '-error');
+    err.hidden = !message;
+    err.textContent = '';
+    if (message) {
+      var prefix = document.createElement('span');
+      prefix.className = 'sr-only';
+      prefix.textContent = 'Error: ';
+      err.append(prefix, message);
+    }
+    var group = $(rule.group || 'group-' + rule.field);
+    if (rule.field !== 'student-id') { group.classList.toggle('has-error', !!message); }
+    if (rule.field === 'ticket') { describedBy(group, 'ticket-error', !!message); }
+    controlsOf(rule).forEach(function (el) {
+      if (message) { el.setAttribute('aria-invalid', 'true'); } else { el.removeAttribute('aria-invalid'); }
+      if (rule.field !== 'ticket') { describedBy(el, rule.field + '-error', !!message); }
+    });
+  }
+  function validateRule(rule) {
+    var active = !rule.when || rule.when();
+    var message = active ? rule.check() : '';
+    setFieldError(rule, message);
+    return message;
+  }
+  function validateAll() {
+    var errors = [];
+    RULES.forEach(function (rule) {
+      var m = validateRule(rule);
+      if (m) { errors.push({ rule: rule, message: m }); }
+    });
+    return errors;
+  }
+  function showSummary(errors) {
+    errorList.textContent = '';
+    errors.forEach(function (e) {
+      var li = document.createElement('li');
+      var a = document.createElement('a');
+      var target = e.rule.focus || e.rule.field;
+      a.href = '#' + target;
+      a.textContent = e.message;
+      a.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        var el = $(target);
+        var label = el.closest('fieldset') ? el.closest('fieldset').querySelector('legend') : document.querySelector('label[for="' + target + '"]');
+        (label || el).scrollIntoView({ block: 'start' });
+        el.focus({ preventScroll: true });
+      });
+      li.appendChild(a);
+      errorList.appendChild(li);
+    });
+    summary.hidden = false;
+    document.title = 'Error: ' + BASE_TITLE;
+    summary.focus();
+  }
+  function hideSummary() {
+    summary.hidden = true;
+    errorList.textContent = '';
+    document.title = BASE_TITLE;
+  }
+
+  function syncStudent() {
+    var on = studentRadio.checked;
+    studentPanel.hidden = !on;
+    studentRadio.setAttribute('aria-expanded', on ? 'true' : 'false');
+    if (!on) { setFieldError(RULES[4], ''); }
+  }
+  function updateCount() {
+    var left = MAX - access.value.length;
+    var text = left >= 0 ? 'You have ' + left + ' character' + (left === 1 ? '' : 's') + ' remaining' : 'You have ' + -left + ' character' + (left === -1 ? '' : 's') + ' too many';
+    count.textContent = text;
+    count.classList.toggle('over', left < 0);
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(function () { accessLive.textContent = text; }, 900);
+  }
+
+  form.addEventListener('change', function (ev) {
+    if (ev.target.name === 'ticket') { syncStudent(); if (submitted) { validateRule(RULES[3]); } }
+  });
+  // Blur re-validation changes the layout (messages appear/disappear). If the blur was caused by a
+  // pointer press elsewhere, wait until that press has finished so the shift cannot swallow the click.
+  var pointerDown = false;
+  var pending = null;
+  document.addEventListener('pointerdown', function () { pointerDown = true; }, true);
+  document.addEventListener('pointerup', function () {
+    pointerDown = false;
+    if (pending) { var run = pending; pending = null; setTimeout(run, 0); }
+  }, true);
+  form.addEventListener('focusout', function (ev) {
+    if (!submitted) { return; }
+    var id = ev.target.id;
+    RULES.forEach(function (rule) {
+      if (rule.field !== id || rule.field === 'ticket') { return; }
+      var run = function () { if (form.isConnected) { validateRule(rule); } };
+      if (pointerDown) { pending = run; } else { run(); }
+    });
+  });
+  access.addEventListener('input', updateCount);
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    submitted = true;
+    var errors = validateAll();
+    if (errors.length) { showSummary(errors); return; }
+    hideSummary();
+    showConfirmation();
+  });
+
+  function showConfirmation() {
+    var name = $('full-name').value.trim();
+    var email = $('email').value.trim();
+    var t = TICKETS[ticket()];
+    var card = $('card');
+    card.textContent = '';
+    var wrap = document.createElement('section');
+    wrap.className = 'confirmation';
+    wrap.setAttribute('aria-labelledby', 'confirm-title');
+    wrap.innerHTML = '<span class="badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' +
+      '<h2 id="confirm-title" tabindex="-1">Registration complete</h2><p id="confirm-text"></p><p class="ticket" id="confirm-ticket"></p>';
+    card.appendChild(wrap);
+    $('confirm-text').textContent = 'Thank you, ' + name + '. We have emailed your ticket to ' + email + '.';
+    $('confirm-ticket').textContent = t + ' ticket · Northlight Dev Summit 2026';
+    $('confirm-title').focus();
+  }
+  syncStudent();
+  updateCount();
+  accessLive.textContent = '';
+})();
+</script>
+</body>
+</html>
