@@ -12,8 +12,13 @@ $updated = !empty($stats['last_updated']) ? fmt_date((string) $stats['last_updat
 $trackCount = count($tracks);
 $holdout = (int) ($stats['tasks_holdout'] ?? 0);
 $num = static fn(int $n): string => fmt_num($n);
+// Brand Studio hero image (Admin → Brand Studio → set as hero): a subtle backdrop behind the hero.
+$heroRel = ltrim((string) setting('brand_hero', ''), '/');
+$heroImg = $heroRel !== '' && preg_match('#^[A-Za-z0-9_\-./]+$#', $heroRel) && !str_contains($heroRel, '..') && is_file(WB_UPLOADS . '/' . $heroRel)
+    ? (string) upload_url($heroRel) : '';
 ?>
-<section class="hero home-hero" aria-labelledby="hero-title">
+<section class="hero home-hero<?= $heroImg !== '' ? ' has-hero-img' : '' ?>" aria-labelledby="hero-title">
+  <?php if ($heroImg !== ''): ?><div class="hero-img" aria-hidden="true" style="background-image:url('<?= e($heroImg) ?>')"></div><?php endif; ?>
   <div class="hero-glow" aria-hidden="true"></div>
   <div class="hero-grid-lines" aria-hidden="true"></div>
   <div class="container-wide hero-layout">

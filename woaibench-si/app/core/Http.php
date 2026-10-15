@@ -62,6 +62,8 @@ final class Http
      * Headers for documents that contain untrusted, model-generated HTML/JS.
      * The CSP 'sandbox' directive gives the document an opaque origin even if it is opened
      * directly (not only inside <iframe sandbox>), so it can never read our cookies or call our APIs.
+     * allow-forms lets model pages run their own submit handlers (form validation tasks); form-action
+     * 'none' still blocks every actual form navigation/submission.
      */
     public static function sandboxHeaders(bool $allowEmbedAnywhere = false): void
     {
@@ -74,7 +76,7 @@ final class Http
         $cdn = 'https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://esm.sh https://cdn.skypack.dev https://threejs.org https://fonts.googleapis.com https://fonts.gstatic.com';
         $self = site_origin();
         header('Content-Security-Policy: ' . implode('; ', [
-            'sandbox allow-scripts allow-pointer-lock',
+            'sandbox allow-scripts allow-forms allow-pointer-lock',
             "default-src 'none'",
             "script-src 'unsafe-inline' 'unsafe-eval' blob: data: {$self} {$cdn}",
             "style-src 'unsafe-inline' {$cdn}",

@@ -13,6 +13,8 @@ use DB;
 final class Catalog
 {
     private static ?array $tracks = null;
+    /** @var array<string,int> runsPerTask() per season (request cache). */
+    private static array $runs = [];
 
     /** Current season id, e.g. "2026.10". */
     public static function season(): string
@@ -61,6 +63,24 @@ final class Catalog
     public static function track(string $slug): ?array
     {
         return self::tracks()[$slug] ?? null;
+    }
+
+    /**
+     * Attempts per task behind a season's scores: the largest runs_per_task among that season's campaigns that
+     * count towards scores; the runs_per_task setting while there is none yet (or the database is unavailable).
+     */
+    public static function runsPerTask(?string $season = null): int
+    {
+        $season ??= self::season();
+        if (!isset(self::$runs[$season])) {
+            try {
+                $v = DB::val('SELECT MAX(runs_per_task) FROM campaigns WHERE season = ? AND include_in_scores = 1', [$season]);
+            } catch (\Throwable) {
+                $v = null;
+            }
+            self::$runs[$season] = max(1, $v !== null ? (int) $v : (int) \setting('runs_per_task', 3));
+        }
+        return self::$runs[$season];
     }
 
     /** Count of active tasks: ['total'=>, 'public'=>, 'holdout'=>]. */

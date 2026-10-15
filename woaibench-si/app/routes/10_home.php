@@ -67,7 +67,7 @@ function home_view_data(): array
         'changes' => home_changelog(3),
         'season' => Catalog::season(),
         'method' => [
-            'runs' => max(1, (int) setting('runs_per_task', 3)),
+            'runs' => Catalog::runsPerTask(),
             'judges' => max(1, (int) setting('judge_count', 3)),
             'boot' => max(1, (int) setting('bootstrap_iters', 1000)),
         ],

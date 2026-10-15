@@ -28,7 +28,8 @@
 - **معايير تقييم مفصّلة** بأوزان ونقاط معايرة بدل رقم واحد عام.
 - **تقييم هجين**: فحوص آلية حتمية (ثابتة، وفي متصفح حقيقي، واختبارات وحدات) تُمزج بأحكام المحكّمين.
 - **مسارات حتمية** للخوارزميات والاستدلال والمهام الوكيلية تُصحَّح باختبارات وإجابات دقيقة دون رأي نموذج لغوي.
-- **التحكم في التلوث**: مجموعة علنية ومجموعة **محجوبة** لا تُنشر أبدًا، ومهام جديدة كل موسم.
+- **التحكم في التلوث**: مجموعة علنية ومجموعة **محجوبة** لا تُنشر أبدًا، ومهام جديدة كل موسم. المستودع عام،
+  لذلك كل المهام المضمَّنة فيه علنية؛ أما المهام المحجوبة فتُنشأ داخل لوحة الإدارة فقط (مصنع المهام) ولا تُرفع إلى أي مستودع.
 - **فصل أعطال البنية التحتية** عن أخطاء النموذج: أخطاء المزوّد تُعاد ولا تُحتسب.
 - **شفافية كاملة** للمهام العلنية: المخرجات ولقطات الشاشة ونتائج الفحوص ومبررات المحكّمين.
 - **التكلفة وزمن الاستجابة** لكل مهمة، وحدّ باريتو للقيمة مقابل السعر.
@@ -141,6 +142,8 @@ Plain PHP 8.1+ and MySQL/MariaDB — no Composer, no build step — designed for
 - **Hybrid scoring**: deterministic automated checks (static, real-browser and unit tests) blended with judges.
 - **Deterministic tracks** — algorithms, reasoning and agentic tasks are graded by tests and exact answers.
 - **Contamination control**: a public set, a private **hold-out** set that is never published, fresh tasks each season.
+  The repository is public, so every bundled task is public; hold-out tasks are created only in the admin panel
+  (Task Forge) and are never committed anywhere.
 - **Infrastructure ≠ model failure**: provider errors are retried and excluded.
 - **Full transparency** for public tasks: outputs, screenshots, check results and judge rationales.
 - **Cost & latency** per task and a price-performance Pareto frontier.

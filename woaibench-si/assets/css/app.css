@@ -79,7 +79,7 @@
   --text: #17140F;
   --text-muted: #57514A;
   --text-faint: #665F54;
-  --gold: #8E6A2B;
+  --gold: #7D5D23;          /* ≥ 4.5:1 on every light surface, incl. tinted (gold-soft) rows */
   --gold-2: #B8904A;
   --gold-3: #6A4B18;
   --gold-soft: rgba(142, 106, 43, .1);
@@ -87,8 +87,8 @@
   --gold-grad: linear-gradient(135deg, #A88340 0%, #8A6526 55%, #6A4B18 100%);
   --gold-text: linear-gradient(180deg, #A9833E 0%, #8A6526 50%, #5F4416 100%);
   --on-gold: #FFFDF8;
-  --accent: #8E6A2B;
-  --green: #1C7A47;
+  --accent: #7D5D23;
+  --green: #17703F;          /* ≥ 4.5:1 on green-soft badges */
   --red: #B8322F;
   --blue: #2463B5;
   --violet: #5B45C2;
@@ -98,7 +98,7 @@
   --blue-soft: rgba(36, 99, 181, .09);
   --violet-soft: rgba(91, 69, 194, .09);
   --amber-soft: rgba(154, 95, 0, .1);
-  --focus: #8E6A2B;
+  --focus: #7D5D23;
   --grid-line: rgba(40, 32, 18, .08);
   --shadow-sm: 0 1px 2px rgba(60, 45, 20, .08);
   --shadow: 0 14px 34px -18px rgba(60, 45, 20, .28), 0 2px 6px rgba(60, 45, 20, .06);
@@ -296,6 +296,21 @@ html { scrollbar-color: var(--border-strong) transparent; scrollbar-width: thin;
 :lang(ar) .t-upper { text-transform: none; letter-spacing: 0; }
 .t-strong { font-weight: 600; color: var(--text); }
 .ltr { direction: ltr; unicode-bidi: isolate; }
+/*
+ * RTL bidi isolation for values that mix digits with Latin units or symbols ("46.6 s", "$3/M", "94.2 ±0.4",
+ * "89.1–91.1"): they keep their left-to-right order inside Arabic text instead of being reordered ("s 46.6").
+ * Value elements are isolated and take their direction from their own content (plaintext = dir="auto"),
+ * so "12 ms" reads left-to-right while an Arabic unit ("35 رمز/ث") still reads right-to-left. Numeric table
+ * cells stay aligned to the logical end edge (left in RTL) whatever their content direction.
+ */
+.t-num, .score-ci, .badge.t-num, .pill.t-num { unicode-bidi: isolate; }
+[dir="rtl"] :is(span, b, strong, em, small, a, bdi, code, data, time, output, label).t-num,
+[dir="rtl"] .badge.t-num, [dir="rtl"] .pill.t-num, [dir="rtl"] .score-ci { unicode-bidi: plaintext; }
+/* numbers only: lay the parts out left-to-right (value, then its ± interval / arrow) */
+.score, .delta, .heat { unicode-bidi: isolate; }
+[dir="rtl"] .score, [dir="rtl"] .delta, [dir="rtl"] .heat { direction: ltr; }
+[dir="rtl"] .table td.num, [dir="rtl"] td.num { unicode-bidi: plaintext; text-align: left; }
+[dir="rtl"] .table td.num.center, [dir="rtl"] td.num.center { text-align: center; }
 .link {
   color: var(--gold);
   text-decoration: underline;
@@ -455,13 +470,13 @@ html { scrollbar-color: var(--border-strong) transparent; scrollbar-width: thin;
 .theme-toggle .icon-sun { display: none; }
 [data-theme="light"] .theme-toggle .icon-sun { display: inline-block; }
 [data-theme="light"] .theme-toggle .icon-moon { display: none; }
-.nav-toggle { display: none; }
+.nav-toggle, .nav-toggle.btn-icon { display: none; }   /* .btn-icon (declared later) must not reveal it on desktop */
 .nav-toggle .icon-close, .nav-toggle[aria-expanded="true"] .icon-open { display: none; }
 .nav-toggle[aria-expanded="true"] .icon-close { display: inline-block; }
 .nav-drawer-head, .nav-drawer-foot { display: none; }
 
 @media (max-width: 1180px) {
-  .nav-toggle { display: inline-flex; }
+  .nav-toggle, .nav-toggle.btn-icon { display: inline-flex; }
   .nav {
     position: fixed;
     top: var(--header-h);
@@ -1104,8 +1119,8 @@ legend { padding: 0; }
   color: var(--text);
   font-variant-numeric: proportional-nums lining-nums;
   font-feature-settings: "tnum" 0;
-  direction: ltr;
-  unicode-bidi: isolate;
+  /* direction from the value itself: "12 ms" / "$0.05" read left-to-right, "661 ملّي ثانية" right-to-left */
+  unicode-bidi: plaintext;
   text-align: left;
 }
 [dir="rtl"] .stat-value { text-align: right; }
@@ -1406,6 +1421,8 @@ a.model-chip:hover .model-chip-name { color: var(--gold); }
 .toast-warn { --a: var(--amber); }
 .toast-info { --a: var(--blue); }
 [data-tip] { position: relative; }
+/* hidden tooltips are still laid out: never let one near the edge widen the page (no horizontal scroll) */
+body > main#main { overflow-x: clip; }
 [data-tip]::after {
   content: attr(data-tip);
   position: absolute;
@@ -1413,7 +1430,7 @@ a.model-chip:hover .model-chip-name { color: var(--gold); }
   left: 50%;
   z-index: 30;
   width: max-content;
-  max-width: 260px;
+  max-width: min(260px, 80vw);
   padding: 7px 10px;
   border: 1px solid var(--border-strong);
   border-radius: 9px;
@@ -1461,7 +1478,7 @@ a.model-chip:hover .model-chip-name { color: var(--gold); }
 .prose > * + * { margin-top: 1.1em; }
 .prose > :first-child { margin-top: 0; }
 .prose em { font-style: italic; color: var(--text); }
-.prose p { margin: 0; }
+.prose p { margin-block-end: 0; }   /* top spacing comes from `.prose > * + *` */
 .prose h2, .prose h3, .prose h4 { color: var(--text); margin-top: 2em; }
 .prose h2 { font-family: var(--font-display); font-weight: 400; font-size: calc(32px * var(--display-scale)); line-height: 1.2; }
 .prose h3 { font-size: 19px; font-weight: 600; }
@@ -1657,6 +1674,20 @@ a.model-chip:hover .model-chip-name { color: var(--gold); }
    17. Home page
    ========================================================================================= */
 .home-hero { padding-top: clamp(28px, 5vw, 72px); }
+/* optional Brand Studio hero image: a quiet, masked backdrop that never competes with the copy */
+.home-hero .hero-img {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+  opacity: .22;
+  filter: saturate(.85);
+  -webkit-mask-image: radial-gradient(1100px 680px at 72% 34%, #000 18%, transparent 78%);
+  mask-image: radial-gradient(1100px 680px at 72% 34%, #000 18%, transparent 78%);
+}
+[dir="rtl"] .home-hero .hero-img { -webkit-mask-image: radial-gradient(1100px 680px at 28% 34%, #000 18%, transparent 78%); mask-image: radial-gradient(1100px 680px at 28% 34%, #000 18%, transparent 78%); }
+[data-theme="light"] .home-hero .hero-img { opacity: .14; mix-blend-mode: multiply; }
 .home-hero .hero-glow {
   position: absolute;
   inset: -20% -10% auto;

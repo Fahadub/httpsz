@@ -179,7 +179,10 @@ final class Tasks
         return (float) \clamp((float) $a, 0, 1);
     }
 
-    /** Rubric criteria normalised: [['key','label','weight','pct','guide']]. */
+    /**
+     * Rubric criteria normalised for public pages: [['key','label','weight','pct']].
+     * The judge guide is deliberately left out: it describes the expected solution (contamination).
+     */
     public static function rubric(array $task): array
     {
         $crit = array_values(array_filter(\json_arr($task['rubric_json'] ?? null), 'is_array'));
@@ -189,7 +192,6 @@ final class Tasks
             'label' => \L($c, 'label') ?: (string) ($c['key'] ?? ''),
             'weight' => (float) ($c['weight'] ?? 1),
             'pct' => 100 * max(0, (float) ($c['weight'] ?? 1)) / $total,
-            'guide' => (string) ($c['guide'] ?? ''),
         ], $crit);
     }
 

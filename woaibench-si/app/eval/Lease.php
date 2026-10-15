@@ -6,6 +6,12 @@
  * and only counts when exactly one row changed. Expired leases are therefore reclaimable, and every
  * later write is guarded by the unique lock_token so a worker that lost its lease can never overwrite
  * someone else's work.
+ *
+ * Concurrency: every guarded UPDATE is forced onto the PRIMARY key. Otherwise MariaDB resolves
+ * "WHERE id = ? AND status IN (…) AND locked_until …" through ix_*_status (status, locked_until) as a
+ * range scan, next-key-locking every row in that status — two workers (cron + admin console + verifier
+ * submits) then deadlock on each other's index records. Deadlocks / lock-wait timeouts that still happen
+ * are retried (retrying()), never surfaced as a crashed worker.
  */
 declare(strict_types=1);
 
@@ -40,7 +46,7 @@ final class Lease
         if ($counter !== null) {
             $set .= ", `$counter` = `$counter` + 1";
         }
-        $sql = "UPDATE `$table` SET $set WHERE id = ? AND status IN (" . DB::in($from) . ')'
+        $sql = "UPDATE `$table` FORCE INDEX (PRIMARY) SET $set WHERE id = ? AND status IN (" . DB::in($from) . ')'
             . ' AND (locked_until IS NULL OR locked_until < NOW())';
         $params[] = $id;
         array_push($params, ...array_values($from));
@@ -48,7 +54,7 @@ final class Lease
             $sql .= " AND `$counter` < ?";
             $params[] = $maxTries;
         }
-        return DB::exec($sql, $params) === 1 ? $token : null;
+        return self::retrying(static fn(): bool => DB::exec($sql, $params) === 1) ? $token : null;
     }
 
     /**
@@ -95,7 +101,37 @@ final class Lease
         if (!empty($opts['free'])) {
             $where .= ' AND (locked_until IS NULL OR locked_until < NOW())';
         }
-        return DB::exec("UPDATE `$table` SET " . implode(', ', $cols) . " WHERE $where", $params);
+        $sql = "UPDATE `$table` FORCE INDEX (PRIMARY) SET " . implode(', ', $cols) . " WHERE $where";
+        return self::retrying(static fn(): int => DB::exec($sql, $params));
+    }
+
+    /** True for a MySQL/MariaDB deadlock (1213) or lock wait timeout (1205): safe to retry. */
+    public static function isLockConflict(\Throwable $e): bool
+    {
+        if (!$e instanceof \PDOException) {
+            return false;
+        }
+        $code = (int) ($e->errorInfo[1] ?? 0);
+        return $code === 1213 || $code === 1205 || (string) $e->getCode() === '40001';
+    }
+
+    /**
+     * Run $fn — one statement, or a whole DB::tx() — and retry it (up to $attempts times, short random
+     * back-off) when it lost a deadlock or timed out waiting for a lock. Inside an open transaction nothing
+     * is retried here: the conflict rolled that transaction back, so only its owner may run it again.
+     */
+    public static function retrying(callable $fn, int $attempts = 4): mixed
+    {
+        for ($i = 1; ; $i++) {
+            try {
+                return $fn();
+            } catch (\PDOException $e) {
+                if ($i >= $attempts || !self::isLockConflict($e) || DB::pdo()->inTransaction()) {
+                    throw $e;
+                }
+                usleep(random_int(5, 40) * 1000 * $i);
+            }
+        }
     }
 
     private static function assertTable(string $table): void

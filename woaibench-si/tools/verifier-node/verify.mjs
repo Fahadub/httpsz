@@ -80,7 +80,16 @@ const log = (...a) => { if (!QUIET) console.log(stamp(), ...a); };
 const info = (...a) => console.log(stamp(), ...a);
 const warn = (...a) => console.warn(stamp(), 'WARN', ...a);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const trunc = (s, n) => { s = String(s ?? ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+/** Replace unpaired UTF-16 surrogates with U+FFFD (PHP's json_decode rejects them in the request body). */
+const wellFormed = (s) => s.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '\uFFFD');
+/** Truncate to n UTF-16 units without splitting a surrogate pair. */
+const trunc = (s, n) => {
+  s = String(s ?? '');
+  if (s.length <= n) return s;
+  let cut = n - 1;
+  if (cut > 0 && /[\uD800-\uDBFF]/.test(s[cut - 1])) cut--;
+  return s.slice(0, cut) + '…';
+};
 const num = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
 
 /* ------------------------------------------------------------------ API */
@@ -93,7 +102,7 @@ async function api(endpoint, body) {
     res = await fetch(SITE + '/api/verifier/' + endpoint, {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': 'WOAIBench-Verifier/' + VERSION },
-      body: JSON.stringify(body || {}),
+      body: JSON.stringify(body || {}, (k, v) => (typeof v === 'string' ? wellFormed(v) : v)),
       signal: AbortSignal.timeout(60_000),
     });
   } catch (e) {
@@ -127,7 +136,9 @@ function candidateExecutables() {
 async function launchBrowser() {
   const flags = ['--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', '--mute-audio', '--disable-background-timer-throttling',
     '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--autoplay-policy=no-user-gesture-required'];
-  if (!args['no-swiftshader']) flags.push('--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist');
+  // Software WebGL only as a fallback (no --use-angle=swiftshader: forcing it also moves 2D canvas and compositing
+  // onto the CPU rasteriser, which halves the frame rate of ordinary pages and fails fair fps checks).
+  if (!args['no-swiftshader']) flags.push('--enable-unsafe-swiftshader', '--ignore-gpu-blocklist');
   const opts = { headless: !args.headed, args: flags };
   const explicit = process.env.WB_CHROMIUM || process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || process.env.CHROMIUM_PATH;
   if (explicit) return chromium.launch({ ...opts, executablePath: explicit });
@@ -154,20 +165,24 @@ function cleanCheck(r, def) {
   if (typeof r.value === 'number' && Number.isFinite(r.value)) o.value = r.value;
   return o;
 }
-function gotValue(g) {
-  // The probe sends a JSON preview string; send the parsed value when it is complete JSON.
-  if (typeof g !== 'string') return g;
-  try { return JSON.parse(g); } catch { return g; }
-}
 function cleanTests(list) {
   if (!Array.isArray(list)) return [];
   return list.slice(0, 500).map((r) => {
     r = r && typeof r === 'object' ? r : {};
     const o = { name: trunc(r.name, 200), pass: r.pass === true, ms: Math.max(0, num(r.ms, 0)) };
-    if (r.got !== undefined) o.got = gotValue(trunc(r.got, 300));
+    // The harness sends a JSON preview string: forward it unchanged (the API stores strings as-is).
+    if (r.got !== undefined) o.got = typeof r.got === 'string' ? trunc(r.got, 300) : r.got;
     if (r.error) o.error = trunc(r.error, 300);
     return o;
   });
+}
+/** Out-of-memory in the page or a test Worker ("Array buffer allocation failed", heap exhausted). */
+const OOM_RE = /Array buffer allocation failed|out of memory|Allocation failed - JavaScript heap/i;
+function hasOom(result) {
+  if (!result || typeof result !== 'object') return false;
+  if (num(result.metrics?.oom, 0) > 0) return true;
+  return (result.errors || []).some((e) => OOM_RE.test(String(e)))
+    || (result.tests || []).some((t) => t && (t.oom || OOM_RE.test(String(t.error || ''))));
 }
 const findById = (list, id) => (Array.isArray(list) ? list.find((x) => x && String(x.id) === id) : null) || null;
 /** Responsive comes from the mobile pass, everything else from the primary (first) viewport. */
@@ -349,6 +364,18 @@ async function processRun(browser, run) {
       if (r.result?.metrics?.hung) break;
     }
     const results = merge(run, vps, out);
+    if (Object.values(out).some(hasOom)) {
+      // Memory exhaustion is usually the machine (other pages, leftovers): release so the run is retried
+      // later in fresh contexts. Only when it reproduces on the last allowed try is it the output's own failure.
+      const attempt = num(run.attempt, 1);
+      const max = num(run.max_attempts, 3);
+      if (attempt < max) {
+        await release(run, `out of memory in the browser (try ${attempt}/${max}) — retried in a fresh context`);
+        return;
+      }
+      results.metrics.oom = 1;
+      results.errors.unshift(`Out of memory on ${max} separate tries in fresh browser contexts: counted as the output's failure`);
+    }
     const timing = (run.checks || []).some((c) => c && TIMING_TYPES.has(c.type));
     if (timing && (results.metrics.hidden === true || results.metrics.offscreen === true)) {
       await release(run, 'page was hidden during timing checks');

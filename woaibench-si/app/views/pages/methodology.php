@@ -1,17 +1,18 @@
 <?php
 /**
  * Methodology (long-form). Vars: judges (models WHERE is_judge=1), tracks, counts.
- * Numbers are live settings so the page always matches how the engine actually runs.
+ * Numbers are live (settings; attempts per task from the season's scored campaigns) so the page matches how the engine ran.
  */
 defined('WB') || exit;
 
 $n = [
-    'runs' => (int) setting('runs_per_task', 3),
+    'runs' => WB\Data\Catalog::runsPerTask(),
     'judges' => (int) setting('judge_count', 3),
     'spread' => fmt_num(setting('judge_tiebreak_spread', 25)),
     'iters' => fmt_num(setting('bootstrap_iters', 1000)),
     'cov' => fmt_num((float) setting('min_coverage', 0.8) * 100),
     'factor' => (string) setting('render_fail_factor', 0.5),
+    'cap' => fmt_num((float) setting('agent_critical_cap', 20)),
     'temp' => (string) setting('judge_temperature', 0),
     'tracks' => count($tracks),
     'public' => $counts['public'],
@@ -99,6 +100,7 @@ $verifyMode = (string) setting('verify_mode', 'required');
       </ol>
       <?= $p('pub.meth.judges.p2') ?>
       <?= $p('pub.meth.judges.p3') ?>
+      <?= $p('pub.meth.judges.p4') ?>
       <div class="pub-judges not-prose">
         <p class="t-xs t-muted"><?= _e('pub.meth.judges.current') ?></p>
         <?php if ($judges): ?>
@@ -118,6 +120,7 @@ $verifyMode = (string) setting('verify_mode', 'required');
         <?php endforeach; ?>
       </ul>
       <?= $p('pub.meth.browser.p2') ?>
+      <?= $p('pub.meth.browser.p3') ?>
       <p class="t-small t-muted"><?= _e('pub.meth.browser.mode_' . (in_array($verifyMode, ['required', 'optional', 'off'], true) ? $verifyMode : 'required')) ?></p>
 
       <h2 id="deterministic"><?= _e('pub.meth.det.h') ?></h2>
@@ -127,6 +130,8 @@ $verifyMode = (string) setting('verify_mode', 'required');
         <li><?= pub_rich('pub.meth.det.l2') ?></li>
         <li><?= pub_rich('pub.meth.det.l3') ?></li>
       </ul>
+      <?php if ((int) setting('agent_constraint_gate', 1) === 1): ?><?= $p('pub.meth.det.p2') ?><?php endif; ?>
+      <?= $p('pub.meth.det.p3') ?>
 
       <h2 id="aggregation"><?= _e('pub.meth.agg.h') ?></h2>
       <?= $p('pub.meth.agg.p1') ?>
@@ -155,6 +160,7 @@ $verifyMode = (string) setting('verify_mode', 'required');
       <h2 id="contamination"><?= _e('pub.meth.cont.h') ?></h2>
       <?= $p('pub.meth.cont.p1') ?>
       <?= $p('pub.meth.cont.p2') ?>
+      <?= $p('pub.meth.cont.p3') ?>
 
       <h2 id="failures"><?= _e('pub.meth.fail.h') ?></h2>
       <?= $p('pub.meth.fail.p1') ?>

@@ -14,7 +14,7 @@ $safeUrl = static fn(string $u): bool => (bool) preg_match('#^https://#i', $u);
         <?= ui_brand(36) ?>
         <p class="footer-tagline"><?= e($tagline) ?></p>
         <div class="footer-method" aria-label="<?= _e('design.footer_method') ?>">
-          <span class="badge badge-gold"><?= _e('design.chip_runs', ['n' => (int) setting('runs_per_task', 3)]) ?></span>
+          <span class="badge badge-gold"><?= _e('design.chip_runs', ['n' => WB\Data\Catalog::runsPerTask()]) ?></span>
           <span class="badge badge-muted"><?= _e('design.chip_judges') ?></span>
           <span class="badge badge-muted"><?= _e('design.chip_ci') ?></span>
           <span class="badge badge-muted"><?= _e('design.chip_browser') ?></span>

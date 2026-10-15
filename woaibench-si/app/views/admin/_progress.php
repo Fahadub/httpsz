@@ -5,7 +5,7 @@ $link = $link ?? true;
 ?>
 <div class="admin-progress" data-campaign="<?= (int) $p['id'] ?>">
   <div class="admin-progress-top">
-    <?php if ($link): ?><a class="admin-progress-name" href="<?= e(url('/admin/campaigns/' . $p['id'])) ?>"><?= e($p['name']) ?></a><?php else: ?><span class="admin-progress-name"><?= e($p['name']) ?></span><?php endif; ?>
+    <?php if ($link): ?><a class="admin-progress-name" dir="auto" href="<?= e(url('/admin/campaigns/' . $p['id'])) ?>"><?= e($p['name']) ?></a><?php else: ?><span class="admin-progress-name" dir="auto"><?= e($p['name']) ?></span><?php endif; ?>
     <?= $p['status'] !== '' ? ui_status($p['status']) : '' ?>
     <span class="admin-progress-pct t-num" data-pct><?= e(number_format($p['pct'], 1)) ?>%</span>
   </div>

@@ -43,7 +43,7 @@ foreach (['queued', 'generating', 'awaiting_verify', 'verifying', 'judging', 'sc
     $queue[] = $s . '=' . ($c[$s] ?? 0);
 }
 printf(
-    "[%s] worker: %d units%s in %.1fs, spent $%.4f, %s; queue %s judgments_open=%d\n",
+    "[%s] worker: %d units%s in %.1fs, spent $%.4f, %s; queue %s judgments_open=%d; peak memory %.1f MB\n",
     gmdate('Y-m-d H:i:s'),
     count($out['did']),
     $kinds ? ' (' . implode(', ', array_map(static fn($k, $n) => "$k $n", array_keys($kinds), $kinds)) . ')' : '',
@@ -51,5 +51,6 @@ printf(
     $out['spent'],
     $out['idle'] ? 'idle' : 'busy',
     implode(' ', $queue),
-    $c['judgments_open'] ?? 0
+    $c['judgments_open'] ?? 0,
+    memory_get_peak_usage(true) / 1048576
 );

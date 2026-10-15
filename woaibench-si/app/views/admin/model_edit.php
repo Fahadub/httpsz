@@ -66,8 +66,8 @@ echo partial('admin/_head', [
         <div class="field"><label class="label" for="m-active"><?= _e('admin.models.active_params') ?></label><input class="input t-num<?= $cls('active_params_b') ?>" id="m-active" type="number" step="any" min="0" name="active_params_b" value="<?= $v('active_params_b') ?>" dir="ltr"><?= $err('active_params_b') ?></div>
       </div>
       <div class="form-row">
-        <div class="field"><label class="label" for="m-layers"><?= _e('admin.models.layers') ?></label><input class="input t-num<?= $cls('n_layers') ?>" id="m-layers" type="number" min="1" name="n_layers" value="<?= $v('n_layers') ?>" dir="ltr"><?= $err('n_layers') ?></div>
-        <div class="field"><label class="label" for="m-kv"><?= _e('admin.models.kv_dim') ?></label><input class="input t-num<?= $cls('kv_dim') ?>" id="m-kv" type="number" min="1" name="kv_dim" value="<?= $v('kv_dim') ?>" dir="ltr"><?= $err('kv_dim') ?></div>
+        <div class="field"><label class="label" for="m-layers"><?= _e('admin.models.layers') ?></label><input class="input t-num<?= $cls('n_layers') ?>" id="m-layers" type="number" min="1" name="n_layers" value="<?= $v('n_layers') ?>" dir="ltr" aria-describedby="m-layers-help"><span class="help" id="m-layers-help"><?= _e('admin.models.layers_help') ?></span><?= $err('n_layers') ?></div>
+        <div class="field"><label class="label" for="m-kv"><?= _e('admin.models.kv_dim') ?></label><input class="input t-num<?= $cls('kv_dim') ?>" id="m-kv" type="number" min="1" name="kv_dim" value="<?= $v('kv_dim') ?>" dir="ltr" aria-describedby="m-kv-help"><span class="help" id="m-kv-help"><?= _e('admin.models.kv_dim_help') ?></span><?= $err('kv_dim') ?></div>
       </div>
       <span class="help"><?= _e('admin.models.fitlab_help') ?></span>
     </section>

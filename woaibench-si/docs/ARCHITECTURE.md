@@ -37,7 +37,7 @@ embeddable SVG badges, model request form.
 * PHP **8.1+** (no Composer, no build step) + MySQL/MariaDB. Target host: Hostinger shared hosting
   (Apache/LiteSpeed, `.htaccess`, cron jobs, ~300 s max execution, no Node, no Chromium).
 * Front-end: hand-written CSS/JS. Vendor libs are **self-hosted** in `assets/vendor/`
-  (Chart.js 4, html2canvas). Fonts self-hosted in `assets/fonts/`. No external CDNs on site pages.
+  (Chart.js 4). Fonts self-hosted in `assets/fonts/`. No external CDNs on site pages.
 * All files are uploaded into `public_html/`. Internal folders are blocked by `.htaccess`
   (`app config storage sql lang tools cron docs`) and every PHP file in `app/` starts with
   `defined('WB') || exit;`.
@@ -65,7 +65,7 @@ assets/css/app.css        design system (all shared components)
 assets/css/<module>.css   optional page-specific styles (add via $page_css)
 assets/js/app.js          global behaviours (WB namespace)
 assets/js/<module>.js     page scripts (add via $page_js)
-assets/vendor/            chart.umd.min.js, html2canvas.min.js
+assets/vendor/            chart.umd.min.js
 assets/img/               logo.svg logo-mark.svg icons.svg favicons og.png
 uploads/shots/            screenshots (run_<id>_desktop.png / _mobile.png)
 uploads/brand/            generated brand images
@@ -73,8 +73,8 @@ storage/logs, storage/cache, storage/sessions
 cron/worker.php           CLI worker:  php cron/worker.php --seconds=55
 sql/schema.sql            schema;  sql/seed/*.json seed data
 tools/verifier-node/      optional headless Playwright verifier (runs on any machine)
-tools/dev/                dev-only scripts (task validation, mock OpenRouter)
-docs/                     this file, DEPLOY.md, METHODOLOGY.md
+tools/dev/                dev-only scripts (task validators, references, mock OpenRouter, tests, fixtures)
+docs/                     this file, DEPLOY.md, SECURITY.md, TASKS-CODE.md, TASKS-VISUAL.md, TASKS-AGENTIC.md
 ```
 
 Class autoload: `WB\Eval\Worker` → `app/eval/Worker.php`, `WB\Arena\Arena` → `app/arena/Arena.php`
@@ -117,7 +117,7 @@ Class autoload: `WB\Eval\Worker` → `app/eval/Worker.php`, `WB\Arena\Arena` →
 4. Use design-system classes (§7). Page-specific CSS goes in `assets/css/<module>.css`.
 5. Times are UTC in the DB; format with `fmt_date`.
 6. Model output is **untrusted**: only ever display it escaped, or render it via `/render/...`
-   in `<iframe sandbox="allow-scripts">` (never `allow-same-origin`).
+   in `<iframe sandbox="allow-scripts allow-forms allow-pointer-lock">` (never `allow-same-origin`).
 7. PHP 8.1 compatible (no readonly classes, no `true` type, no DNF types).
 8. Keep functions small and well-named; one short docblock per class/public method.
 
@@ -129,7 +129,9 @@ brand_assets, changelog, gpus`. Read the schema file for columns. Notes:
 
 * `models.provider` = vendor key = the part of `or_id` before `/` (e.g. `anthropic`). Used for
   judge self-exclusion and colours. Prices are USD per **1M** tokens.
-* `tasks.visibility`: `public` | `holdout` (hold-out prompts/outputs are never exposed publicly).
+* `tasks.visibility`: `public` | `holdout` (hold-out prompts/outputs are never exposed publicly). The repository
+  is public, so **every seeded task is `public`**; hold-out tasks are created privately in the admin (Task Forge /
+  task editor) and never committed (§11).
 * `tasks.output_type`: `html` | `js` | `answer` | `agent` | `text`.
 * `runs.status` state machine (§5.2). `runs.final_score` 0–100.
 * `model_scores.scope`: `overall` or `track:<slug>`; `season` = `setting('season')`.
@@ -141,8 +143,12 @@ brand_assets, changelog, gpus`. Read the schema file for columns. Notes:
 `rubric_json` — array of criteria (weights are relative):
 ```json
 [{"key":"visual","label_en":"Visual polish","label_ar":"الإتقان البصري","weight":3,
-  "guide":"Cohesive palette, typography, spacing; looks professionally designed."}]
+  "guide":"Cohesive palette, typography, spacing; looks professionally designed.",
+  "guide_ar":"لوحة ألوان وطباعة ومسافات متناسقة؛ يبدو مصمَّمًا باحتراف."}]
 ```
+`guide` (English) is what the judges read; `guide_ar` is an optional Arabic translation for task authors
+(admin). Public pages show only label + weight per criterion — guides describe the expected solution, so they are
+not published (contamination). Deterministic tasks (answer / agent) have an empty rubric.
 
 `checks_json` — object; every key optional:
 ```json
@@ -158,24 +164,41 @@ brand_assets, changelog, gpus`. Read the schema file for columns. Notes:
 
 **Static check types** (evaluated in PHP on the extracted code, `app/eval/StaticChecks.php`):
 `contains` {pattern, regex?, ci?} · `not_contains` {pattern, regex?, ci?} · `selector` {sel, min?, max?}
-(simple CSS: `tag`, `#id`, `.class`, `[attr]`, `[attr=val]`, `tag.class`) · `max_bytes` {value} ·
-`min_bytes` {value} · `no_external` {allow:[hosts]} (no src/href to other hosts) · `viewport` ·
-`lang_attr` {value?} · `dir_rtl` · `html_parses` (DOMDocument error count ≤ threshold) ·
-`single_file` (no relative src/href to local files) · `regex_count` {pattern, min} ·
+(CSS → XPath: groups `,`, combinators ` ` `>` `+` `~`, `tag` `*` `#id` `.class` `[attr]` `[attr op val]` and
+`:first-child :last-child :only-child :checked :disabled :empty :root`; partial score below `min`) ·
+`max_bytes` {value} · `min_bytes` {value} · `no_external` {allow:[hosts]} (no src/href to other hosts) ·
+`viewport` · `lang_attr` {value?} · `dir_rtl` · `html_parses` (DOMDocument error count ≤ `max_errors`) ·
+`single_file` (no relative src/href to local files) · `regex_count` {pattern, min, max?} ·
 `js_parses` — heuristic for `js` outputs (balanced braces/brackets/parens outside strings/comments).
 
 **Browser check types** (evaluated by the probe in a real browser, module verifier):
 `loads` · `no_errors` · `nonblank` · `selector` {sel, min?} · `text` {contains, ci?} ·
-`animates` (pixels/DOM change over 1 s) · `fps` {min} · `responsive` (no horizontal overflow at 390 px) ·
-`keyboard` {keys:[...]} (state changes after key events) · `click` {sel?} (state changes after click) ·
+`animates` (pixels/DOM change over 1.5 s) · `fps` {min} · `responsive` (no horizontal overflow at 390 px) ·
+`keyboard` {keys:[...], sel?} (state changes after key events; `sel` = element focused and targeted first,
+otherwise the largest element with key listeners) · `click` {sel?} (state changes after click) ·
 `rtl` · `a11y_basic` (img alt, labelled inputs, named buttons, lang attr) · `canvas` (a non-empty canvas exists).
-Each result: `{"id","type","pass":bool,"score":0..1,"detail":"..."}`.
+`text.contains` may be a string or a list (all must appear). On animated pages `keyboard` / `click` compare the
+change with a control interval without input (pass 1.0 when the input changed new regions or stopped the
+animation — pause buttons —, 0.75 when handlers ran but the effect is not separable from the animation). Each result: `{"id","type","pass":bool,"score":0..1,"detail":"...","value"?}`.
 
-**JS tests** (`output_type = js`, executed by the verifier's harness in a sandboxed Worker):
-case = `{"name", "args":[...], "expect":..., "cmp":"deep|approx|set|sorted|truthy", "tol":1e-6}` (calls
-`entry(...args)`) **or** `{"name","script":"const c = new LRU(2); c.put(1,1); return c.get(1);","expect":1}`
-(runs the snippet after the model code). Per-case timeout `timeout_ms`.
-Result: `{"name","pass","ms","got"?: <json, truncated>, "error"?: "..."}`.
+**JS tests** (`output_type = js`, executed by the verifier's harness, `assets/js/harness.js`, a **fresh Worker
+per case**): `tests = {"entry","timeout_ms","weight"?,"cases":[…]}`; case =
+`{"name", "args":[...], "expect":..., "cmp":"deep|approx|set|sorted|truthy", "tol":1e-6, "timeout_ms"?}` (calls
+`entry(...args)`) **or** `{"name","script":"const c = new LRU(2); c.put(1,1); return c.get(1);","expect":1}`.
+Result: `{"name","pass","ms","got"?: "<JSON preview string, ≤ 300 chars>", "error"?: "...", "oom"?: true}`.
+Test conventions (enforced by the builders and `tools/dev/validate-tasks.mjs`, see docs/TASKS-CODE.md):
+* **thenables are awaited** — an entry or script returning a promise is awaited within the case timeout.
+* **script mode** wraps the snippet: `code + "\n;return (function(){ <script> })();"` inside the case function,
+  so `return` works and the model's top-level declarations are in scope. ES-module `export` keywords and
+  CommonJS `module.exports` packaging are tolerated.
+* **JSON-stable expectations** — every `expect` survives `JSON.parse(JSON.stringify(x))` unchanged (no
+  `undefined`, `NaN`, `-0`, `Map`…). Empty objects are fine: the render layer decodes the suite with objects
+  preserved (`{}` never turns into `[]`).
+* **no unpaired surrogates** in task JSON (PHP `json_decode` and MySQL reject them); malformed UTF-16 test inputs
+  are built inside scripts with `\uD800` escapes. Verifier submissions that contain lone surrogates are repaired
+  to U+FFFD by `VerifierApi::decodeBody()` instead of being rejected.
+* Comparison: `deep` (structural; NaN = NaN; −0 = 0; keys whose value is `undefined` ignored), `approx`
+  (absolute `tol`, recursive), `set`/`sorted` (order-insensitive multiset, top level), `truthy`.
 
 **Answer** (`output_type = answer`): the prompt asks for `<answer>…</answer>`. Types:
 `exact` {value, ci?} · `number` {value, tolerance} · `regex` {pattern} · `set` {value:[...], ci?}
@@ -202,14 +225,27 @@ any step: infrastructure error → tries++ → retry (back to previous waiting s
 
 ```
 auto_score   = 100 × Σ(w·score_i) / Σw   over static checks + browser checks (+ tests: pass fraction × tests weight)
-               tests weight = checks.tests.weight ?? 6 ; answer tasks: auto_score = 100 or 0 ; agent: goal checks
+               tests weight = checks.tests.weight ?? 6 ; answer tasks: auto_score = 100 or 0 ;
+               agent: weighted goal checks, capped at agent_critical_cap (20) when a "critical" goal fails (§5.6)
 judge_i      = 10 × Σ(w_c·crit_c) / Σw_c          (crit 0..10)  → 0..100
 judge_score  = median(judge_i) (≥3 judges) | mean (2) | value (1)
-judge_spread = max(judge_i) − min(judge_i)        → contested = spread > judge_tiebreak_spread (after tie-break)
+judge_spread = max(judge_i) − min(judge_i)
 a            = tasks.auto_weight ?? tracks.auto_weight     (1.0 when there is no rubric)
 final        = a·auto_score + (1−a)·judge_score
-if output_type in (html) and the browser check 'loads' or 'nonblank' failed → final × render_fail_factor (0.5)
+if output_type in (html) and there is no code, or the browser check 'loads' or 'nonblank' failed
+             → final × render_fail_factor (0.5)
 ```
+As built (`WB\Eval\Scorer::compute`):
+* **Unverified runs** (verification skipped for infrastructure reasons: `verify_mode` off / optional timeout /
+  verifier failed 3×): browser checks and tests are *excluded*, not failed, and the automated part only carries
+  the share of evidence that was measured: `a ← a × measured_weight / (measured_weight + excluded_weight)`, so a
+  few static checks can never stand in for unit tests. A run with **no extractable code** is not "unverified":
+  its browser checks and tests count as failed.
+* No judge verdict → `a = 1`; no automated evidence at all → `a = 0` (judges only).
+* **Contested** (`runs.contested`): with ≤ 3 verdicts, `spread > judge_tiebreak_spread`; after a tie-break (≥ 4
+  verdicts) the single verdict farthest from the median is the one being arbitrated, so contested means the
+  *remaining* verdicts still spread more than `judge_tiebreak_spread`. The tie-break judge is added once when the
+  panel's spread exceeds the threshold (§5.4); the median then absorbs the outlier.
 Aggregation (`WB\Eval\Aggregator::recompute(?string $season = null)`), per model, season, using runs
 with status `scored` from campaigns with `include_in_scores = 1` and active tasks:
 ```
@@ -291,62 +327,143 @@ case-insensitive substring over contents → paths; `http_get(url)` only from `e
 safe arithmetic (+ − × ÷ ^ parentheses, decimals) — **no eval**; `finish(answer)` ends the episode.
 Transcript stored in `runs.agent_json`. auto_score = weighted goal checks (auto_weight 1.0).
 
+**Goal fields (as built).** Every goal may carry `key` (stable identifier used in docs, validators and the
+result; `id` is reserved for the record id of `record_equals`), `label_en` / `label_ar` (default labels per type
+otherwise), `weight` (default 1), `constraint` (bool, see the gate below) and `critical` (bool).
+* `record_equals` compares case-insensitively unless `"ci": false`; `file_contains` / `answer_contains` /
+  `email_sent` take `ci` too (`email_sent` defaults to case-insensitive). `tool_called` {tool, min?} exists too.
+* **Partial scores**: `file_contains` / `answer_contains` = fraction of the listed values present;
+  `file_json_equals` = fraction of matching top-level keys (object values); `email_sent` = best fraction of
+  subject/body conditions over the emails sent to `to`; `calendar_has` = matched parts of title/start/end (title
+  right, time wrong → ½ or ⅓); `tool_called` = calls ÷ min. All other goals are 0/1.
+* **Critical goals**: when any goal with `"critical": true` fails, the episode's auto_score is capped at
+  `setting('agent_critical_cap')` (default 20) — deleting evidence, leaking credentials or touching a legal-hold
+  record cannot be offset by finishing the rest. Result keys `auto_score_uncapped`, `critical_failed` (goal keys).
+
 **Constraint gate** (setting `agent_constraint_gate`, default 1): a goal is a *constraint* if it has
 `"constraint": true`, or (unless `"constraint": false`) if it already passes on the untouched initial
 workspace (fallback by type: `tool_not_called`, `no_write_outside`, `max_steps`, `email_count` with only
 `max`). When at least one non-constraint goal exists and none scores above 0, constraint goals get
 pass=false/score=0 — an agent that does nothing scores 0. Extra result keys: goal_results items add
-`label_en, label_ar, constraint`; the AgentSim result adds `turns, end_reason (finish|max_steps|wall_time|
-no_tool_calls|api_error), protocol (native|json), provider, gen_id`; the Generator result adds `note`.
+`key, label_en, label_ar, constraint, critical`; the AgentSim result adds `turns, end_reason (finish|max_steps|
+wall_time|no_tool_calls|api_error), protocol (native|json), provider, gen_id, auto_score_uncapped,
+critical_failed`; the Generator result adds `note`. Models without `supports_tools` use the JSON protocol from the
+start; when the provider rejects tool calling on the very first turn (non-retryable error mentioning tools, e.g.
+OpenRouter's 404 "no endpoints support tool use") the episode is replayed in the JSON protocol automatically.
 Agent options: `checks.agent.wall_s` (default 150, clamped 0–600), `max_steps` clamped 1–60; generation
 params whose key starts with `_` are runner options never sent to the API (`_timeout, _wall_s, _retries,
 _retry_sleep_ms`).
 
-### 5.7 Worker & entry points (engine owns these routes in app/routes/engine.php)
+### 5.7 Worker & entry points (as built)
 
-* `WB\Eval\Worker::step(float $budgetSeconds = 25.0): array` — loops: claim & process one unit at a
-  time (generate → judge → finalize → optional-mode timeouts → aggregation when `aggregate_dirty` and
-  ≥ 60 s since last, or when nothing else to do) until the budget is used or nothing is actionable.
-  Returns `{"did":[{"kind":"generate","run_id":1,"model":"…","task":"…","ok":true,"ms":1234}], "counts":{status:n}, "idle":bool}`.
-* `WB\Eval\Campaign::create(string $name, array $modelIds, array $taskIds, int $runsPerTask, array $genParams = []): int`
-  (inserts runs), `::estimate(array $modelIds, array $taskIds, int $runsPerTask): array`
-  (`{runs, gen_cost, judge_cost, total, per_model:[...]}` using model prices and per-output-type token
-  assumptions), `::progress(int $id): array`, `::pause/resume/cancel(int $id)`.
-* `POST /admin/api/step` (admin + CSRF) → `Worker::step(20)` JSON + `{"spent_usd", "campaigns":[progress…]}`.
-* `GET /worker/tick?key=<config cron_key>` → `Worker::step(50)` (for external web-cron).
-* CLI `php cron/worker.php --seconds=55` (Hostinger cron every minute).
-* **Verifier API** (auth: admin session + `X-CSRF-Token`, **or** `Authorization: Bearer <api token scope verifier>`):
-  * `POST /api/verifier/next` → `{"run":null}` or
-    `{"run":{"id","lock_token","output_type","render_url","viewports":[{"name":"desktop","w":1280,"h":800},{"name":"mobile","w":390,"h":844}],"checks":[…browser checks…],"tests":{…}|null,"timeout_ms":15000,"task":{"slug","title"}}}`.
-    `render_url` = absolute URL `/render/<id>?verify=1&vt=<hmac>` (see §6).
+Route files: `app/routes/20_engine.php` (worker step, web tick, verifier API), `app/routes/30_render.php`
+(`/render/{id}`, `/admin/verify`), `app/routes/80_setup.php` (setup JSON). Route files load in name order.
+
+* `WB\Eval\Worker::step(float $budgetSeconds = 25.0, ?ChatClient $client = null, ?callable $generate = null): array`
+  — loops over the phases generate → judge → finalize → verification timeouts, one claimed unit per phase per
+  round, until the budget is used or a whole round made no progress (`idle`). Then: close/reopen campaigns,
+  aggregation (when `aggregate_dirty` and either idle or ≥ 60 s since `aggregate_last`) and
+  `WB\Arena\Arena::maybeRecompute()`; writes the heartbeat `worker_last_run`. `$client` / `$generate` replace the
+  OpenRouter client / `Generator::run` (tests). Returns
+  `{"did":[…], "counts":{<status>:n, …, "judgments_open":n}, "idle":bool, "spent":usd, "ms":int}`.
+  `did` kinds: `generate` {run_id, model, task, attempt, ok, status, ms, cost, error} · `judge` {run_id,
+  judgment_id, judge, task, role, ok, score, status, run_status, ms, cost, error} · `finalize` · `score` ·
+  `judge_expired` · `generate_expired` · `verify_given_up` · `verify_skipped` {reason} · `aggregate` {models, runs,
+  ms} · `arena`.
+* Retries: infrastructure errors re-queue with backoff 30 s, 60 s, 120 s … (max 600 s); `tries ≥ 3` → `failed`
+  (excluded from scores). Leases: generation `gen_timeout_s + 120` s (agent: `3 × gen_timeout_s + 180`), judging
+  `3 × judge_timeout_s + 60`, verification 300 s, scoring 60 s.
+* `WB\Eval\Campaign` — `create(name, modelIds, taskIds, runsPerTask ≤ 10, genParams = []): int` (status `running`,
+  current season, runs inserted attempt-major) · `estimate(modelIds, taskIds, runsPerTask)` →
+  `{runs, gen_cost, judge_cost, total, per_model:[{model_id, name, runs, gen_cost, judge_cost, cost}], assumptions}` ·
+  `progress(id)` → `{id, name, status, season, include_in_scores, runs_per_task, total, counts, done, scored, failed,
+  percent, spent, est_cost, avg_score, judgments_open, eta_seconds, created_at, started_at, finished_at}` ·
+  `activeProgress()` · `totalSpent()` · `refreshSpent(id)` · `pause/resume/cancel(id)` (cancel → unfinished runs
+  `skipped`) · `retryFailed(id)` (`Pipeline::retry`: never-generated runs are re-queued, others keep their output
+  and redo verification/judging). A `done` campaign whose runs reopen goes back to `running` automatically.
+* `POST /admin/api/step` (admin + CSRF; releases the session lock first) → `Worker::step(20)` +
+  `{"spent_usd", "step_spent_usd", "campaigns":[progress…], "ok":true}`.
+* `GET /worker/tick?key=<config cron_key>` → `Worker::step(50)` under the worker lock →
+  `{"ok", "busy", "units", "idle", "spent", "counts", "ms"}` (404 for a missing/wrong key).
+* CLI `php cron/worker.php --seconds=55` (Hostinger cron every minute). Invocations serialise on the file lock
+  `storage/cache/worker.lock`: an overlapping invocation exits at once; leases keep the admin console safe too.
+* **Verifier API** (auth: admin session + `X-CSRF-Token`, **or** `Authorization: Bearer <api token scope verifier>`;
+  body ≤ 12 MB, decoded by `VerifierApi::decodeBody()` which repairs lone UTF-16 surrogate escapes):
+  * `POST /api/verifier/next` `{"agent"?}` → `{"ok":true,"run":null}` or
+    `{"ok":true,"run":{"id","lock_token","output_type","render_url","viewports":[{"name":"desktop","w":1280,"h":800},{"name":"mobile","w":390,"h":844}],"checks":[…browser checks…],"tests":{…}|null,"timeout_ms","attempt","max_attempts","task":{"slug","title"}}}`.
+    Claiming spends one of the run's 3 verification tries (`attempt` = this try). `render_url` = absolute
+    `/render/<id>?verify=1&vt=<hmac>` (see §6); `timeout_ms` grows with the number of test cases (15–120 s).
   * `POST /api/verifier/submit` body
-    `{"run_id","lock_token","agent":"station|playwright","results":{"checks":[…],"tests":[…],"errors":["…"],"metrics":{"load_ms","fps","js_errors","console_errors"}},"screenshots":{"desktop":"data:image/png;base64,…","mobile":"…"}}`
-    → stores `browser_json`, screenshots (validated image, ≤ 4 MB each, saved as PNG/WebP in `uploads/shots/`),
-    `verified=1`, `verified_by`, then advances the state machine. → `{"ok":true,"next_status":"judging"}`.
-  * `POST /api/verifier/release` `{"run_id","lock_token","error"}` → infrastructure problem; back to
-    `awaiting_verify` (verify_tries++; after 3 → proceed unverified with a note).
+    `{"run_id","lock_token","agent":"station|playwright","results":{"checks":[…],"tests":[…],"errors":["…"],"metrics":{…}},"screenshots":{"desktop":"data:image/png;base64,…","mobile":"…"}}`
+    → results sanitised against the task's own definitions (`VerifierApi::sanitizeResults`: unknown checks
+    dropped, missing ones = failed "not reported", test `got` strings kept as-is, metrics `load_ms fps js_errors
+    console_errors resource_errors dom_nodes oom` (numbers) and `hung navigated starved hidden offscreen`
+    (booleans)), screenshots validated (PNG/JPEG/WebP magic + GD re-encode, ≤ 4 MB, single-colour captures
+    rejected) and saved as `uploads/shots/run_<id>_<viewport>.png|webp`, `verified=1`, `verified_by`, then the
+    state machine advances → `{"ok":true,"next_status":"judging|scored","warnings":[…]}`. Errors:
+    `{"ok":false,"error":"bad_request|not_found|lease_lost|task_missing|payload_too_large"}` with HTTP
+    400/404/409/404/413; 401 without credentials.
+  * `POST /api/verifier/release` `{"run_id","lock_token","error"}` → infrastructure problem: back to
+    `awaiting_verify` with a growing hold-back (20 s, then 60 s) → `{"ok":true,"next_status":"awaiting_verify"}`;
+    on the last try the run proceeds **unverified** (note `unverified_failed`, §5.3).
+  * Verifier policy (both verifiers): a page that hangs or navigates away is the output's failure (submitted
+    with `hung` / `navigated`); a page measured while hidden/off-screen is re-measured or released; an
+    out-of-memory error ("Array buffer allocation failed", heap exhausted) is released and retried in a fresh
+    frame/context, and only when it reproduces on the last try (`attempt == max_attempts`) is it submitted as
+    the output's own failure.
 
-## 6. Rendering untrusted output (module: verifier, app/render)
+## 6. Rendering untrusted output (module: verifier, app/render) — as built
 
-* `GET /render/{id}` — serves the run's code as a full HTML document with `Http::sandboxHeaders()`.
-  * `html` outputs: the extracted HTML document.
-  * `js` outputs: a harness page showing the code (escaped) and a "Run tests" UI.
-  * Hold-out tasks: require admin session or a valid `vt` token.
-  * `?verify=1&vt=<token>`: injects (as the first elements of `<head>`)
-    `<script>window.__WB_PROBE_CFG={…}</script><script src="/assets/js/probe.js"></script>` and, for
-    screenshot capture, `assets/vendor/html2canvas.min.js` (station mode). `vt` = HMAC(app_secret,
-    run_id|lock_token|expiry) issued by `/api/verifier/next`, valid 15 min.
-  * `wb_render_vt(int $runId, string $lockToken): string` and `wb_render_vt_valid(int $runId, string $vt): bool`
-    in `app/render/render.php`.
-* `function wb_render_document(array $run, array $task, array $opts = []): void` in
-  `app/render/render.php` (sends headers + body; `$opts['verify']`, `$opts['vt']`, `$opts['embed']`).
-  Used by `/render/{id}` and by the arena (`/arena/frame/{token}/{side}`).
-* `assets/js/probe.js` — runs inside the sandboxed document, executes browser checks / tests, posts
-  `{"type":"wb-probe", …}` to `parent` and exposes `window.__WB_PROBE_RESULT` (for Playwright).
-* `assets/js/verifier.js` — `window.WBVerifier.start(containerEl, {concurrency:2, onLog(fn), onStats(fn)})`,
-  `.stop()`. Uses the verifier API above with `WB.fetchJSON` (CSRF). Admin page `/admin/verify`.
-* `tools/verifier-node/` — `node verify.mjs --site https://woaibench.si --token <api token>` using
-  Playwright Chromium; same API; real screenshots via `page.screenshot`.
+* `GET /render/{id}` — serves the run's code as a full HTML document with `Http::sandboxHeaders()` (CSP
+  `sandbox allow-scripts allow-forms allow-pointer-lock` → opaque origin even top-level; `form-action 'none'`
+  still blocks any real submission; scripts only inline / blob / data / our own origin / a few CDNs).
+  * `html` outputs: the extracted HTML document, verbatim. `js` outputs: a harness page (highlighted code +
+    "Run tests" for public tasks). Other types: the escaped raw output. Nothing generated yet → 404.
+  * Hold-out tasks: admin session or a valid `vt` token, otherwise **404** (ids leak nothing).
+  * Query parameters: `verify=1` (inject the probe; needs `vt` or an admin session, else 403), `vt=<token>`,
+    `mode=station|playwright` (default station), `vp=<viewport name>` (reported back by the probe), `light=1`
+    (secondary viewport: only cheap checks run — loads, no_errors, nonblank, selector, text, responsive, rtl,
+    a11y_basic, canvas; no tests, no timing checks), `theme=dark|light` (only for documents we generate
+    ourselves: js harness, raw text, empty state).
+  * Verify mode injects, as the very first content of `<head>` (after BOM / comments / doctype):
+    `<script data-wb-probe>window.__WB_PROBE_CFG={…}</script>`, a tiny pre-script (WebGL contexts get
+    `preserveDrawingBuffer`, page `requestAnimationFrame` timestamps are recorded), `assets/js/probe.js` and, for js
+    outputs, `assets/js/harness.js`. No html2canvas: it cannot work in the opaque-origin sandbox (it scripts a cloned
+    child frame, which is cross-origin there). The JS test suite is embedded with JSON objects preserved.
+  * `vt` = `<expiry>.<base64url HMAC(app_secret, run_id|lock_token|expiry)>`, issued by `/api/verifier/next`,
+    valid 15 min and only while the run is `verifying` with that lock token.
+  * `wb_render_vt(int $runId, string $lockToken): string`, `wb_render_vt_valid(int $runId, string $vt): bool`,
+    `wb_render_tests(array $task): ?object` in `app/render/render.php`.
+* `function wb_render_document(array $run, array $task, array $opts = []): void` (sends headers + body;
+  `$opts`: `verify`, `vt`, `mode`, `viewport`, `light`, `theme`, `embed_anywhere` / `embed = 'anywhere'`
+  (frame-ancestors *), `parent_origin`, `timeout_ms`). Used by `/render/{id}` and the arena frames
+  (`/arena/frame/{token}/{side}`).
+* **Probe protocol** (`assets/js/probe.js`, runs before any page code; never navigates or hangs on its own):
+  frame → parent `{"type":"wb-probe-hello","nonce","viewport","deadline_ms"}` at start, then
+  `{"type":"wb-probe","nonce","run_id","viewport":{"name","w","h","light"},"checks":[…],"tests":[…],"errors":[…],
+  "metrics":{"load_ms","dom_ready_ms","fps","js_errors","console_errors","resource_errors","dom_nodes","probe_ms",
+  "finished":"done|deadline|navigated|error","hidden","offscreen","starved","oom","harness"}}`. Parent → frame
+  `{"type":"wb-shot"}` asks for a screenshot; the frame answers `{"type":"wb-shot","nonce","dataUrl"|"error"}`.
+  Messages go to `parentOrigin` only, the nonce is removed from the DOM before page code runs. For Playwright the
+  same result is exposed as `window.__WB_PROBE_READY`, `__WB_PROBE_DEADLINE`, `__WB_PROBE_RESULT` and
+  `__WB_PROBE_RESULT_JSON` (non-writable). Deadline = max(timeout_ms, load + settle + per-check budgets + tests).
+* **Station screenshots** are taken inside the frame: DOM → SVG `<foreignObject>` → `<img>` → canvas, then the
+  page's own (readable) canvases are composited on top (WebGL keeps its buffer thanks to the pre-script).
+  Fallback: page background + canvases. Single-colour captures are rejected by the API.
+* `assets/js/verifier.js` — `window.WBVerifier.start(containerEl, {concurrency:2, onLog, onStats, onState})`,
+  `.stop()`, `.setConcurrency(n)`. Admin page `/admin/verify` and the Console. Uses the verifier API with
+  `WB.fetchJSON` (CSRF). **One live frame** at a time (sandboxed frames of one site share a renderer process, so
+  timing checks stay honest and a frozen page is unambiguously the culprit); lanes overlap claiming, uploading
+  and submitting. Only claims while the tab is visible and the container rendered.
+* `assets/js/harness.js` — `WBHarness.run(code, tests, {budgetMs})`: a **fresh Worker per case** (blob URL,
+  else data URL, else main thread as a last resort), hard per-case timeout (worker terminated), verdict computed
+  outside the worker over a private MessageChannel, 250 ms pause after a terminated worker, one in-page re-run of
+  an out-of-memory case (`oom: true` when it persists).
+* `tools/verifier-node/` — `node verify.mjs --site https://woaibench.si --token <api token>` using Playwright
+  Chromium (software WebGL via `--enable-unsafe-swiftshader` only as a fallback; ANGLE is not forced to
+  SwiftShader so 2D pages keep their real frame rate). Opens each viewport top-level in a **fresh browser
+  context** (`mode=playwright`), waits for `__WB_PROBE_RESULT_JSON`, takes `page.screenshot()`, submits; lone
+  surrogates are replaced before sending.
 
 ## 7. Design system (module: design — assets/css/app.css, assets/js/app.js, layouts)
 
@@ -467,6 +584,10 @@ hero/og) · requests · changelog · API tokens (create/revoke verifier tokens) 
 
 ## 11. Setup, upgrades and route ownership (implemented)
 
+* **Hold-out policy**: `sql/seed/tasks/*.json` is public by definition (the repository is public). Hold-out tasks
+  exist only in a site's database: create them in the admin with the Task Forge (draft → review → activate as
+  hold-out) or the task editor (visibility *Hold-out*); never export them into `sql/seed/` or commit them. The
+  Seeder only upserts the slugs it ships, so it never touches them. See docs/DEPLOY.md §8.
 * Installer `install/index.php` → `WB\Setup\Wizard` / `Installer`; refuses when `install/install.lock`
   or a working `config/config.local.php` exists. Writes config via `Config::write` (fresh `app_secret`,
   `cron_key`), runs `WB\Setup\Migrator::run()` (sql/schema.sql, sql/schema-*.sql, then
@@ -493,3 +614,12 @@ hero/og) · requests · changelog · API tokens (create/revoke verifier tokens) 
   (`transcript, final_answer, goal_results, steps, end_reason, protocol, …`).
 * RTL: values mixing digits and Latin units (`46.6 s`, `$3/M`) must be bidi-isolated
   (`<span dir="ltr">` / `unicode-bidi: isolate`).
+
+* Verification Station (`assets/js/verifier.js`): `onState(state)` reports `idle | running | paused | stopping`.
+  *paused* = tab hidden, window minimised or container not rendered → no claims and no frame starts. The live
+  frame docks into a fixed corner viewer (CSS only, never re-parented) when its lane is < 60 % in view. A
+  viewport measured while hidden/off-screen is re-measured locally (≤ 2×) while the lease is held. Memory
+  failures (allocation errors, `metrics.oom`, `test.oom`) destroy the frame, wait 6 s and release the run
+  while `attempt < max_attempts`; on the last try the run is submitted as the output's failure with
+  `metrics.oom = 1` — the same rule as `tools/verifier-node/verify.mjs`.
+* Sessions are not started for cookieless requests to `/render/*`, `/arena/frame/*`, `/api/verifier/*`.

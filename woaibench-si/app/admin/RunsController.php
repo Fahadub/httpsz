@@ -72,7 +72,7 @@ final class RunsController
         \require_admin();
         $run = DB::one(
             'SELECT r.*, m.name AS model, m.slug AS model_slug, m.or_id, m.provider, m.provider_name,
-                    t.slug AS task_slug, t.title_en, t.title_ar, t.output_type, t.visibility, t.rubric_json, c.name AS campaign
+                    t.slug AS task_slug, t.title_en, t.title_ar, t.output_type, t.visibility, t.rubric_json, t.checks_json, c.name AS campaign
                FROM runs r JOIN models m ON m.id = r.model_id JOIN tasks t ON t.id = r.task_id JOIN campaigns c ON c.id = r.campaign_id
               WHERE r.id = ?',
             [$id]
@@ -93,6 +93,11 @@ final class RunsController
             'judgments' => $judgments,
             'siblings' => $siblings,
             'rubric' => \json_arr($run['rubric_json']),
+            'notes' => \WB\Data\Runs::notes($run),
+            'transcript' => $run['output_type'] === 'agent' ? \WB\Data\Runs::transcript($run) : null,
+            'goals' => $run['output_type'] === 'agent' ? \WB\Data\Runs::goals($run, false) : [],
+            'answer_spec' => is_array(\json_arr($run['checks_json'])['answer'] ?? null) ? \json_arr($run['checks_json'])['answer'] : null,
+            'can_retry' => self::canRetry($run),
         ]);
     }
 
@@ -125,7 +130,13 @@ final class RunsController
         return count($ids);
     }
 
-    /** POST /admin/runs/{id}/action  action=retry|rejudge|delete */
+    /** Whether the engine's targeted retry (keeps a good generation) applies to this run. */
+    public static function canRetry(array $run): bool
+    {
+        return ($run['status'] ?? '') === 'failed' && method_exists('WB\\Eval\\Pipeline', 'retry');
+    }
+
+    /** POST /admin/runs/{id}/action  action=retry|regenerate|rejudge|delete */
     public static function action(int $id): void
     {
         Admin::guardPost();
@@ -135,9 +146,20 @@ final class RunsController
         }
         switch (Admin::str('action')) {
             case 'retry':
+                // Failed runs: WB\Eval\Pipeline::retry keeps a successful generation and only redoes the
+                // verification / judging that failed (or re-queues when generation itself never succeeded).
+                if (!self::canRetry($run) || !\WB\Eval\Pipeline::retry($id)) {
+                    \flash('error', \__('admin.runs.err_retry_state'));
+                    break;
+                }
+                DB::exec("UPDATE campaigns SET status = 'running', finished_at = NULL WHERE id = ? AND status = 'done'", [(int) $run['campaign_id']]);
+                \Settings::set('aggregate_dirty', 1);
+                \flash('success', \__('admin.runs.did_retry'));
+                break;
+            case 'regenerate':
                 self::resetRuns('id = ?', [$id]);
                 DB::exec("UPDATE campaigns SET status = 'running', finished_at = NULL WHERE id = ? AND status = 'done'", [(int) $run['campaign_id']]);
-                \flash('success', \__('admin.runs.did_retry'));
+                \flash('success', \__('admin.runs.did_regenerate'));
                 break;
             case 'rejudge':
                 if (\json_arr($run['rubric_json']) === []) {

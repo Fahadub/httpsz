@@ -373,6 +373,7 @@
             "ArrowLeft",
             "ArrowDown"
           ],
+          "sel": "#well",
           "weight": 2,
           "label_en": "Keyboard moves the piece",
           "label_ar": "لوحة المفاتيح تحرّك القطعة"
@@ -583,6 +584,7 @@
             "ArrowRight",
             "ArrowUp"
           ],
+          "sel": "#game",
           "weight": 2,
           "label_en": "Keyboard controls the player",
           "label_ar": "لوحة المفاتيح تتحكم باللاعب"

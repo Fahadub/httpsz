@@ -1043,5 +1043,91 @@ if (!empty($opts['mock']) && class_exists('WB\\Eval\\Generator')) {
     Settings::set('verify_mode', 'required');
 }
 
+/* ================================================================== 12. integration fixes (engine-e2e) */
+T::section('Integration: lock safety, verifier payloads, aggregation cadence, arena hook');
+reset_db();
+$ids = seed();
+$cid = Campaign::create('Locks', [$ids['m_aster'], $ids['m_borealis']], [$ids['html'], $ids['js']], 2);
+$runIds = array_map('intval', DB::col('SELECT id FROM runs WHERE campaign_id = ? ORDER BY id', [$cid]));
+// Reproduces the deadlock seen with the cron worker + admin console: every 'judging' run is leased, one run has
+// already moved on to 'scoring' (another worker won the race), and a second connection holds a 'judging' row in
+// an open transaction. Without FORCE INDEX (PRIMARY) MariaDB answers the losing claim with a range scan of
+// ix_runs_status (empty 'judging' + free-lease range) and waits for the next-key lock of the held row.
+DB::exec("UPDATE runs SET status = 'judging', locked_until = NOW() + INTERVAL 60 SECOND WHERE campaign_id = ?", [$cid]);
+DB::exec("UPDATE runs SET status = 'scoring', locked_until = NULL WHERE id = ?", [$runIds[3]]);
+DB::exec("UPDATE runs SET locked_until = NULL WHERE id = ?", [$runIds[5]]);
+$cfg = static fn(string $k) => (string) Config::get('db.' . $k, '');
+$other = DB::connect($cfg('host'), (int) Config::get('db.port', 3306), $cfg('name'), $cfg('user'), $cfg('pass'));
+$other->beginTransaction();
+$other->exec("UPDATE runs SET status = 'judging', locked_until = NOW() + INTERVAL 61 SECOND WHERE id = " . $runIds[0]);
+DB::pdo()->exec('SET SESSION innodb_lock_wait_timeout = 1');
+$t = microtime(true);
+try {
+    T::ok(Lease::claim('runs', $runIds[3], ['judging'], 'judging', 60) === null && microtime(true) - $t < 0.9, 'a lost claim race returns at once next to a held row (PRIMARY forced, no status-index range lock)', round(microtime(true) - $t, 2));
+    $tok = Lease::claim('runs', $runIds[5], ['judging'], 'judging', 60);
+    T::ok($tok !== null, 'claiming a free run of the same status is not blocked by a held row');
+    T::eq(Lease::write('runs', $runIds[5], ['status' => 'judging'], ['token' => $tok, 'status' => ['judging']]), 1, 'guarded write next to a held row');
+    Campaign::refreshSpent($cid);
+    T::ok(true, 'refreshSpent does not share-lock the campaign\'s runs');
+    $out = Worker::step(0.0001, judge_client([]), stub_generator($genLog));
+    T::ok(is_array($out), 'closeCampaigns does not lock the campaign\'s runs');
+} catch (\PDOException $e) {
+    T::ok(false, 'no lock wait next to a held row', $e->getMessage());
+}
+$other->rollBack();
+$other = null;
+DB::pdo()->exec('SET SESSION innodb_lock_wait_timeout = 50');
+T::ok(Lease::isLockConflict(new \PDOException('x')) === false, 'isLockConflict: plain PDOException is not a conflict');
+$pe = new \PDOException('Deadlock found');
+$pe->errorInfo = ['40001', 1213, 'Deadlock found'];
+T::ok(Lease::isLockConflict($pe), 'isLockConflict: 1213 deadlock');
+$tries = 0;
+$v = Lease::retrying(static function () use (&$tries, $pe) {
+    if (++$tries < 3) {
+        throw $pe;
+    }
+    return 'done';
+});
+T::ok($v === 'done' && $tries === 3, 'retrying() retries a deadlocked unit and returns its result');
+
+// Verifier payloads.
+T::eq(VerifierApi::decodeBody('{"a":"x\ud83d","b":"😀","c":"\\\\ud83d"}'), ['a' => "x\u{FFFD}", 'b' => '😀', 'c' => '\ud83d'], 'decodeBody repairs lone surrogate escapes (keeps pairs and escaped backslashes)');
+T::eq(VerifierApi::decodeBody('not json'), [], 'decodeBody → [] for invalid JSON');
+$jsTask = Pipeline::loadTask($ids['js']);
+$san = VerifierApi::sanitizeResults(['tests' => [
+    ['name' => 'basic', 'pass' => false, 'got' => '"abc"'], ['name' => 'empty', 'pass' => false, 'got' => [1, 2]],
+], 'metrics' => ['resource_errors' => 2, 'dom_nodes' => 977, 'oom' => 1, 'hung' => true, 'navigated' => false, 'starved' => 1, 'hidden' => 'yes', 'offscreen' => false, 'secret' => true]], $jsTask);
+T::ok($san['tests'][0]['got'] === '"abc"' && $san['tests'][1]['got'] === '[1,2]', 'test got: strings kept as-is, other values JSON-encoded once', $san['tests']);
+T::eq($san['metrics'], ['resource_errors' => 2.0, 'dom_nodes' => 977.0, 'oom' => 1.0, 'hung' => true, 'navigated' => false, 'starved' => true, 'offscreen' => false], 'metrics: numbers + boolean flags kept, junk dropped');
+DB::exec("UPDATE runs SET status = 'awaiting_verify', locked_until = NULL, lock_token = NULL, verify_tries = 1 WHERE id = ?", [$runIds[0]]);
+$job = VerifierApi::next('playwright');
+T::ok($job !== null && $job['attempt'] === 2 && $job['max_attempts'] === Pipeline::MAX_TRIES, 'job carries attempt / max_attempts', $job ? ['attempt' => $job['attempt'], 'max' => $job['max_attempts']] : null);
+
+// Aggregation cadence: recent aggregation + work still waiting → no re-aggregation; drained → immediate.
+DB::exec("UPDATE runs SET status = 'awaiting_verify', locked_until = NULL, lock_token = NULL WHERE campaign_id = ?", [$cid]);
+Settings::set('verify_mode', 'required');
+Settings::set('aggregate_dirty', 1);
+Settings::set('aggregate_last', now(-5));
+$out = Worker::step(1.0, judge_client([]), stub_generator($genLog));
+T::ok(!in_array('aggregate', array_column($out['did'], 'kind'), true), 'idle but runs still waiting → no aggregation within 60 s of the last one');
+DB::exec("UPDATE runs SET status = 'skipped' WHERE campaign_id = ?", [$cid]);
+$out = Worker::step(1.0, judge_client([]), stub_generator($genLog));
+T::ok(in_array('aggregate', array_column($out['did'], 'kind'), true), 'queue drained → aggregation right away');
+
+// Arena hook: the worker reports a real recompute.
+if (class_exists('WB\\Arena\\Arena')) {
+    DB::exec('DELETE FROM arena_votes');
+    foreach ([['a', 1], ['b', 2], ['tie', 3]] as [$w, $n]) {
+        DB::insert('arena_votes', ['pair_id' => 900000 + $n, 'task_id' => $ids['html'], 'run_a' => $runIds[0], 'run_b' => $runIds[1],
+            'model_a' => $ids['m_aster'], 'model_b' => $ids['m_borealis'], 'winner' => $w, 'voter_hash' => hash('sha256', 'v' . $n)]);
+    }
+    Settings::set('arena_votes_at_recompute', 0);
+    Settings::set('arena_last_recompute', now(-3600));
+    $out = Worker::step(0.5, judge_client([]), stub_generator($genLog));
+    T::ok(in_array('arena', array_column($out['did'], 'kind'), true) && (int) DB::val('SELECT COUNT(*) FROM arena_ratings') === 2, 'Worker::step calls Arena::maybeRecompute and reports it', array_column($out['did'], 'kind'));
+    DB::exec('DELETE FROM arena_votes');
+    DB::exec('DELETE FROM arena_ratings');
+}
+
 printf("\n%d passed, %d failed in %.1fs\n", T::$pass, T::$fail, microtime(true) - $t0);
 exit(T::$fail > 0 ? 1 : 0);

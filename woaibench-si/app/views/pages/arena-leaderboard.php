@@ -91,10 +91,10 @@ foreach ($rows as $r) {
               </td>
               <td class="num" data-value="<?= e(number_format((float) $r['rating'], 2, '.', '')) ?>">
                 <span class="arn-rating t-num"><?= e(number_format((float) $r['rating'], 0, '.', '')) ?></span>
-                <?php if ($half !== null): ?><span class="score-ci t-num" data-tip="<?= e(__('common.ci95') . ': ' . number_format((float) $r['ci_low'], 0, '.', '') . ' – ' . number_format((float) $r['ci_high'], 0, '.', '')) ?>">±<?= e(number_format($half, 0)) ?></span><?php endif; ?>
+                <?php if ($half !== null): ?><span class="score-ci t-num" data-tip="<?= e(__('common.ci95') . ': ' . "\u{2066}" . number_format((float) $r['ci_low'], 0, '.', '') . ' – ' . number_format((float) $r['ci_high'], 0, '.', '') . "\u{2069}") ?>">±<?= e(number_format($half, 0)) ?></span><?php endif; ?>
               </td>
               <td class="arn-col-ci">
-                <span class="arn-ci-track" role="img" aria-label="<?= e(__('common.ci95') . ': ' . number_format((float) $r['ci_low'], 0, '.', '') . ' – ' . number_format((float) $r['ci_high'], 0, '.', '')) ?>">
+                <span class="arn-ci-track" role="img" aria-label="<?= e(__('common.ci95') . ': ' . "\u{2066}" . number_format((float) $r['ci_low'], 0, '.', '') . ' – ' . number_format((float) $r['ci_high'], 0, '.', '') . "\u{2069}") ?>">
                   <span class="arn-ci-mid" style="inset-inline-start:<?= $pct(1000) ?>%"></span>
                   <span class="arn-ci-bar" style="--bar:<?= e($r['color']) ?>;inset-inline-start:<?= $pct((float) $r['ci_low']) ?>%;width:<?= number_format(max(0.8, (float) $pct((float) $r['ci_high']) - (float) $pct((float) $r['ci_low'])), 2, '.', '') ?>%"></span>
                   <span class="arn-ci-dot" style="--bar:<?= e($r['color']) ?>;inset-inline-start:<?= $pct((float) $r['rating']) ?>%"></span>

@@ -27,7 +27,8 @@ $scores = array_map(static fn($j) => (float) $j['score'], array_filter($judgment
   </div>
 
   <?php foreach ($judgments as $j): $rp = $j['rationale_parsed']; ?>
-  <article class="card card-pad stack-sm pub-judgment">
+  <article class="card card-pad stack-sm pub-judgment" aria-label="<?= e($j['name']) ?>">
+    <h2 class="sr-only"><?= e($j['name']) ?></h2>
     <header class="pub-judgment-head">
       <?= ui_model_chip($j) ?>
       <span class="cluster">
@@ -46,8 +47,8 @@ $scores = array_map(static fn($j) => (float) $j['score'], array_filter($judgment
     <?php if ($rp['summary'] !== ''): ?><p class="pub-judge-summary-text"><?= nl2br(e(mb_substr($rp['summary'], 0, 4000))) ?></p><?php endif; ?>
     <?php if ($rp['strengths'] || $rp['weaknesses']): ?>
     <div class="grid grid-2 pub-sw-mini">
-      <div><h4 class="t-xs pub-sw-h is-good"><?= ui_icon('thumbs-up', 13) ?> <?= _e('pub.run.strengths') ?></h4><ul><?php foreach (array_slice($rp['strengths'], 0, 12) as $s): ?><li><?= e(mb_substr($s, 0, 600)) ?></li><?php endforeach; ?></ul></div>
-      <div><h4 class="t-xs pub-sw-h is-bad"><?= ui_icon('alert', 13) ?> <?= _e('pub.run.weaknesses') ?></h4><ul><?php foreach (array_slice($rp['weaknesses'], 0, 12) as $s): ?><li><?= e(mb_substr($s, 0, 600)) ?></li><?php endforeach; ?></ul></div>
+      <div><h3 class="t-xs pub-sw-h is-good"><?= ui_icon('thumbs-up', 13) ?> <?= _e('pub.run.strengths') ?></h3><ul><?php foreach (array_slice($rp['strengths'], 0, 12) as $s): ?><li><?= e(mb_substr($s, 0, 600)) ?></li><?php endforeach; ?></ul></div>
+      <div><h3 class="t-xs pub-sw-h is-bad"><?= ui_icon('alert', 13) ?> <?= _e('pub.run.weaknesses') ?></h3><ul><?php foreach (array_slice($rp['weaknesses'], 0, 12) as $s): ?><li><?= e(mb_substr($s, 0, 600)) ?></li><?php endforeach; ?></ul></div>
     </div>
     <?php endif; ?>
   </article>

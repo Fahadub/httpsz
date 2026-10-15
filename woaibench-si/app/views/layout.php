@@ -10,7 +10,21 @@ $tagline = lang() === 'ar' ? (string) setting('tagline_ar') : (string) setting('
 $pageTitle = isset($title) && $title !== '' ? $title . ' · ' . $siteName : $siteName . ' — ' . $tagline;
 $desc = isset($description) && $description !== '' ? $description : $tagline;
 $canon = $canonical ?? url(current_path(), [], true);
+// Social card: an explicit $og_image, else the Brand Studio OG image (when the file exists), else the bundled one.
+$ogSize = null;
+if (!isset($og_image)) {
+    $brandOg = ltrim((string) setting('brand_og', ''), '/');
+    $brandFile = $brandOg !== '' && !str_contains($brandOg, '..') ? WB_UPLOADS . '/' . $brandOg : '';
+    if ($brandFile !== '' && is_file($brandFile)) {
+        $og_image = site_origin() . upload_url($brandOg);
+        $dim = @getimagesize($brandFile);
+        $ogSize = $dim ? [(int) $dim[0], (int) $dim[1]] : null;
+    }
+}
 $ogImg = $og_image ?? url('/assets/img/og.png', [], true);
+if (!isset($og_image)) {
+    $ogSize = [1200, 630];
+}
 $page_css = $page_css ?? [];
 $page_js = $page_js ?? [];
 $nav_active = $nav_active ?? '';
@@ -41,11 +55,12 @@ $fontPreload = lang() === 'ar'
 <meta property="og:title" content="<?= e($pageTitle) ?>">
 <meta property="og:description" content="<?= e($desc) ?>">
 <meta property="og:image" content="<?= e($ogImg) ?>">
-<?php if (!isset($og_image)): ?><meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
+<?php if ($ogSize): ?><meta property="og:image:width" content="<?= (int) $ogSize[0] ?>">
+<meta property="og:image:height" content="<?= (int) $ogSize[1] ?>">
 <?php endif; ?>
 <meta property="og:url" content="<?= e($canon) ?>">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="<?= e($ogImg) ?>">
 <link rel="icon" href="<?= e(asset('img/favicon.svg')) ?>" type="image/svg+xml">
 <link rel="apple-touch-icon" href="<?= e(asset('img/apple-touch-icon.png')) ?>">
 <link rel="manifest" href="<?= e(url('/site.webmanifest')) ?>">

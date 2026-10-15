@@ -176,6 +176,7 @@ a.admin-dot:hover { transform: scale(1.35); }
 .admin-bars li > :last-child { text-align: end; }
 .admin-bar { height: 6px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
 .admin-bar-fill { display: block; height: 100%; border-radius: inherit; background: var(--s); min-width: 2px; transition: width 600ms var(--ease-out); }
+.admin-bar-fill[style^="width:0.00%"] { min-width: 0; }
 .admin-legend-item { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); }
 .admin-legend-item:hover { color: var(--text); }
 .admin-counts { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
@@ -446,6 +447,7 @@ a.admin-dot:hover { transform: scale(1.35); }
 .admin-log-time { color: var(--text-faint); }
 .admin-log-kind { color: var(--gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin-log-text { color: var(--text-muted); overflow-wrap: anywhere; min-width: 0; }
+:lang(ar) .admin-log-text, :lang(ar) .admin-log-kind { font-family: var(--font-body); font-size: 13px; }   /* Arabic in a monospace face is hard to read */
 .admin-log-text a { color: var(--text); }
 .admin-log-meta { color: var(--text-faint); white-space: nowrap; }
 .admin-log li.is-fail .admin-log-kind, .admin-log li.is-fail .admin-log-text { color: var(--red); }
@@ -605,3 +607,28 @@ form.is-busy button[type="submit"] .icon { animation: admin-spin 1s linear infin
 
 /* Mobile drawer: lift the shell's stacking context so the sidebar sits above the page overlay. */
 body.nav-open .admin-shell { z-index: auto; }
+
+/* ---------------------------------------------------------------- run detail: notes, answer, agent episode */
+.admin-weight-guide { margin: -2px 0 6px; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+.admin-notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 13.5px; line-height: 1.5; }
+.admin-notes li { padding-inline-start: 14px; position: relative; color: var(--text-muted); }
+.admin-note-code { display: block; margin-top: 2px; background: none; padding: 0; color: var(--text-faint); }
+.admin-notes li::before { content: ""; position: absolute; inset-inline-start: 0; top: .6em; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+.admin-episode { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.admin-episode li { display: grid; grid-template-columns: 28px minmax(110px, auto) minmax(0, 1fr) auto; gap: 4px 10px; align-items: baseline; padding: 7px 10px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.admin-episode li.is-fail { background: var(--red-soft); }
+.admin-episode li.is-msg { grid-template-columns: 28px minmax(0, 1fr); background: transparent; }
+.admin-ep-n { color: var(--text-faint); text-align: center; }
+.admin-ep-tool { color: var(--gold); font-size: 13px; }
+.admin-ep-args { color: var(--text-muted); background: none; padding: 0; }
+.admin-ep-result { grid-column: 2 / -1; }
+.admin-ep-result > summary { cursor: pointer; width: max-content; }
+.admin-ep-result[open] > summary { margin-bottom: 6px; }
+.admin-ep-result pre { max-height: 280px; overflow: auto; margin: 0; }
+.admin-episode li > .admin-ep-result { grid-row: auto; }
+@media (max-width: 720px) {
+  .admin-episode li { grid-template-columns: 24px minmax(0, 1fr); }
+  .admin-ep-args, .admin-ep-result { grid-column: 2; }
+}
+/* hidden tooltips ([data-tip]::after, e.g. rubric guides on judge criteria) must never widen the page */
+main#main.admin-content { overflow-x: clip; }

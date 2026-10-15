@@ -24,6 +24,7 @@ return [
     'engine.kind.generate_expired' => 'انتهت مهلة التوليد',
     'engine.kind.aggregate' => 'إعادة حساب لوحة الصدارة',
     'engine.kind.arena' => 'تحديث تقييمات الساحة',
+    'engine.kind.lock_conflict' => 'تأجيل (قاعدة البيانات مشغولة)',
 
     'engine.role.panel' => 'محكّم في اللجنة',
     'engine.role.replacement' => 'محكّم بديل',

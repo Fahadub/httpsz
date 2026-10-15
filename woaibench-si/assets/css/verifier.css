@@ -124,7 +124,8 @@
 /* devices */
 .vs-devices { display: grid; grid-template-columns: minmax(0, 3.3fr) minmax(0, 1fr); gap: var(--s3); align-items: end; }
 .vs-device { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.vs-device figcaption { color: var(--text-faint); text-align: center; direction: ltr; }
+.vs-device figcaption { color: var(--text-faint); text-align: center; direction: ltr; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vs-device-mobile figcaption { font-size: 10.5px; }
 .vs-screen {
   position: relative;
   overflow: hidden;
@@ -201,10 +202,16 @@
 .vs-check.is-fail { border-color: color-mix(in srgb, var(--red) 35%, transparent); background: var(--red-soft); color: var(--text); }
 .vs-check.is-fail .vs-check-dot { background: var(--red); }
 
-/* picture-in-picture viewer for a live frame whose lane is scrolled out of view */
-.vs-pip {
+/* live frame: fills its lane screen; docks into a fixed corner viewer when the lane leaves the viewport
+   (the frame is never moved in the DOM — that would reload it — only this wrapper changes position) */
+.vs-live { position: absolute; inset: 0; }
+.vs-live-screen { position: absolute; inset: 0; overflow: hidden; }
+.vs-live-label { display: none; color: var(--gold); unicode-bidi: plaintext; padding-inline: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vs-live-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-inline-end: 6px; border-radius: 50%; background: var(--red); vertical-align: middle; animation: vs-blink 1.2s steps(2, start) infinite; }
+.vs-live.is-docked {
   position: fixed;
   z-index: 80;
+  inset: auto;
   inset-block-end: 16px;
   inset-inline-end: 16px;
   display: flex;
@@ -213,17 +220,15 @@
   padding: 8px;
   border: 1px solid var(--gold-line);
   border-radius: var(--radius-lg);
-  background: var(--glass-strong, var(--glass));
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
+  background: var(--surface);
   box-shadow: var(--shadow-lg), var(--glow);
-  animation: vs-fade 240ms var(--ease) both;
 }
-.vs-pip[hidden] { display: none; }
-.vs-pip-desktop { width: min(340px, calc(100vw - 32px)); }
-.vs-pip-mobile { width: 140px; }
-.vs-pip-label { color: var(--gold); direction: ltr; padding-inline: 2px; }
-.vs-pip-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-inline-end: 6px; border-radius: 50%; background: var(--red); vertical-align: middle; animation: vs-blink 1.2s steps(2, start) infinite; }
+.vs-live-desktop.is-docked { width: min(340px, calc(100vw - 32px)); }
+.vs-live-mobile.is-docked { width: 150px; }
+.vs-live.is-docked .vs-live-label { display: block; }
+.vs-live.is-docked .vs-live-screen { position: relative; inset: auto; width: 100%; aspect-ratio: var(--vs-ar, 16 / 10); border-radius: 8px; border: 1px solid var(--border-strong); background: #fff; }
+.vs-screen.is-docked-src::after { display: none; }
+.vs-screen.is-docked-src::before { opacity: .25; }
 @keyframes vs-blink { to { visibility: hidden; } }
 
 /* ---------------------------------------------------------------- log */
@@ -297,7 +302,9 @@ html.vs-quiet *, html.vs-quiet *::before, html.vs-quiet *::after {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
-html.vs-quiet .vs-pip { background: var(--surface); }
+
+/* glass chrome loses its blur while measuring: keep it opaque so content does not show through */
+html.vs-quiet .admin-topbar, html.vs-quiet .site-header, html.vs-quiet .card-glass { background: var(--bg-elev, var(--surface)); }
 
 /* ---------------------------------------------------------------- responsive + motion */
 @media (max-width: 640px) {
@@ -314,5 +321,5 @@ html.vs-quiet .vs-pip { background: var(--surface); }
 }
 @media (prefers-reduced-motion: reduce) {
   .vs-slot.is-busy::before, .vs-screen.is-live::after, [data-state="running"] .vs-orb::after { animation: none; }
-  .vs-shot, .vs-log li:first-child, .vs-pip, .vs-pip-label::before { animation: none; }
+  .vs-shot, .vs-log li:first-child, .vs-live-label::before { animation: none; }
 }

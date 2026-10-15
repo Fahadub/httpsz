@@ -2,6 +2,8 @@ __pycache__/
 *.py[cod]
 *.so
 build/
+!woaibench-si/tools/dev/references/build/
+woaibench-si/tools/dev/references/build/__pycache__/
 dist/
 *.egg-info/
 .pytest_cache/

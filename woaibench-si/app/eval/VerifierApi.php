@@ -21,6 +21,9 @@ final class VerifierApi
     public const VIEWPORTS = [['name' => 'desktop', 'w' => 1280, 'h' => 800], ['name' => 'mobile', 'w' => 390, 'h' => 844]];
     private const AGENTS = ['station', 'playwright'];
     private const SHOT_COLUMNS = ['desktop' => 'screenshot', 'mobile' => 'screenshot_mobile'];
+    /** Numeric and boolean probe/verifier metrics kept in browser_json (everything else is dropped). */
+    private const METRIC_NUMBERS = ['load_ms', 'fps', 'js_errors', 'console_errors', 'resource_errors', 'dom_nodes', 'oom'];
+    private const METRIC_FLAGS = ['hung', 'navigated', 'starved', 'hidden', 'offscreen'];
 
     /**
      * Gate for the verifier endpoints: "Authorization: Bearer <token scope verifier>", or an admin session
@@ -36,6 +39,30 @@ final class VerifierApi
             return 'station';
         }
         json_out(['ok' => false, 'error' => 'Unauthorized'], 401);
+    }
+
+    /**
+     * Decode a verifier request body. Browser JSON.stringify() writes unpaired UTF-16 surrogates as
+     * "\udXXX" escapes (model output truncated inside an emoji, a test value that is half a surrogate
+     * pair …), which PHP's json_decode rejects for the whole document. Those escapes are replaced with
+     * U+FFFD and decoding is retried, so one odd character can never turn a valid submission into a
+     * "bad request" (which would burn the run's verification tries). Returns [] for anything else invalid.
+     */
+    public static function decodeBody(string $raw): array
+    {
+        if (trim($raw) === '') {
+            return [];
+        }
+        $data = json_decode($raw, true);
+        if (!is_array($data) && json_last_error() === JSON_ERROR_UTF16) {
+            $fixed = preg_replace_callback(
+                '/\\\\(?:u(?:d[89ab][0-9a-f]{2}\\\\ud[c-f][0-9a-f]{2})|(u)d[89a-f][0-9a-f]{2}|.)/is',
+                static fn(array $m): string => !empty($m[1]) ? '�' : $m[0],
+                $raw
+            );
+            $data = is_string($fixed) ? json_decode($fixed, true) : null;
+        }
+        return is_array($data) ? $data : [];
     }
 
     /** Claim the next run awaiting browser verification. Returns the job description or null. */
@@ -56,13 +83,13 @@ final class VerifierApi
             if ($token === null) {
                 continue;
             }
-            $run = DB::one('SELECT id, task_id FROM runs WHERE id = ?', [(int) $id]);
+            $run = DB::one('SELECT id, task_id, verify_tries FROM runs WHERE id = ?', [(int) $id]);
             $task = Pipeline::loadTask((int) $run['task_id']);
             if (!$task) {
                 Lease::write('runs', (int) $id, ['status' => 'awaiting_verify'], ['token' => $token]);
                 continue;
             }
-            return self::job((int) $run['id'], $token, $task);
+            return self::job((int) $run['id'], $token, $task, (int) $run['verify_tries']);
         }
         return null;
     }
@@ -141,7 +168,8 @@ final class VerifierApi
 
     /**
      * Keep only known keys, matched to the task's own check definitions, with capped sizes:
-     * {checks:[{id,type,pass,score,detail,weight,label_en,label_ar}], tests:[{name,pass,ms,got?,error?}], errors:[…], metrics:{…}}.
+     * {checks:[{id,type,pass,score,detail,weight,label_en,label_ar}], tests:[{name,pass,ms,got?,error?}], errors:[…],
+     * metrics:{load_ms,fps,js_errors,console_errors,resource_errors,dom_nodes (numbers), hung,navigated,starved,hidden,offscreen (booleans)}}.
      */
     public static function sanitizeResults(array $raw, array $task): array
     {
@@ -204,7 +232,8 @@ final class VerifierApi
                 'ms' => is_numeric($t['ms'] ?? null) ? round(clamp((float) $t['ms'], 0.0, 1e7), 1) : null,
             ];
             if (array_key_exists('got', $t)) {
-                $row['got'] = self::str(to_json($t['got']), 300);
+                // The harness already sends a JSON preview string: keep it (no double encoding).
+                $row['got'] = self::str(is_string($t['got']) ? $t['got'] : to_json($t['got']), 300);
             }
             if (!empty($t['error'])) {
                 $row['error'] = self::str($t['error'], 300);
@@ -219,9 +248,14 @@ final class VerifierApi
         }
         $metrics = [];
         $m = is_array($raw['metrics'] ?? null) ? $raw['metrics'] : [];
-        foreach (['load_ms', 'fps', 'js_errors', 'console_errors'] as $k) {
+        foreach (self::METRIC_NUMBERS as $k) {
             if (isset($m[$k]) && is_numeric($m[$k])) {
                 $metrics[$k] = round(clamp((float) $m[$k], 0.0, 1e9), 2);
+            }
+        }
+        foreach (self::METRIC_FLAGS as $k) {
+            if (array_key_exists($k, $m) && (is_bool($m[$k]) || $m[$k] === 0 || $m[$k] === 1)) {
+                $metrics[$k] = (bool) $m[$k];
             }
         }
         return ['checks' => $out, 'tests' => $tests, 'errors' => $errors, 'metrics' => $metrics];
@@ -340,8 +374,12 @@ final class VerifierApi
         return $uniform;
     }
 
-    /** Job description for a claimed run. */
-    private static function job(int $runId, string $token, array $task): array
+    /**
+     * Job description for a claimed run. attempt / max_attempts (verification tries) let a verifier tell a
+     * transient browser problem (release, retried later in a fresh context) from a reproducible one on the
+     * last try (submitted as the output's own failure, e.g. out of memory three times in fresh contexts).
+     */
+    private static function job(int $runId, string $token, array $task, int $attempt = 1): array
     {
         $checks = Pipeline::checks($task);
         $tests = is_array($checks['tests'] ?? null) && !empty($checks['tests']['cases']) ? $checks['tests'] : null;
@@ -359,6 +397,8 @@ final class VerifierApi
             'checks' => is_array($checks['browser'] ?? null) ? array_values(array_filter($checks['browser'], 'is_array')) : [],
             'tests' => $tests,
             'timeout_ms' => $timeout,
+            'attempt' => max(1, $attempt),
+            'max_attempts' => Pipeline::MAX_TRIES,
             'task' => ['slug' => (string) $task['slug'], 'title' => L($task, 'title')],
         ];
     }

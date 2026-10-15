@@ -528,6 +528,21 @@ $some = AgentSim::goals([['type' => 'file_exists', 'path' => '/a'], ['type' => '
 T::ok(array_column($some, 'score') === [1.0, 1.0], 'constraints earn credit once a task goal is met');
 T::ok($gr[3]['score'] === 0.5 && abs($gr[7]['score'] - 2 / 3) < 1e-3 && $gr[10]['score'] === 0.5, 'goal partial scores (json keys, email conditions, calendar time)', [$gr[3], $gr[7], $gr[10]]);
 
+// Critical goals: a failed "critical": true goal caps the whole episode at setting agent_critical_cap (20).
+$crit = AgentSim::goals([
+    ['key' => 'done', 'type' => 'file_exists', 'path' => '/out/new.txt', 'weight' => 4],
+    ['key' => 'kept', 'type' => 'file_exists', 'path' => '/keep.txt', 'critical' => true],
+], $worked, 1, new AgentTools($keepEnv, AgentTools::ALL));
+T::ok(array_column($crit, 'key') === ['done', 'kept'] && array_column($crit, 'critical') === [false, true], 'goal results carry key + critical');
+T::eq(AgentSim::score($crit), [100.0, 100.0, []], 'critical goal met → no cap');
+$worked->execute('delete_file', ['path' => '/keep.txt']);
+$crit = AgentSim::goals([
+    ['key' => 'done', 'type' => 'file_exists', 'path' => '/out/new.txt', 'weight' => 4],
+    ['key' => 'kept', 'type' => 'file_exists', 'path' => '/keep.txt', 'critical' => true],
+], $worked, 2, new AgentTools($keepEnv, AgentTools::ALL));
+T::eq(AgentSim::score($crit), [20.0, 80.0, ['kept']], 'critical goal failed → 80 capped at 20, failed key reported');
+T::eq(AgentSim::score([['type' => 'x', 'pass' => false, 'score' => 0.0, 'weight' => 1, 'critical' => true]]), [0.0, 0.0, ['x']], 'cap never raises a score');
+
 /* ====================================================================== OpenRouter normalisation */
 
 T::section('OpenRouter::normalize');

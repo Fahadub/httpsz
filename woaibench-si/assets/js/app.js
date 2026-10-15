@@ -938,6 +938,25 @@
     });
   }
 
+  /* ---- range sliders: keep --pct (filled part of the track) in sync with the value */
+  function syncRange(el) {
+    if (!el || el.type !== 'range') return;
+    const min = el.min === '' ? 0 : parseFloat(el.min);
+    const max = el.max === '' ? 100 : parseFloat(el.max);
+    const val = parseFloat(el.value);
+    const pct = max > min && Number.isFinite(val) ? Math.min(100, Math.max(0, (val - min) / (max - min) * 100)) : 0;
+    el.style.setProperty('--pct', pct.toFixed(2) + '%');
+  }
+  WB.syncRange = syncRange;
+  function initRanges() {
+    const onEvt = (ev) => { if (ev.target && ev.target.matches && ev.target.matches('input[type="range"]')) syncRange(ev.target); };
+    d.addEventListener('input', onEvt);
+    d.addEventListener('change', onEvt);
+    // form resets restore the default value without an input event
+    d.addEventListener('reset', (ev) => setTimeout(() => $$('input[type="range"]', ev.target).forEach(syncRange), 0));
+    $$('input[type="range"], input.range').forEach(syncRange);
+  }
+
   /* ------------------------------------------------------------------ boot */
 
   function boot() {
@@ -954,6 +973,7 @@
     initHeader();
     initObservers();
     initHeroArt();
+    initRanges();
     $$('table[data-sortable] th[data-sort][data-sort-initial]').forEach((th) => sortTable(th.closest('table'), th, th.getAttribute('data-sort-initial')));
   }
   if (d.readyState === 'loading') d.addEventListener('DOMContentLoaded', boot);

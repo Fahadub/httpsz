@@ -106,4 +106,8 @@ return [
     'verifier.js.released_n' => 'Released',
     'verifier.js.slot' => 'Lane',
     'verifier.js.frame_title' => 'Sandboxed preview of run :id (:vp)',
+    'verifier.js.log_resumed' => 'Station visible again — claiming resumed',
+    'verifier.js.log_redo' => 'Run #:id (:vp) — measured while hidden or off-screen; measuring again',
+    'verifier.js.log_oom' => 'Run #:id — browser memory failure; sandbox recycled and the run goes back to the queue (counted as a failure only if it repeats on the last try)',
+    'verifier.js.live' => 'Live',
 ];

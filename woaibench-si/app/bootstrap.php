@@ -95,7 +95,13 @@ if (!WB_CLI && !defined('WB_INSTALLER')) {
         exit;
     }
     // Public, cacheable endpoints never need a session (no cookies on API/badge/embed/export responses).
-    $statelessPath = preg_match('#^/(api/v1(/|$)|badge/|embed/|export/|sitemap\.xml$|robots\.txt$|healthz$|site\.webmanifest$)#', current_path()) === 1;
+    $path = current_path();
+    $statelessPath = preg_match('#^/(api/v1(/|$)|badge/|embed/|export/|sitemap\.xml$|robots\.txt$|healthz$|site\.webmanifest$)#', $path) === 1;
+    // Sandboxed frames and token-authenticated verifier calls only need a session when the client already has one
+    // (admin Station / hold-out previews); otherwise every headless request would create an empty session file.
+    if (!$statelessPath && preg_match('#^/(render/|arena/frame/|api/verifier/)#', $path) === 1) {
+        $statelessPath = !isset($_COOKIE['wb_sess']);
+    }
     if (!$statelessPath) {
         Auth::startSession();
     }

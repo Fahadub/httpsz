@@ -6,7 +6,7 @@
  * code cannot forge a verdict. Comparison semantics match tools/dev/validate-tasks.mjs:
  *   deep (structural, NaN-aware, -0 == 0) · approx (absolute tol, recursive) · set / sorted
  *   (order-insensitive multiset at the top level) · truthy.
- * API: window.WBHarness.run(code, tests, {budgetMs}) → Promise<[{name, pass, ms, got?, error?}]>,
+ * API: window.WBHarness.run(code, tests, {budgetMs}) → Promise<[{name, pass, ms, got?, error?, oom?}]>,
  *      WBHarness.render(results), WBHarness.mode ('worker' | 'worker-data' | 'main').
  * The same file powers the public "Run tests" button and the code view on js render pages.
  */
@@ -91,7 +91,9 @@
         }));
       } catch (e) { s = String(v); }
       if (s === undefined) { s = String(v); }
-      return s.length > 300 ? s.slice(0, 297) + '...' : s;
+      if (s.length <= 300) { return s; }
+      var cut = /[\uD800-\uDBFF]/.test(s.charAt(296)) ? 296 : 297; // never split a surrogate pair
+      return s.slice(0, cut) + '...';
     }
     function errText(e) {
       if (e && e.name && e.message !== undefined) { return String(e.name) + ': ' + String(e.message); }
@@ -294,10 +296,18 @@
     }).then(function (out) { return core.finalize(out, c, timeoutMs); });
   }
 
+  /** Out-of-memory failures: the process ran out of memory, which may be left over from an earlier case. */
+  var OOM_RE = /Array buffer allocation failed|out of memory|Allocation failed - JavaScript heap/i;
+  function isOom(r) { return !!(r && r.error && OOM_RE.test(String(r.error))); }
+  function pause(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
   /**
    * Run every case of a test suite, each in a fresh Worker (no state or monkey-patching survives between
    * cases). tests = {entry, timeout_ms, cases:[…]}; opts.budgetMs caps the total time (cases not reached
-   * fail with "not run: time budget exhausted").
+   * fail with "not run: time budget exhausted"). After a Worker had to be terminated the next case waits
+   * briefly so its memory is reclaimed first; a case failing with an out-of-memory error is re-run once in
+   * a fresh Worker, and when it still fails its result carries `oom: true` (the verifier then decides
+   * whether the browser or the code is to blame).
    */
   function run(code, tests, opts) {
     opts = opts || {};
@@ -309,6 +319,17 @@
     var started = Date.now();
     var results = [];
     var i = 0;
+    var killed = false;
+    var once = function (c, caseTimeout) {
+      var ready = api.mode === 'main' ? Promise.resolve(null) : (killed ? pause(250) : Promise.resolve()).then(spawn);
+      return ready.then(function (w) {
+        return w ? runInWorker(w, code, entry, c, caseTimeout) : runOnMain(code, entry, c, caseTimeout);
+      }).then(function (r) {
+        r = r || {};
+        killed = !!(r.error && /worker terminated|worker error/.test(String(r.error)));
+        return r;
+      });
+    };
     var next = function () {
       if (i >= cases.length) { return Promise.resolve(results); }
       var c = cases[i] && typeof cases[i] === 'object' ? cases[i] : {};
@@ -319,11 +340,13 @@
         return next();
       }
       var caseTimeout = Number(c.timeout_ms) > 0 ? Math.min(30000, Number(c.timeout_ms)) : timeoutMs;
-      var ready = api.mode === 'main' ? Promise.resolve(null) : spawn();
-      return ready.then(function (w) {
-        return w ? runInWorker(w, code, entry, c, caseTimeout) : runOnMain(code, entry, c, caseTimeout);
+      return once(c, caseTimeout).then(function (r) {
+        if (!isOom(r)) { return r; }
+        return pause(400).then(function () { return once(c, caseTimeout); }).then(function (r2) {
+          if (isOom(r2)) { r2.oom = true; }
+          return r2;
+        });
       }).then(function (r) {
-        r = r || {};
         r.name = name;
         results.push(r);
         return next();

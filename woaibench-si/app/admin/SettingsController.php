@@ -41,6 +41,7 @@ final class SettingsController
                 'render_fail_factor' => ['float', 0, 1],
             ],
             'statistics' => ['bootstrap_iters' => ['int', 100, 20000], 'min_coverage' => ['float', 0, 1]],
+            'agents' => ['agent_constraint_gate' => ['bool'], 'agent_critical_cap' => ['int', 0, 100]],
             'features' => [
                 'arena_enabled' => ['bool'], 'arena_votes_per_hour' => ['int', 1, 10000], 'api_public' => ['bool'], 'requests_enabled' => ['bool'],
             ],
@@ -76,6 +77,7 @@ final class SettingsController
             'aggregate_last' => (string) \setting('aggregate_last', ''),
             'engine_aggregator' => Admin::engine('Aggregator'),
             'judges' => \DB::all('SELECT name, or_id, provider FROM models WHERE is_judge = 1 ORDER BY judge_order, id'),
+            'setup_tools' => class_exists('WB\\Setup\\Migrator') && class_exists('WB\\Setup\\Seeder'),
         ]);
     }
 

@@ -248,7 +248,7 @@ curl <?= e(url('/api/v1/leaderboard', [], true)) ?>
       <div class="render-frame mt-6" data-device="desktop" style="--frame-h:220px">
         <div class="render-toolbar">
           <span class="render-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span class="render-url"><?= ui_icon('lock', 13) ?>render-frame · sandbox="allow-scripts"</span>
+          <span class="render-url"><?= ui_icon('lock', 13) ?>render-frame · sandbox="allow-scripts allow-forms"</span>
           <span class="render-actions">
             <span class="device-toggle" role="group" aria-label="device-toggle">
               <button type="button" data-device="desktop" aria-pressed="true" aria-label="desktop"><?= ui_icon('monitor', 15) ?></button>
@@ -258,7 +258,7 @@ curl <?= e(url('/api/v1/leaderboard', [], true)) ?>
             <button class="btn-icon" type="button" aria-label="open"><?= ui_icon('external', 16) ?></button>
           </span>
         </div>
-        <div class="render-stage"><div class="sg-render-sample" aria-hidden="true"><span>&lt;iframe sandbox="allow-scripts" src="/render/{id}"&gt;</span></div></div>
+        <div class="render-stage"><div class="sg-render-sample" aria-hidden="true"><span>&lt;iframe sandbox="allow-scripts allow-forms" src="/render/{id}"&gt;</span></div></div>
       </div>
       <div class="hero-art mt-6" style="max-width:320px;margin-inline:auto" aria-hidden="true"><canvas data-hero-art="quiet"></canvas></div>
       <p class="t-xs t-faint t-center ltr">.hero-art · canvas[data-hero-art] · .reveal</p>

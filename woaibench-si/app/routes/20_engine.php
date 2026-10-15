@@ -54,7 +54,7 @@ $wbEngineVerifier = static function (string $action): void {
     if ($len > VerifierApi::MAX_BODY_BYTES) {
         json_out(['ok' => false, 'error' => 'payload_too_large'], 413);
     }
-    $body = json_body();
+    $body = VerifierApi::decodeBody((string) file_get_contents('php://input'));
     if ($action === 'next') {
         $requested = $body['agent'] ?? null;
         json_out(['ok' => true, 'run' => VerifierApi::next(is_string($requested) && in_array($requested, ['station', 'playwright'], true) ? $requested : $agent)]);

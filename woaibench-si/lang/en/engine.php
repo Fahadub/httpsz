@@ -24,6 +24,7 @@ return [
     'engine.kind.generate_expired' => 'Generation timed out',
     'engine.kind.aggregate' => 'Leaderboard recomputed',
     'engine.kind.arena' => 'Arena ratings refreshed',
+    'engine.kind.lock_conflict' => 'Postponed (database busy)',
 
     'engine.role.panel' => 'Panel judge',
     'engine.role.replacement' => 'Replacement judge',

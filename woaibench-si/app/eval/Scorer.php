@@ -32,15 +32,16 @@ final class Scorer
             [$runId]
         ));
         $r = self::compute($task, $run, $judgeScores);
-        DB::exec(
-            "UPDATE runs SET auto_score = ?, judge_score = ?, judge_spread = ?, final_score = ?, contested = ?,
+        // PRIMARY forced: see Lease (a status-index range scan would lock every 'scoring' row).
+        Lease::retrying(static fn(): int => DB::exec(
+            "UPDATE runs FORCE INDEX (PRIMARY) SET auto_score = ?, judge_score = ?, judge_spread = ?, final_score = ?, contested = ?,
                     status = 'scored', finished_at = ?, locked_until = NULL, lock_token = NULL
               WHERE id = ? AND status IN ('scoring', 'scored')",
             [
                 self::r2($r['auto']), self::r2($r['judge']), self::r2($r['spread']), $r['final'],
                 $r['contested'] ? 1 : 0, now(), $runId,
             ]
-        );
+        ));
         if ($r['render_fail']) {
             Pipeline::addNotes($runId, [['code' => 'render_fail']]);
         }

@@ -177,6 +177,13 @@ final class Admin
         ];
     }
 
+    /** A run's error text without engine notes ("[note:…]" lines are notes, never errors). */
+    public static function errorText(?string $error): string
+    {
+        $lines = preg_split('/\R/', (string) $error) ?: [];
+        return trim(implode("\n", array_filter($lines, static fn($l) => !preg_match('/^\[note:[a-z_]+\]/', trim((string) $l)))));
+    }
+
     /** Wrap a value in Unicode bidi isolates so "$1.20" or ids render correctly inside Arabic sentences. */
     public static function iso(string $value): string
     {

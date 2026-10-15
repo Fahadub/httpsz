@@ -15,6 +15,9 @@ echo partial('admin/_head', [
         . '<a class="btn btn-primary" href="' . e(url('/admin/campaigns/new')) . '">' . ui_icon('plus', 16) . '<span>' . _e('admin.campaigns.new') . '</span></a>',
 ]);
 ?>
+<?php if (!empty($needs_upgrade)): ?>
+  <div class="alert alert-warn"><?= ui_icon('database', 16) ?> <span><?= _e('admin.dash.upgrade_needed') ?> <a href="<?= e(url('/admin/settings#s-upgrades')) ?>"><?= _e('admin.dash.upgrade_go') ?></a></span></div>
+<?php endif; ?>
 <?php if ($missing): ?>
   <div class="alert alert-info"><?= ui_icon('info', 16) ?> <?= _e('admin.dash.engine_partial', ['list' => implode(', ', $missing)]) ?></div>
 <?php endif; ?>
@@ -88,7 +91,7 @@ echo partial('admin/_head', [
               <td class="t-num"><a href="<?= e(url('/admin/runs/' . $f['id'])) ?>"><?= (int) $f['id'] ?></a></td>
               <td><?= e($f['model']) ?></td>
               <td><?= e(L($f, 'title')) ?></td>
-              <td class="admin-err-cell t-xs" title="<?= e((string) $f['error']) ?>"><?= e(mb_strimwidth((string) $f['error'], 0, 90, '…')) ?></td>
+              <?php $errText = \WB\Admin\Admin::errorText($f['error']); ?><td class="admin-err-cell t-xs" dir="auto" title="<?= e($errText) ?>"><?= e(mb_strimwidth($errText, 0, 90, '…')) ?></td>
               <td class="t-xs t-muted"><?= e(fmt_date($f['updated_at'], 'relative')) ?></td>
             </tr>
           <?php endforeach; ?>

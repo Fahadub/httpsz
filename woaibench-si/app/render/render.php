@@ -175,6 +175,27 @@ function wb_render_checks(array $task): array
     return json_arr(is_string($raw) ? $raw : null);
 }
 
+/**
+ * The task's JS test suite with JSON objects preserved (stdClass), or null. PHP's associative decoding
+ * turns `{}` into `[]`, which would silently change test arguments and expectations (an empty object
+ * would be sent to the harness as an empty array); this keeps them exactly as stored.
+ */
+function wb_render_tests(array $task): ?object
+{
+    $raw = $task['checks_json'] ?? null;
+    if (is_string($raw)) {
+        $obj = json_decode($raw, false);
+        $tests = is_object($obj) && isset($obj->tests) && is_object($obj->tests) ? $obj->tests : null;
+        return $tests !== null && isset($tests->cases) && is_array($tests->cases) ? $tests : null;
+    }
+    $tests = wb_render_checks($task)['tests'] ?? null;
+    if (!is_array($tests) || !is_array($tests['cases'] ?? null)) {
+        return null;
+    }
+    $obj = json_decode(to_json($tests), false);
+    return is_object($obj) ? $obj : null;
+}
+
 /** Absolute URL of a static asset on the canonical origin (the frame itself has an opaque origin). */
 function wb_render_asset(string $path): string
 {
@@ -193,7 +214,7 @@ function wb_render_probe_head(array $run, array $task, array $opts, bool $noOutp
             $browser[] = $c;
         }
     }
-    $tests = $type === 'js' && is_array($checks['tests'] ?? null) ? $checks['tests'] : null;
+    $tests = $type === 'js' ? wb_render_tests($task) : null;
     $mode = ($opts['mode'] ?? 'station') === 'playwright' ? 'playwright' : 'station';
     $cfg = [
         'run_id' => (int) ($run['id'] ?? 0),
@@ -210,12 +231,13 @@ function wb_render_probe_head(array $run, array $task, array $opts, bool $noOutp
         'load_timeout_ms' => 8000,
         'settle_ms' => 600,
     ];
+    // Station screenshots are taken by the probe itself (DOM → SVG foreignObject → canvas); html2canvas cannot
+    // work in the opaque-origin sandbox (it scripts a cloned child frame, which is cross-origin there).
     $tag = static fn(string $src): string => '<script data-wb-probe src="' . e(wb_render_asset($src)) . '"></script>';
     return '<script data-wb-probe>window.__WB_PROBE_CFG=' . js_json($cfg) . ';</script>'
         . '<script data-wb-probe>' . wb_render_prescript() . '</script>'
         . $tag('js/probe.js')
-        . ($type === 'js' ? $tag('js/harness.js') : '')
-        . ($mode === 'station' ? $tag('vendor/html2canvas.min.js') : '');
+        . ($type === 'js' ? $tag('js/harness.js') : '');
 }
 
 /**
@@ -315,9 +337,8 @@ function wb_render_text_doc(array $run, array $task, string $inject, ?string $th
 /** Harness page for js outputs: highlighted code + "Run tests" (public tasks) or automatic tests (verify mode). */
 function wb_render_js_doc(array $run, array $task, string $code, string $inject, ?string $theme, bool $verify): string
 {
-    $checks = wb_render_checks($task);
-    $tests = is_array($checks['tests'] ?? null) ? $checks['tests'] : null;
-    $showTests = $tests !== null && !empty($tests['cases']) && ($verify || ($task['visibility'] ?? 'public') === 'public');
+    $tests = wb_render_tests($task);
+    $showTests = $tests !== null && !empty($tests->cases) && ($verify || ($task['visibility'] ?? 'public') === 'public');
     $title = L($task, 'title');
     $lines = substr_count(rtrim($code, "\r\n"), "\n") + 1;
     $data = [

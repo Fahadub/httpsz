@@ -349,6 +349,7 @@ Router::get('/run/{id:\d+}', static function (string $id): void {
         'checks' => Runs::checks($run),
         'answer' => $run['output_type'] === 'answer' ? Runs::answer($run) : null,
         'transcript' => $run['output_type'] === 'agent' ? Runs::transcript($run) : null,
+        'notes' => Runs::notes($run),
         'shot' => Runs::shotUrl($run['screenshot']),
         'shot_mobile' => Runs::shotUrl($run['screenshot_mobile']),
     ]));

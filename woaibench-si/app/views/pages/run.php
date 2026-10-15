@@ -1,6 +1,6 @@
 <?php
 /**
- * Public run page (public tasks only). Vars: run, tab, attempts, judgments, checks, answer, transcript, shot, shot_mobile.
+ * Public run page (public tasks only). Vars: run, tab, attempts, judgments, checks, answer, transcript, notes, shot, shot_mobile.
  * Every piece of model output is escaped; the rendered output lives in a sandboxed iframe (/render/{id}).
  */
 defined('WB') || exit;
@@ -19,26 +19,41 @@ if ($shot || $shot_mobile) { $tabs['shots'] = ['pub.run.tab_shots', 'image']; }
 if ($type === 'answer') { $tabs['answer'] = ['pub.run.tab_answer', 'target']; }
 if ($type === 'agent') { $tabs['transcript'] = ['pub.run.tab_transcript', 'robot']; }
 if ($type === 'text' || (!$hasCode && $type !== 'answer' && $type !== 'agent')) { $tabs['output'] = ['pub.run.tab_output', 'file']; }
-if ($hasCode) { $tabs['code'] = ['pub.run.tab_code', 'code']; }
+// Answer / agent runs store the final answer in `code`: it is shown in their own panels instead.
+if ($hasCode && !in_array($type, ['answer', 'agent'], true)) { $tabs['code'] = ['pub.run.tab_code', 'code']; }
 $tabs['checks'] = ['pub.run.tab_checks', 'check'];
 if ($judgments) { $tabs['judges'] = ['pub.run.tab_judges', 'scale']; }
 $active = isset($tabs[$tab]) ? $tab : array_key_first($tabs);
 
 $a = WB\Data\Tasks::autoWeight(['rubric_json' => $r['rubric_json'], 'auto_weight' => $r['task_auto_weight'], 'track_auto_weight' => $r['track_auto_weight']]);
-$expected = null;
-if ($r['auto_score'] !== null && $r['judge_score'] !== null && $a < 1) {
-    $expected = $a * (float) $r['auto_score'] + (1 - $a) * (float) $r['judge_score'];
-} elseif ($r['auto_score'] !== null && ($a >= 1 || $r['judge_score'] === null)) {
-    $expected = (float) $r['auto_score'];
-}
-// Render-failure penalty (§5.3): html outputs whose browser 'loads' or 'nonblank' check failed.
-$penalised = false;
+$noteCodes = array_column($notes, 'code');
+// Render-failure penalty (§5.3): html outputs whose browser 'loads' or 'nonblank' check failed (or no page at all).
+$penalised = in_array('render_fail', $noteCodes, true);
 if ($type === 'html') {
     foreach ($checks['browser'] as $c) {
         if (in_array($c['type'] ?: $c['id'], ['loads', 'nonblank'], true) && !$c['pass']) {
             $penalised = true;
         }
     }
+}
+$factor = $penalised ? (float) setting('render_fail_factor', 0.5) : 1.0;
+// When browser checks could not run for infrastructure reasons (engine note unverified_*), the engine scales the
+// automated weight down to the share of evidence it measured: recover that effective weight from the stored scores.
+$aScaled = false;
+if ($a < 1 && !$penalised && array_intersect(['unverified_timeout', 'unverified_off', 'unverified_failed'], $noteCodes)
+    && $r['auto_score'] !== null && $r['judge_score'] !== null && $r['final_score'] !== null
+    && abs((float) $r['auto_score'] - (float) $r['judge_score']) > 0.5) {
+    $aEff = ((float) $r['final_score'] - (float) $r['judge_score']) / ((float) $r['auto_score'] - (float) $r['judge_score']);
+    if ($aEff >= 0 && $aEff <= 1 && abs($aEff - $a) > 0.005) {
+        $a = round($aEff, 4);
+        $aScaled = true;
+    }
+}
+$expected = null;
+if ($r['auto_score'] !== null && $r['judge_score'] !== null && $a < 1) {
+    $expected = $a * (float) $r['auto_score'] + (1 - $a) * (float) $r['judge_score'];
+} elseif ($r['auto_score'] !== null && ($a >= 1 || $r['judge_score'] === null)) {
+    $expected = (float) $r['auto_score'];
 }
 $attemptNo = 0;
 $sameCampaign = array_values(array_filter($attempts, static fn($x) => (int) $x['campaign_id'] === (int) $r['campaign_id']));
@@ -107,7 +122,7 @@ $ext = $type === 'html' ? 'html' : ($type === 'js' ? 'js' : 'txt');
             </div>
           </div>
           <div class="render-stage">
-            <iframe class="pub-render-iframe" sandbox="allow-scripts allow-pointer-lock" src="<?= e(url('/render/' . $id)) ?>" title="<?= _e('pub.run.iframe_title', ['model' => $r['model_name'], 'task' => L($r, 'title')]) ?>" loading="lazy" referrerpolicy="no-referrer" data-run-iframe></iframe>
+            <iframe class="pub-render-iframe" sandbox="allow-scripts allow-forms allow-pointer-lock" src="<?= e(url('/render/' . $id)) ?>" title="<?= _e('pub.run.iframe_title', ['model' => $r['model_name'], 'task' => L($r, 'title')]) ?>" loading="lazy" referrerpolicy="no-referrer" data-run-iframe></iframe>
           </div>
         </div>
         <p class="t-xs t-muted pub-sandbox-note"><?= ui_icon('shield', 12) ?> <?= _e('pub.run.sandbox_note') ?></p>
@@ -166,7 +181,7 @@ $ext = $type === 'html' ? 'html' : ($type === 'js' ? 'js' : 'txt');
       <?php endif; ?>
 
       <div class="pub-panel" id="panel-checks" role="tabpanel" aria-labelledby="tab-checks" data-run-panel="checks"<?= $active !== 'checks' ? ' hidden' : '' ?>>
-        <?= partial('partials/public-run-checks', ['checks' => $checks, 'run' => $r, 'renderable' => $renderable]) ?>
+        <?= partial('partials/public-run-checks', ['checks' => $checks, 'run' => $r, 'renderable' => $renderable, 'goals' => $transcript['goals'] ?? [], 'agent_meta' => $transcript['meta'] ?? []]) ?>
       </div>
 
       <?php if (isset($tabs['judges'])): ?>
@@ -176,7 +191,7 @@ $ext = $type === 'html' ? 'html' : ($type === 'js' ? 'js' : 'txt');
       <?php endif; ?>
     </div>
 
-    <aside class="pub-run-aside stack">
+    <div class="pub-run-aside stack">
       <div class="card card-pad stack-sm">
         <h2 class="card-title"><?= ui_icon('sigma', 18) ?> <?= _e('pub.run.how_scored') ?></h2>
         <dl class="pub-dl">
@@ -184,11 +199,21 @@ $ext = $type === 'html' ? 'html' : ($type === 'js' ? 'js' : 'txt');
           <?php if ($a < 1): ?><div><dt><?= _e('pub.run.judge_median') ?></dt><dd class="t-num"><?= e(fmt_score($r['judge_score'])) ?></dd></div><?php endif; ?>
           <div><dt><?= _e('pub.run.auto_weight') ?></dt><dd class="t-num"><?= e(number_format($a, 2)) ?></dd></div>
         </dl>
+        <?php if ($aScaled): ?><p class="t-xs t-muted"><?= _e('pub.run.aw_scaled') ?></p><?php endif; ?>
         <?php if ($expected !== null && $a < 1 && $r['judge_score'] !== null): ?>
-          <p class="pub-formula-line t-mono t-xs" dir="ltr"><span><?= e(number_format($a, 2)) ?> × <?= e(fmt_score($r['auto_score'])) ?> + <?= e(number_format(1 - $a, 2)) ?> × <?= e(fmt_score($r['judge_score'])) ?></span><b>= <?= e(fmt_score($expected)) ?></b></p>
+          <p class="pub-formula-line t-mono t-xs" dir="ltr"><span><?= e(number_format($a, 2)) ?>×<?= e(fmt_score($r['auto_score'])) ?> + <?= e(number_format(1 - $a, 2)) ?>×<?= e(fmt_score($r['judge_score'])) ?><?= $penalised ? ' = ' . e(fmt_score($expected)) . ' ×' . e(fmt_num($factor, 2)) : '' ?></span><b>= <?= e(fmt_score($expected * $factor)) ?></b></p>
         <?php endif; ?>
         <?php if ($penalised): ?><p class="alert alert-warn t-xs"><?= _e('pub.run.render_penalty', ['f' => setting('render_fail_factor')]) ?></p><?php endif; ?>
       </div>
+
+      <?php if ($notes): ?>
+      <div class="card card-pad stack-sm pub-run-notes">
+        <h2 class="card-title"><?= ui_icon('info', 18) ?> <?= _e('pub.run.notes') ?></h2>
+        <ul class="pub-notes">
+          <?php foreach ($notes as $n): ?><li data-note="<?= e($n['code']) ?>"><?= e($n['text']) ?></li><?php endforeach; ?>
+        </ul>
+      </div>
+      <?php endif; ?>
 
       <div class="card card-pad stack-sm">
         <h2 class="card-title"><?= ui_icon('gauge', 18) ?> <?= _e('pub.run.meta') ?></h2>
@@ -200,7 +225,7 @@ $ext = $type === 'html' ? 'html' : ($type === 'js' ? 'js' : 'txt');
           <div><dt><?= _e('common.latency') ?></dt><dd class="t-num"><span dir="ltr"><?= e(fmt_ms($r['latency_ms'])) ?></span></dd></div>
           <div><dt><?= _e('pub.run.finish') ?></dt><dd class="t-mono t-xs"><?= e($r['finish_reason'] ?: '—') ?></dd></div>
           <div><dt><?= _e('pub.run.provider') ?></dt><dd class="t-xs"><?= e($r['provider_used'] ?: '—') ?></dd></div>
-          <div><dt><?= _e('pub.run.code_size') ?></dt><dd class="t-num"><span dir="ltr"><?= $r['code_bytes'] !== null ? e(fmt_num((int) $r['code_bytes'] / 1024, 1)) . ' KB' : '—' ?></span></dd></div>
+          <?php if (in_array($type, ['html', 'js', 'text'], true)): ?><div><dt><?= _e('pub.run.code_size') ?></dt><dd class="t-num"><span dir="ltr"><?= $r['code_bytes'] !== null ? e(fmt_num((int) $r['code_bytes'] / 1024, 1)) . ' KB' : '—' ?></span></dd></div><?php endif; ?>
           <div><dt><?= _e('pub.run.finished') ?></dt><dd class="t-xs"><?= e(fmt_date($r['finished_at'], 'datetime')) ?></dd></div>
           <div><dt><?= _e('pub.run.campaign') ?></dt><dd class="t-xs"><?= e($r['campaign_name']) ?> <span class="t-muted">(<?= e($r['campaign_season']) ?>)</span></dd></div>
         </dl>
@@ -231,7 +256,7 @@ $ext = $type === 'html' ? 'html' : ($type === 'js' ? 'js' : 'txt');
         <a class="btn btn-outline btn-sm" href="<?= e(url('/model/' . $r['model_slug'])) ?>"><?= ui_icon('user', 15) ?><span><?= _e('pub.run.model_page') ?></span></a>
         <a class="btn btn-outline btn-sm" href="<?= e(url('/task/' . $r['task_slug'])) ?>"><?= ui_icon('list', 15) ?><span><?= _e('pub.run.task_page') ?></span></a>
       </div>
-    </aside>
+    </div>
   </div>
 </section>
 <?= pub_js_strings() ?>

@@ -40,12 +40,22 @@ final class Worker
                 if (microtime(true) >= $deadline) {
                     break 2;
                 }
-                $items = match ($phase) {
-                    'generate' => self::generateOne($client, $generate),
-                    'judge' => self::judgeOne($client),
-                    'finalize' => self::finalize(),
-                    'timeouts' => self::verifyTimeouts(),
-                };
+                try {
+                    $items = match ($phase) {
+                        'generate' => self::generateOne($client, $generate),
+                        'judge' => self::judgeOne($client),
+                        'finalize' => self::finalize(),
+                        'timeouts' => self::verifyTimeouts(),
+                    };
+                } catch (\PDOException $e) {
+                    // A deadlock that survived Lease::retrying(): the unit's lease expires and it is picked up
+                    // again later. Never let one lost lock race abort the whole step (cron would lose a minute).
+                    if (!Lease::isLockConflict($e)) {
+                        throw $e;
+                    }
+                    log_error('Worker: lock conflict, unit postponed', ['phase' => $phase, 'error' => $e->getMessage()]);
+                    $items = [['kind' => 'lock_conflict', 'phase' => $phase, 'ok' => false]];
+                }
                 foreach ($items as $item) {
                     $spent += (float) ($item['cost'] ?? 0);
                     $did[] = $item;
@@ -322,23 +332,36 @@ final class Worker
         return $did;
     }
 
-    /** Campaigns whose runs are all terminal become done; a done campaign with reopened runs (re-judge, retry) runs again. */
+    /**
+     * Campaigns whose runs are all terminal become done; a done campaign with reopened runs (re-judge, retry)
+     * runs again. Decided with plain (non-locking) reads, then updated by primary key: an UPDATE with a
+     * subquery over runs would share-lock every run of the campaign and deadlock with the other workers.
+     * A stale decision heals itself on the next step.
+     */
     private static function closeCampaigns(): void
     {
-        DB::exec(
-            "UPDATE campaigns c SET c.status = 'running', c.finished_at = NULL
-              WHERE c.status = 'done' AND EXISTS (
-                SELECT 1 FROM runs r WHERE r.campaign_id = c.id AND r.status NOT IN ('scored', 'failed', 'skipped'))"
-        );
-        DB::exec(
-            "UPDATE campaigns c SET c.status = 'done', c.finished_at = ?
-              WHERE c.status = 'running' AND NOT EXISTS (
-                SELECT 1 FROM runs r WHERE r.campaign_id = c.id AND r.status NOT IN ('scored', 'failed', 'skipped'))",
-            [now()]
-        );
+        $open = "SELECT 1 FROM runs r WHERE r.campaign_id = c.id AND r.status NOT IN ('scored', 'failed', 'skipped')";
+        $reopen = array_map('intval', DB::col("SELECT c.id FROM campaigns c WHERE c.status = 'done' AND EXISTS ($open)"));
+        if ($reopen) {
+            Lease::retrying(static fn(): int => DB::exec(
+                "UPDATE campaigns SET status = 'running', finished_at = NULL WHERE status = 'done' AND id IN (" . DB::in($reopen) . ')',
+                $reopen
+            ));
+        }
+        $done = array_map('intval', DB::col("SELECT c.id FROM campaigns c WHERE c.status = 'running' AND NOT EXISTS ($open)"));
+        if ($done) {
+            Lease::retrying(static fn(): int => DB::exec(
+                "UPDATE campaigns SET status = 'done', finished_at = ? WHERE status = 'running' AND id IN (" . DB::in($done) . ')',
+                array_merge([now()], $done)
+            ));
+        }
     }
 
-    /** Aggregate when scores changed and (idle or ≥ 60 s since the last aggregation). */
+    /**
+     * Aggregate when scores changed and either ≥ 60 s passed since the last aggregation or the queue is
+     * drained (idle and no unfinished run left: publish the final numbers at once). While runs still wait
+     * for a verifier, frequent short steps (admin console, parallel cron) do not re-aggregate every time.
+     */
     private static function maybeAggregate(bool $idle): ?array
     {
         $vals = [];
@@ -349,8 +372,14 @@ final class Worker
             return null;
         }
         $last = is_string($vals['aggregate_last'] ?? null) ? strtotime($vals['aggregate_last'] . ' UTC') : false;
-        if (!$idle && $last !== false && time() - $last < self::AGGREGATE_GAP) {
-            return null;
+        if ($last !== false && time() - $last < self::AGGREGATE_GAP) {
+            $drained = $idle && DB::val(
+                'SELECT 1 FROM runs WHERE status NOT IN (' . DB::in(Pipeline::TERMINAL) . ') LIMIT 1',
+                Pipeline::TERMINAL
+            ) === null;
+            if (!$drained) {
+                return null;
+            }
         }
         Settings::flush();
         $t = microtime(true);
@@ -364,19 +393,30 @@ final class Worker
         return ['kind' => 'aggregate', 'ok' => true, 'models' => $sum['models'], 'runs' => $sum['runs'], 'ms' => (int) round((microtime(true) - $t) * 1000)];
     }
 
-    /** Let the arena module refresh its ratings when it is installed. */
+    /**
+     * Let the arena module refresh its ratings when it is installed (Arena::maybeRecompute decides whether
+     * enough new votes arrived). Reported as an 'arena' unit when it actually recomputed.
+     */
     private static function maybeArena(): ?array
     {
         $cls = 'WB\\Arena\\Arena';
         if (!class_exists($cls) || !method_exists($cls, 'maybeRecompute')) {
             return null;
         }
+        $stamp = static fn(): string => implode('|', DB::col(
+            "SELECT v FROM settings WHERE k IN ('arena_last_recompute', 'arena_votes_at_recompute') ORDER BY k"
+        ));
         try {
+            $t = microtime(true);
+            $before = $stamp();
             $r = $cls::maybeRecompute();
-            return $r ? ['kind' => 'arena', 'ok' => true] : null;
+            if ($r === false || ($r === null && $stamp() === $before)) {
+                return null;
+            }
+            return ['kind' => 'arena', 'ok' => true, 'ms' => (int) round((microtime(true) - $t) * 1000)];
         } catch (\Throwable $e) {
             log_error('Arena recompute failed', ['error' => $e->getMessage()]);
-            return null;
+            return ['kind' => 'arena', 'ok' => false, 'error' => Pipeline::clip($e->getMessage(), 300)];
         }
     }
 

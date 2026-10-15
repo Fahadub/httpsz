@@ -44,7 +44,7 @@ $ctx = $m['context_length'] ? fmt_tokens($m['context_length']) : '—';
             <?php if ($m['supports_tools']): ?><?= ui_badge(__('pub.model.tools'), 'violet', 'wand') ?><?php endif; ?>
             <?php if ($m['is_judge']): ?><?= ui_badge(__('pub.model.judge'), 'gold', 'scale', __('pub.model.judge_tip')) ?><?php endif; ?>
           </div>
-          <?php if (!empty($m['description'])): ?><p class="t-muted pub-desc"><?= e($m['description']) ?></p><?php endif; ?>
+          <?php if (!empty($m['description'])): ?><p class="t-muted pub-desc" dir="auto"><?= e($m['description']) ?></p><?php endif; ?>
         </div>
       </div>
       <dl class="pub-specs">

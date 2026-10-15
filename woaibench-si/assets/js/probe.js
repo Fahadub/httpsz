@@ -53,7 +53,12 @@
   var T0 = now();
 
   function clampN(v, lo, hi, dflt) { v = Number(v); if (!isFinite(v)) { v = dflt; } return Math.max(lo, Math.min(hi, v)); }
-  function trunc(s, n) { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  function trunc(s, n) {
+    s = String(s == null ? '' : s);
+    if (s.length <= n) { return s; }
+    var cut = /[\uD800-\uDBFF]/.test(s.charAt(n - 2)) ? n - 2 : n - 1; // never split a surrogate pair
+    return s.slice(0, cut) + '…';
+  }
   function sleep(ms) { return new Promise(function (r) { setT(r, ms); }); }
   function round(n, d) { var f = Math.pow(10, d || 0); return Math.round(n * f) / f; }
 
@@ -365,6 +370,10 @@
     if (!ctl) { return ch.size > 0; }
     return novelCount(ch, ctl) >= 3 && ch.size >= ctl.size + 3;
   }
+  /** The input stopped the page's own animation (pause buttons): far fewer changes than the control interval. */
+  function stoppedAnim(ch, ctl) {
+    return !!ctl && ctl.size >= 4 && ch.size * 4 <= ctl.size;
+  }
 
   /* ------------------------------------------------------------ observation window (animates + fps) */
   var observation = null;
@@ -475,7 +484,20 @@
     synthetic++;
     try { dispatch.call(target, ev); } catch (e) { addErr('js', 'Handler threw on synthetic ' + ev.type + ': ' + (e && e.message)); } finally { synthetic--; }
   }
-  function keyTarget() {
+  /** The element keys are sent to: c.sel (focused first) when given, else the largest element with key listeners, else the focused element. */
+  function keyTarget(c) {
+    if (c && c.sel) {
+      var list = qsa(String(c.sel));
+      var el = list.filter(function (x) { return isVisible(x); })[0] || list[0] || null;
+      if (el) {
+        try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* ignore */ }
+        try { if (typeof el.focus === 'function') { el.focus({ preventScroll: true }); } } catch (e) { /* ignore */ }
+        // A non-focusable target (e.g. "body" for a page-wide shortcut): make sure no text field keeps focus.
+        var ae = D.activeElement;
+        if (ae && ae !== el && ae !== D.body && !el.contains(ae)) { try { ae.blur(); } catch (e) { /* ignore */ } }
+      }
+      return el;
+    }
     var els = registry.key.filter(function (t) { return t && t.nodeType === 1 && t !== D.body && t !== D.documentElement && isVisible(t); })
       .sort(function (a, b) { return area(b) - area(a); });
     if (els.length) {
@@ -724,13 +746,16 @@
     },
     keyboard: function (c) {
       var keys = (Array.isArray(c.keys) && c.keys.length ? c.keys : DEFAULT_KEYS).slice(0, 12).map(normKey);
-      var target = keyTarget();
+      var target;
+      try { target = keyTarget(c); } catch (e) { return res(c, false, 0, 'invalid selector: ' + c.sel); }
+      if (!target) { return res(c, false, 0, 'no element matches ' + c.sel); }
       var v0 = vec();
       return sleep(400).then(function () {
         var animated = changedSet(v0, vec()).size > 0;
         hits = 0;
         var changedBy = null;
         var novel = 0;
+        var paused = false;
         var i = 0;
         var step = function () {
           if (i >= keys.length || changedBy) { return Promise.resolve(); }
@@ -747,6 +772,7 @@
               var ch = changedSet(before, vec());
               if (!animated && ch.size > 0) { changedBy = k; }
               if (animated && attributable(ch, ctl)) { novel = novelCount(ch, ctl); changedBy = k; }
+              if (animated && !changedBy && stoppedAnim(ch, ctl)) { paused = true; changedBy = k; }
               return step();
             });
           });
@@ -759,6 +785,7 @@
             if (changedBy) { return res(c, true, 1, 'state changed after “' + label + '” (target ' + where + ')'); }
             return res(c, false, handlers ? 0.4 : 0, handlers ? 'key handlers ran but nothing visible changed' : 'no key handlers and no visible change (target ' + where + ')');
           }
+          if (handlers && changedBy && paused) { return res(c, true, 1, 'key handlers ran; “' + label + '” stopped the ongoing animation'); }
           if (handlers && changedBy) { return res(c, true, 1, 'key handlers ran; “' + label + '” changed ' + novel + ' regions beyond the ongoing animation'); }
           if (handlers) { return res(c, true, 0.75, 'key handlers ran (effect not separable from the ongoing animation)'); }
           return res(c, false, 0, 'page animates on its own, but no key handlers responded');
@@ -795,6 +822,7 @@
                 return res(c, false, handlers ? 0.4 : 0, 'clicked ' + where + (handlers ? ' → handlers ran, nothing visible changed' : ' → no handlers, no change'));
               }
               if (handlers && attributable(ch, ctl)) { return res(c, true, 1, 'clicked ' + where + ' → handlers ran, ' + novelCount(ch, ctl) + ' regions changed beyond the animation'); }
+              if (handlers && stoppedAnim(ch, ctl)) { return res(c, true, 1, 'clicked ' + where + ' → handlers ran, the ongoing animation stopped'); }
               if (handlers) { return res(c, true, 0.75, 'clicked ' + where + ' → handlers ran (effect not separable from the animation)'); }
               return res(c, false, 0, 'clicked ' + where + ' → no handlers responded');
             });
@@ -820,7 +848,6 @@
   var results = {};
   var testResults = null;
   var harnessMode = null;
-  var H2C = null;
   var ORDER = ['loads', 'nonblank', 'canvas', 'selector', 'text', 'rtl', 'a11y_basic', 'responsive', 'animates', 'fps', 'keyboard', 'click'];
 
   function withTimeout(p, ms, label) {
@@ -859,7 +886,6 @@
     if (started) { return; }
     started = true;
     watchViewport();
-    H2C = W.html2canvas || null;
     try { qsa('script[data-wb-probe]').forEach(function (s) { s.parentNode.removeChild(s); }); } catch (e) { /* ignore */ }
     settle().then(function () {
       if (CFG.no_output) { return; }
@@ -910,6 +936,11 @@
         return { name: String(tc.name || 'case ' + (i + 1)), pass: false, ms: 0, error: CFG.no_output ? 'no code' : (reason === 'navigated' ? 'page navigated away' : 'not run before the probe deadline') };
       });
     }
+    // Out-of-memory errors (tests or page) — the verifier re-runs such pages in a fresh frame/context.
+    var oom = 0;
+    var OOM_RE = /Array buffer allocation failed|out of memory|Allocation failed - JavaScript heap/i;
+    (tests || []).forEach(function (t) { if (t && (t.oom || OOM_RE.test(String(t.error || '')))) { oom++; } });
+    errs.forEach(function (e) { if (OOM_RE.test(e)) { oom++; } });
     var out = {
       type: 'wb-probe',
       nonce: NONCE,
@@ -931,6 +962,7 @@
         hidden: flags.hidden,
         offscreen: flags.offscreen,
         starved: flags.starved,
+        oom: oom,
         harness: harnessMode
       }
     };
@@ -985,8 +1017,8 @@
     return cv;
   }
   /**
-   * DOM → SVG <foreignObject> → <img> → canvas. Works inside an opaque-origin sandbox, where html2canvas
-   * cannot (it clones the page into a child iframe, which a sandboxed document may not script).
+   * DOM → SVG <foreignObject> → <img> → canvas. Works inside the opaque-origin sandbox (html2canvas cannot:
+   * it clones the page into a child iframe, which is cross-origin there, so it is not loaded at all).
    * Scripts are dropped, form values copied; canvases are drawn on top afterwards by compose().
    */
   function svgCapture(w, h, bg) {
@@ -1030,20 +1062,11 @@
     var h = Math.max(16, Math.min(W.innerHeight, 1400));
     var bg = pageBackground();
     var finish = function (cv) { compose(cv); return encode(cv); };
+    // Fallback when the SVG snapshot fails: page background + the page's own canvases (games, WebGL).
     var fallback = function () { return finish(blankCanvas(w, h, bg)); };
-    var viaH2c = function () {
-      var h2c = H2C || W.html2canvas;
-      if (typeof h2c !== 'function') { return fallback(); }
-      return withTimeout(h2c(D.body || D.documentElement, {
-        scale: 1, useCORS: false, allowTaint: false, logging: false, backgroundColor: bg,
-        x: 0, y: 0, width: w, height: h, windowWidth: W.innerWidth, windowHeight: W.innerHeight,
-        imageTimeout: 1500, removeContainer: true,
-        ignoreElements: function (el) { return ownEl(el) || el === SC; }
-      }), 9000, 'screenshot').then(finish, fallback);
-    };
     return withTimeout(svgCapture(w, h, bg), 8000, 'snapshot').then(function (cv) {
-      try { return finish(cv); } catch (e) { return viaH2c(); }
-    }, viaH2c);
+      try { return finish(cv); } catch (e) { return fallback(); }
+    }, fallback);
   }
   var shooting = false;
   addO.call(W, 'message', function (ev) {

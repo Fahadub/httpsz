@@ -164,7 +164,7 @@ $cols = [
             <td class="col-latency num" data-v="<?= $r['avg_latency_ms'] ?? '' ?>" data-label="<?= _e('pub.lb.col_latency') ?>"><span class="t-num" dir="ltr"><?= e(fmt_ms($r['avg_latency_ms'])) ?></span></td>
             <?php foreach ($tracks as $slug => $t):
                 $ts = $r['tracks'][$slug] ?? null;
-                $tip = L($t, 'name') . ': ' . ($ts ? fmt_score($ts['score']) . ($ts['ci_low'] !== null ? ' (' . fmt_score($ts['ci_low']) . '–' . fmt_score($ts['ci_high']) . ')' : '') . ' · ' . __('pub.lb.n_tasks', ['n' => $ts['n_tasks']]) : __('pub.lb.not_scored'));
+                $tip = L($t, 'name') . ': ' . ($ts ? fmt_score($ts['score']) . ($ts['ci_low'] !== null ? ' (' . "\u{2066}" . fmt_score($ts['ci_low']) . '–' . fmt_score($ts['ci_high']) . "\u{2069}" . ')' : '') . ' · ' . __('pub.lb.n_tasks', ['n' => $ts['n_tasks']]) : __('pub.lb.not_scored'));
             ?>
               <td class="col-tracks col-heat<?= $track === $slug ? ' is-current' : '' ?>" data-v="<?= $ts ? $ts['score'] : '' ?>"><span class="lb-heat-icon" style="--track:<?= e($t['color']) ?>" aria-hidden="true"><?= ui_icon($t['icon'], 11) ?></span><?= ui_heat_cell($ts['score'] ?? null, $tip) ?></td>
             <?php endforeach; ?>
@@ -180,7 +180,7 @@ $cols = [
     <div class="pub-note card card-pad">
       <div class="pub-note-icon"><?= ui_icon('flask', 22) ?></div>
       <div class="stack-sm">
-        <p class="t-small"><?= pub_rich('pub.lb.note', ['n' => count($tracks), 'runs' => setting('runs_per_task'), 'iters' => fmt_num(setting('bootstrap_iters'))]) ?></p>
+        <p class="t-small"><?= pub_rich('pub.lb.note', ['n' => count($tracks), 'runs' => WB\Data\Catalog::runsPerTask($season), 'iters' => fmt_num(setting('bootstrap_iters'))]) ?></p>
         <p class="t-xs t-muted"><?= _e('pub.lb.updated', ['when' => fmt_date($stats['last_updated'], 'relative'), 'date' => fmt_date($stats['last_updated'], 'datetime')]) ?> · <a href="<?= e(url('/methodology')) ?>"><?= _e('pub.lb.read_method') ?></a></p>
       </div>
     </div>

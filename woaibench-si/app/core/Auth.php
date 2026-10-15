@@ -27,6 +27,9 @@ final class Auth
         ini_set('session.use_strict_mode', '1');
         ini_set('session.use_only_cookies', '1');
         ini_set('session.gc_maxlifetime', '86400');
+        // Our custom save path is not covered by distro session-cleanup cron jobs: let PHP GC it.
+        ini_set('session.gc_probability', '1');
+        ini_set('session.gc_divisor', '100');
         $dir = WB_STORAGE . '/sessions';
         if ((is_dir($dir) || @mkdir($dir, 0770, true)) && is_writable($dir)) {
             session_save_path($dir);

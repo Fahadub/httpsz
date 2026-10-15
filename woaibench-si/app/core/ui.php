@@ -67,8 +67,16 @@ function ui_provider_color(string $provider): string
     if (isset($known[$provider])) {
         return $known[$provider];
     }
-    $h = hexdec(substr(md5($provider), 0, 4)) % 360;
-    return "hsl({$h} 55% 55%)";
+    // Stable per-vendor hue (55 % saturation / lightness), returned as #rrggbb so it also works as the
+    // value of <input type="color"> in the model editor.
+    $h = (hexdec(substr(md5($provider), 0, 4)) % 360) / 60;
+    $c = (1 - abs(2 * 0.55 - 1)) * 0.55;
+    $x = $c * (1 - abs(fmod($h, 2) - 1));
+    $m = 0.55 - $c / 2;
+    [$r, $g, $b] = match ((int) floor($h)) {
+        0 => [$c, $x, 0], 1 => [$x, $c, 0], 2 => [0, $c, $x], 3 => [0, $x, $c], 4 => [$x, 0, $c], default => [$c, 0, $x],
+    };
+    return sprintf('#%02X%02X%02X', (int) round(($r + $m) * 255), (int) round(($g + $m) * 255), (int) round(($b + $m) * 255));
 }
 
 /** Round monogram avatar for a provider. */
@@ -156,7 +164,8 @@ function ui_rank(?int $rank, ?int $statRank = null): string
 function ui_empty(string $title, string $text = '', string $icon = 'sparkles', string $actionHtml = ''): string
 {
     return '<div class="empty-state">' . ui_icon($icon, 36, 'empty-icon')
-        . '<h3 class="empty-title">' . e($title) . '</h3>'
+        // A styled paragraph, not a heading: empty states sit at any depth and must not break the outline.
+        . '<p class="empty-title">' . e($title) . '</p>'
         . ($text !== '' ? '<p class="empty-text">' . e($text) . '</p>' : '')
         . $actionHtml . '</div>';
 }

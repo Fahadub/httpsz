@@ -72,9 +72,12 @@ also tries `$PLAYWRIGHT_BROWSERS_PATH`, `/opt/pw-browsers`, `~/.cache/ms-playwri
 system locations (`/usr/bin/chromium`, `google-chrome`). Force a binary with
 `WB_CHROMIUM=/path/to/chrome` (aliases: `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`, `CHROMIUM_PATH`).
 
-WebGL: servers without a GPU render WebGL in software (SwiftShader, enabled by default). Frame-rate
-checks are therefore stricter on small VPSs than on a desktop with a GPU — prefer a machine with at least
-2 dedicated vCPUs and keep `--concurrency` ≤ the number of cores.
+WebGL: servers without a GPU render WebGL in software (SwiftShader, allowed as a fallback by default with
+`--enable-unsafe-swiftshader --ignore-gpu-blocklist`). ANGLE is deliberately **not** forced to SwiftShader
+(`--use-angle=swiftshader`): that would also move 2D canvas and page compositing to the CPU rasteriser and drop
+ordinary pages from 60 to ~18 fps, failing fair frame-rate checks. WebGL-heavy pages are still slower on small
+VPSs than on a desktop with a GPU — prefer a machine with at least 2 dedicated vCPUs and keep `--concurrency`
+≤ the number of cores.
 
 ## 5. Keep it running
 
@@ -123,6 +126,11 @@ journalctl -u woaibench-verifier -f
 5. A page that freezes (infinite loop) gets no result: after the probe's deadline + 6 s the run is
    submitted with every check failed ("page unresponsive") — it is the model's failure. Network or
    browser problems instead **release** the run so it is retried.
+6. Out of memory ("Array buffer allocation failed", heap exhausted) is treated as a browser problem: the run
+   is released and retried later in fresh contexts. Only when it happens again on the run's last allowed try
+   (`attempt == max_attempts` in the job) is it submitted as the output's own failure, so code that always
+   exhausts memory cannot escape its tests.
+7. Strings are sent as well-formed UTF-16 (lone surrogates from model output become U+FFFD).
 
 ## 7. Troubleshooting
 

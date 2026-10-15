@@ -161,13 +161,13 @@ final class Pipeline
             $notes[] = ['code' => 'generation', 'detail' => $gen['note']];
         }
         if (self::needsBrowser($task) && trim($code) !== '') {
-            $ok = DB::tx(static function () use ($runId, $set, $guard): bool {
+            $ok = Lease::retrying(static fn(): bool => DB::tx(static function () use ($runId, $set, $guard): bool {
                 if (Lease::write('runs', $runId, $set + ['status' => 'awaiting_verify'], $guard) !== 1) {
                     return false;
                 }
-                DB::exec('DELETE FROM judgments WHERE run_id = ?', [$runId]);
+                self::deleteJudgments($runId);
                 return true;
-            });
+            }));
             if ($ok) {
                 self::addNotes($runId, $notes);
             }
@@ -461,19 +461,20 @@ final class Pipeline
         }
         $status = $judges ? 'judging' : 'scoring';
         $scoreToken = $status === 'scoring' ? random_token(16) : null;
-        $ok = DB::tx(static function () use ($runId, $set, $guard, $status, $scoreToken, $judges, $fresh): bool {
+        // Retried as a whole when it loses a deadlock (InnoDB rolled it back; the lease guard keeps it idempotent).
+        $ok = Lease::retrying(static fn(): bool => DB::tx(static function () use ($runId, $set, $guard, $status, $scoreToken, $judges, $fresh): bool {
             $opts = $guard + ($scoreToken !== null ? ['lease' => self::SCORE_LEASE, 'new_token' => $scoreToken] : []);
             if (Lease::write('runs', $runId, $set + ['status' => $status], $opts) !== 1) {
                 return false;
             }
             if ($fresh) {
-                DB::exec('DELETE FROM judgments WHERE run_id = ?', [$runId]);
+                self::deleteJudgments($runId);
             }
             foreach ($judges as $j) {
                 self::addJudgment($runId, (int) $j['id'], 'panel');
             }
             return true;
-        });
+        }));
         if (!$ok) {
             return null;
         }
@@ -483,6 +484,19 @@ final class Pipeline
             return 'scored';
         }
         return 'judging';
+    }
+
+    /**
+     * Delete a run's judgments by primary key. "DELETE … WHERE run_id = ?" would gap-lock the run_id index
+     * when there is nothing to delete, and concurrent transactions inserting judgments for neighbouring runs
+     * then deadlock on each other's gaps.
+     */
+    private static function deleteJudgments(int $runId): void
+    {
+        $ids = array_map('intval', DB::col('SELECT id FROM judgments WHERE run_id = ?', [$runId]));
+        if ($ids) {
+            DB::exec('DELETE FROM judgments WHERE id IN (' . DB::in($ids) . ')', $ids);
+        }
     }
 
     /** The answer check stored inside static_json so the result is visible and re-scorable. */

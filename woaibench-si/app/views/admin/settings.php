@@ -1,7 +1,7 @@
 <?php
 /** Settings: one form per section + secrets (config file) + recompute. */
 defined('WB') || exit;
-$icons = ['site' => 'globe', 'season' => 'calendar', 'judging' => 'scale', 'generation' => 'bolt', 'verification' => 'shield', 'statistics' => 'sigma', 'features' => 'sliders', 'models' => 'robot'];
+$icons = ['site' => 'globe', 'season' => 'calendar', 'judging' => 'scale', 'generation' => 'bolt', 'verification' => 'shield', 'statistics' => 'sigma', 'agents' => 'target', 'features' => 'sliders', 'models' => 'robot'];
 $field = static function (string $key, array $rule) use ($values, $errors): string {
     $id = 'st-' . $key;
     $val = $values[$key] ?? '';
@@ -39,6 +39,7 @@ echo partial('admin/_head', ['title' => __('admin.nav.settings'), 'sub' => __('a
   <?php foreach (array_keys($schema) as $sec): ?><a href="#s-<?= e($sec) ?>"><?= ui_icon($icons[$sec] ?? 'settings', 14) ?><?= _e('admin.settings.s.' . $sec) ?></a><?php endforeach; ?>
   <a href="#s-secrets"><?= ui_icon('key', 14) ?><?= _e('admin.settings.s.secrets') ?></a>
   <a href="#s-scores"><?= ui_icon('refresh', 14) ?><?= _e('admin.settings.s.scores') ?></a>
+  <?php if ($setup_tools): ?><a href="#s-upgrades"><?= ui_icon('database', 14) ?><?= _e('admin.settings.s.upgrades') ?></a><?php endif; ?>
 </nav>
 <div class="admin-settings stack-lg">
 <?php foreach ($schema as $sec => $fields): ?>
@@ -113,4 +114,28 @@ echo partial('admin/_head', ['title' => __('admin.nav.settings'), 'sub' => __('a
       <?php if (!$engine_aggregator): ?><span class="t-xs t-muted"><?= _e('admin.engine_missing', ['c' => 'WB\\Eval\\Aggregator']) ?></span><?php endif; ?>
     </form>
   </section>
+
+  <?php if ($setup_tools): ?>
+  <section class="card card-pad stack admin-upgrades" id="s-upgrades" data-upgrades data-status-url="<?= e(url('/admin/api/setup-status')) ?>" data-migrate-url="<?= e(url('/admin/api/migrate')) ?>" data-seed-url="<?= e(url('/admin/api/seed-sync')) ?>">
+    <div class="card-head split">
+      <h2 class="card-title"><?= ui_icon('database', 18) ?> <?= _e('admin.settings.s.upgrades') ?></h2>
+      <span class="badge badge-muted" data-up-badge><?= _e('admin.settings.up_checking') ?></span>
+    </div>
+    <p class="t-small t-muted"><?= _e('admin.settings.up_help') ?></p>
+    <div class="admin-grid admin-grid-2">
+      <div class="admin-up-box stack-sm">
+        <h3 class="t-small admin-subhead"><?= ui_icon('layers', 15) ?> <?= _e('admin.settings.up_schema') ?></h3>
+        <dl class="admin-dl t-small" data-up-schema><dt><?= _e('admin.settings.up_state') ?></dt><dd class="t-muted"><?= _e('admin.settings.up_checking') ?></dd></dl>
+        <div><button class="btn btn-primary btn-sm" type="button" data-up-migrate data-confirm="<?= _e('admin.settings.up_migrate_confirm') ?>"><?= ui_icon('database', 14) ?><span><?= _e('setup.admin_migrate_btn') ?></span></button></div>
+      </div>
+      <div class="admin-up-box stack-sm">
+        <h3 class="t-small admin-subhead"><?= ui_icon('list', 15) ?> <?= _e('admin.settings.up_seeds') ?></h3>
+        <dl class="admin-dl t-small" data-up-seeds><dt><?= _e('admin.settings.up_state') ?></dt><dd class="t-muted"><?= _e('admin.settings.up_checking') ?></dd></dl>
+        <label class="checkbox t-small"><input type="checkbox" data-up-update-existing> <?= _e('setup.admin_update_existing') ?></label>
+        <div><button class="btn btn-outline btn-sm" type="button" data-up-seed><?= ui_icon('refresh', 14) ?><span><?= _e('setup.admin_sync_btn') ?></span></button></div>
+      </div>
+    </div>
+    <p class="t-small admin-up-out" data-up-out role="status" aria-live="polite"></p>
+  </section>
+  <?php endif; ?>
 </div>

@@ -24,7 +24,8 @@ const BASE = opt('base', process.env.WB_TEST_BASE || 'http://127.0.0.1:8084').re
 const ONLY = new Set(String(opt('only', 'access,probe,sandbox,station,node')).split(','));
 const SHOTS = opt('shots', '');
 const ENV = { ...process.env, WB_DB_NAME: process.env.WB_DB_NAME || 'wb_verifier', WB_TEST_BASE: BASE };
-const BROWSER_ARGS = ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'];
+// Same flags as tools/verifier-node/verify.mjs (software WebGL only as a fallback, 2D keeps its real frame rate).
+const BROWSER_ARGS = ['--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
 // The Station is used in desktop Chrome/Edge, which run sandboxed frames in their own process (site isolation).
 // Test it the same way: full Chromium (new headless) with site isolation, not the stripped headless shell.
 const FULL_CHROME = process.env.WB_TEST_CHROME || ['/opt/pw-browsers/chromium'].find((p) => fs.existsSync(p)) || null;
@@ -98,7 +99,7 @@ async function phaseAccess() {
   const pub = await get(good.url);
   const csp = pub.headers.get('content-security-policy') || '';
   ok('public run renders (200)', pub.status === 200, String(pub.status));
-  ok('CSP sandbox allow-scripts (no allow-same-origin)', /sandbox allow-scripts allow-pointer-lock;/.test(csp) && !/allow-same-origin/.test(csp), csp.slice(0, 80));
+  ok('CSP sandbox allow-scripts (no allow-same-origin)', /sandbox allow-scripts allow-forms allow-pointer-lock;/.test(csp) && !/allow-same-origin/.test(csp), csp.slice(0, 80));
   ok('connect-src does not include the site itself', !/connect-src[^;]*127\.0\.0\.1/.test(csp));
   ok('frame-ancestors self, no X-Frame-Options', /frame-ancestors 'self'/.test(csp) && !pub.headers.get('x-frame-options'));
   ok('no probe without verify', !pub.body.includes('__WB_PROBE_CFG'));
@@ -108,8 +109,9 @@ async function phaseAccess() {
   ok('verify=1 with another run\'s vt → 403', (await get(good.url + '?verify=1&vt=' + S.runs['vt-broken'].vt)).status === 403);
   const v = await get(good.verify_url);
   ok('verify=1 with valid vt → 200 + probe first in <head>', v.status === 200 && v.body.startsWith('<!doctype html>\n<html lang="en">\n<head><script data-wb-probe>window.__WB_PROBE_CFG='), v.body.slice(0, 120));
-  ok('verify mode: no-store + probe.js + html2canvas (station)', /no-store/.test(v.headers.get('cache-control') || '') && v.body.includes('/assets/js/probe.js') && v.body.includes('html2canvas.min.js'));
-  ok('playwright mode skips html2canvas', !(await get(good.verify_url + '&mode=playwright')).body.includes('html2canvas'));
+  ok('verify mode: no-store + probe.js, no html2canvas (station screenshots use the probe\'s SVG path)', /no-store/.test(v.headers.get('cache-control') || '') && v.body.includes('/assets/js/probe.js') && !v.body.includes('html2canvas'));
+  ok('playwright mode: no html2canvas either', !(await get(good.verify_url + '&mode=playwright')).body.includes('html2canvas'));
+  ok('CSP sandbox allows forms, form-action stays none', /sandbox allow-scripts allow-forms allow-pointer-lock/.test(v.headers.get('content-security-policy') || '') && /form-action 'none'/.test(v.headers.get('content-security-policy') || ''));
   const hold = S.runs['vt-holdout'];
   ok('hold-out without vt → 404', (await get(hold.url)).status === 404);
   ok('hold-out with valid vt → 200', (await get(hold.url + '?vt=' + encodeURIComponent(hold.vt))).status === 200);
@@ -222,7 +224,7 @@ async function phaseSandbox(browser) {
   const before = host.url();
   const report = await host.evaluate((src) => new Promise((resolve) => {
     const f = document.createElement('iframe');
-    f.setAttribute('sandbox', 'allow-scripts allow-pointer-lock');
+    f.setAttribute('sandbox', 'allow-scripts allow-forms allow-pointer-lock');
     f.src = src;
     window.addEventListener('message', (ev) => { if (ev.source === f.contentWindow && ev.data && ev.data.type === 'sandbox-report') resolve({ r: ev.data.r, origin: ev.origin }); });
     document.body.appendChild(f);

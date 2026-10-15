@@ -59,9 +59,13 @@ These match `assets/js/harness.js` (module verifier), which documents the same c
   enforce this, so the result is the same whether a harness compares raw values or JSON.
 * **no lone surrogates in JSON** — malformed UTF-16 inputs are built inside scripts with `\uD800`
   escapes.
-* My validator gives each case a fresh `vm` context; the browser harness reuses one Worker global
-  across cases (fresh `Function` per case). This only matters for solutions that pollute globals —
-  they may fail more cases in the browser, never fewer.
+* **empty objects survive** — `{}` in `args` / `expect` reaches the browser as `{}` (the render layer
+  decodes the test suite with JSON objects preserved; PHP's associative decoding would turn it into `[]`).
+  `algo-sheet-evaluator`, `debug-invoice-totals` and `secure-settings-patch` rely on this.
+* Isolation is the same in both places: the validator gives each case a fresh `vm` context and the
+  browser harness a fresh Worker per case (after a Worker had to be terminated the next case waits
+  250 ms; an out-of-memory case is re-run once). Polluting globals therefore never leaks into the
+  next case.
 * Large inputs are generated inside scripts with an inline LCG (`Math.imul` + `>>> 0`), identical
   in every engine, so the JSON stays small (12–240 KB per pretty-printed seed file).
 

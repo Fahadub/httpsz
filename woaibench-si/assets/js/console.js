@@ -19,6 +19,10 @@
   const num = (n) => Number(n || 0).toLocaleString('en-US');
   let cfg = {};
   try { cfg = JSON.parse(cfgEl.textContent) || {}; } catch (e) { cfg = {}; }
+  // Run / judgment status names ("status.*") come with the Station strings (#vs-i18n).
+  let statusNames = {};
+  try { statusNames = JSON.parse(($('#vs-i18n') || {}).textContent || '{}') || {}; } catch (e) { statusNames = {}; }
+  const statusText = (s) => statusNames['status.' + s] || s;
 
   const FAST_DELAY = 300;
   const IDLE_MIN = 4000;
@@ -38,6 +42,7 @@
     station: $('#station'),
     stationLog: $('[data-station-log]'),
     stationStats: $('[data-station-stats]'),
+    stationState: $('[data-station-state]'),
     m: (k) => $('[data-m="' + k + '"]', root),
   };
 
@@ -121,7 +126,7 @@
     if (item.judge) parts.push(t('admin.js.c_judge_by', { j: item.judge }));
     if (item.task) parts.push(item.task);
     if (item.attempt) parts.push('#' + item.attempt);
-    if (item.status) parts.push('→ ' + item.status);
+    if (item.status) parts.push((d.dir === 'rtl' ? '← ' : '→ ') + statusText(item.status));
     if (item.score !== undefined && item.score !== null) parts.push(t('admin.js.c_score', { s: Number(item.score).toFixed(1) }));
     if (item.kind === 'aggregate' && item.ok) parts.push(t('admin.js.c_aggregate', { m: item.models || 0, r: item.runs || 0 }));
     if (item.error) parts.push('— ' + item.error);
@@ -176,6 +181,7 @@
     wrap.setAttribute('data-campaign', p.id);
     const top = el('div', 'admin-progress-top');
     const name = el('a', 'admin-progress-name', p.name);
+    name.dir = 'auto';
     name.href = (cfg.campaignUrl || '') + p.id;
     top.appendChild(name);
     top.appendChild(el('span', 'badge ' + (p.status === 'running' ? 'badge-blue' : 'badge-gold'), statusLabel(p.status)));
@@ -363,11 +369,23 @@
           if (placeholder) placeholder.remove();
           const li = el('li', entry.level === 'error' || entry.level === 'warn' ? 'is-fail' : '');
           li.appendChild(el('span', 'admin-log-time', entry.time && entry.time.toLocaleTimeString ? entry.time.toLocaleTimeString('en-GB', { hour12: false }) : clock()));
-          li.appendChild(el('span', 'admin-log-kind', entry.level || 'info'));
+          const lv = entry.level || 'info';
+          const lvLabel = t('admin.js.lv_' + lv);
+          li.appendChild(el('span', 'admin-log-kind', lvLabel === 'admin.js.lv_' + lv ? lv : lvLabel));
           li.appendChild(el('span', 'admin-log-text', entry.msg || ''));
           li.appendChild(el('span', 'admin-log-meta', ''));
           ui.stationLog.insertBefore(li, ui.stationLog.firstChild);
           while (ui.stationLog.children.length > 150) ui.stationLog.removeChild(ui.stationLog.lastChild);
+        },
+        onState: (name) => {
+          const badge = ui.stationState;
+          if (!badge) return;
+          const variant = { running: 'green', paused: 'gold', stopping: 'blue' }[name];
+          badge.hidden = !variant;
+          if (!variant) return;
+          badge.className = 'badge badge-' + variant;
+          badge.textContent = t('admin.js.vs_state_' + name);
+          if (name === 'paused') log(t('admin.js.k_station'), t('admin.js.c_station_paused'), { sys: true });
         },
         onStats: (s) => {
           if (!s) return;

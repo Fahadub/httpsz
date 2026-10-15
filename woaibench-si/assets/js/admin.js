@@ -370,6 +370,9 @@
         bar.appendChild(fill);
         row.appendChild(bar);
         wrap.appendChild(row);
+        // Judge guidance is private (never shown publicly); the admin preview shows it, Arabic when available.
+        const guide = (ar && typeof c.guide_ar === 'string' && c.guide_ar) || (typeof c.guide === 'string' ? c.guide : '');
+        if (guide) wrap.appendChild(el('p', 'admin-weight-guide', guide));
       });
       sec.appendChild(wrap);
       box.appendChild(sec);
@@ -588,5 +591,68 @@
     });
     if (kind) kind.addEventListener('change', () => $$('[data-preset]').forEach((b) => b.setAttribute('aria-pressed', b.getAttribute('data-preset') === kind.value ? 'true' : 'false')));
     $$('[data-preset]').forEach((b) => b.setAttribute('aria-pressed', b.getAttribute('data-preset') === (kind ? kind.value : '') ? 'true' : 'false'));
+  }
+  /* ------------------------------------------------------------------ settings: database & seed upgrades */
+  const up = $('[data-upgrades]');
+  if (up) {
+    const badge = $('[data-up-badge]', up);
+    const out = $('[data-up-out]', up);
+    const schemaDl = $('[data-up-schema]', up);
+    const seedDl = $('[data-up-seeds]', up);
+    const btnMigrate = $('[data-up-migrate]', up);
+    const btnSeed = $('[data-up-seed]', up);
+    const updateExisting = $('[data-up-update-existing]', up);
+    const fill = (dl, rows) => {
+      dl.textContent = '';
+      rows.forEach(([k, v, cls]) => {
+        dl.appendChild(el('dt', '', k));
+        const dd = el('dd', cls || '', v);
+        dl.appendChild(dd);
+      });
+    };
+    const counts = (o) => t('admin.js.up_counts', { i: (o && o.inserted) || 0, u: (o && o.updated) || 0, s: (o && o.skipped) || 0, n: (o && o.unchanged) || 0 });
+    const setBadge = (variant, text) => { badge.className = 'badge badge-' + variant; badge.textContent = text; };
+    const say = (msg, ok) => { out.textContent = msg || ''; out.className = 't-small admin-up-out ' + (ok ? 't-green' : 't-red'); };
+    async function refresh() {
+      let res = null;
+      try {
+        const r = await fetch(up.getAttribute('data-status-url'), { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+        res = await r.json();
+      } catch (e) { res = null; }
+      if (!res || !res.ok) { setBadge('red', t('admin.js.up_error')); say((res && res.error) || t('js.error'), false); return; }
+      const sc = res.schema || {};
+      const sv = sc.schema_version || {};
+      const pending = Array.isArray(sc.pending) ? sc.pending : [];
+      setBadge(sc.needs_upgrade ? 'gold' : 'green', t(sc.needs_upgrade ? 'admin.js.up_needed' : 'admin.js.up_ok'));
+      fill(schemaDl, [
+        [t('admin.js.up_app'), (sc.app_version || '—') + (sv.app && sv.app !== sc.app_version ? ' ← ' + sv.app : ''), 't-mono'],
+        [t('admin.js.up_applied'), String(Array.isArray(sv.migrations) ? sv.migrations.length : 0), 't-num'],
+        [t('admin.js.up_pending'), pending.length ? pending.join(', ') : t('admin.js.up_none'), pending.length ? 't-mono t-gold' : 't-muted'],
+        [t('admin.js.up_schema_files'), t(sc.schema_changed ? 'admin.js.up_changed' : 'admin.js.up_same'), sc.schema_changed ? 't-gold' : 't-muted'],
+        [t('admin.js.up_last'), sv.applied_at || '—', 't-mono t-xs'],
+      ]);
+      const sd = res.seed || {};
+      fill(seedDl, [
+        [t('admin.js.up_tracks'), counts(sd.tracks), 't-xs'],
+        [t('admin.js.up_tasks'), counts(sd.tasks), 't-xs'],
+        [t('admin.js.up_gpus'), counts(sd.gpus), 't-xs'],
+      ]);
+      if (btnMigrate) btnMigrate.classList.toggle('btn-primary', !!sc.needs_upgrade);
+      if (btnMigrate) btnMigrate.classList.toggle('btn-outline', !sc.needs_upgrade);
+    }
+    async function run(btn, url, body) {
+      btn.disabled = true;
+      btn.classList.add('is-busy');
+      say(t('admin.js.up_running'), true);
+      const res = await post(url, body);
+      btn.disabled = false;
+      btn.classList.remove('is-busy');
+      say(res.ok ? (res.message || t('admin.js.up_done')) : (res.error || t('js.error')), !!res.ok);
+      if (res.ok) toast(res.message || '', 'success');
+      refresh();
+    }
+    if (btnMigrate) btnMigrate.addEventListener('click', () => run(btnMigrate, up.getAttribute('data-migrate-url'), {}));
+    if (btnSeed) btnSeed.addEventListener('click', () => run(btnSeed, up.getAttribute('data-seed-url'), { update_existing: !!(updateExisting && updateExisting.checked) }));
+    refresh();
   }
 })();

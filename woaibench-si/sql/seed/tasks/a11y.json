@@ -450,6 +450,7 @@
           "keys": [
             "ArrowDown"
           ],
+          "sel": "input[role=\"combobox\"]",
           "weight": 2,
           "label_en": "ArrowDown in the focused combobox opens the list",
           "label_ar": "السهم السفلي يفتح القائمة"

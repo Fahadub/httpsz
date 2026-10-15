@@ -204,16 +204,19 @@ final class Campaign
         return (float) DB::val('SELECT COALESCE(SUM(spent_cost), 0) FROM campaigns');
     }
 
-    /** Recompute campaigns.spent_cost from stored generation + judging costs (exact, no rounding drift). */
+    /**
+     * Recompute campaigns.spent_cost from stored generation + judging costs (exact, no rounding drift).
+     * The sums are read with a plain (non-locking) SELECT first: a subquery inside the UPDATE would take
+     * shared locks on every run of the campaign and block / deadlock the workers that are updating them.
+     */
     public static function refreshSpent(int $id): void
     {
-        DB::exec(
-            'UPDATE campaigns SET spent_cost = ROUND(
-                (SELECT COALESCE(SUM(r.cost_usd), 0) FROM runs r WHERE r.campaign_id = ?)
-              + (SELECT COALESCE(SUM(j.cost_usd), 0) FROM judgments j JOIN runs r2 ON r2.id = j.run_id WHERE r2.campaign_id = ?), 4)
-              WHERE id = ?',
-            [$id, $id, $id]
+        $sum = (float) DB::val(
+            'SELECT (SELECT COALESCE(SUM(r.cost_usd), 0) FROM runs r WHERE r.campaign_id = ?)
+                  + (SELECT COALESCE(SUM(j.cost_usd), 0) FROM judgments j JOIN runs r2 ON r2.id = j.run_id WHERE r2.campaign_id = ?)',
+            [$id, $id]
         );
+        Lease::retrying(static fn(): int => DB::exec('UPDATE campaigns SET spent_cost = ? WHERE id = ?', [round($sum, 4), $id]));
     }
 
     public static function pause(int $id): bool

@@ -181,7 +181,7 @@ return [
     'tools.advjs_all_zero' => 'كل الأوزان صفر، لذلك يظهر التصنيف الإجمالي.',
     'tools.advjs_strengths' => 'الأقوى فيما يهمّك أكثر: :list.',
     'tools.advjs_cost_line' => 'متوسط تكلفته :c لكل مهمة، و:l لكل إجابة.',
-    'tools.advjs_overall' => 'المركز #:r في لوحة الصدارة العامة.',
+    'tools.advjs_overall' => 'المركز ‎#:r في لوحة الصدارة العامة.',
     'tools.advjs_ties' => 'متعادل إحصائيًا مع :list — الفارق ضمن هامش الخطأ.',
     'tools.advjs_no_ties' => 'لا يقع أي نموذج آخر ضمن هامش الخطأ: صدارة واضحة.',
     'tools.advjs_value' => 'خيار القيمة: :m يحقق :s بتكلفة :c لكل مهمة (مقابل :tc).',

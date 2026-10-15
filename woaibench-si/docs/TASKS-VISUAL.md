@@ -14,17 +14,22 @@ All brands, places and datasets are fictional or synthetic; nothing here is real
   cdn.jsdelivr.net / unpkg.com / cdnjs.cloudflare.com / esm.sh, raw WebGL equally valid), works at
   1280×800 and 390×844, no console errors.
 * **The sandbox is part of the contract.** Prompts state that storage, `alert()` and form submission are
-  unavailable in the opaque-origin iframe. Chromium never fires `submit` in a frame without
-  `allow-forms`, so form-based UIs must use button handlers + Enter — references do exactly that.
+  unavailable in the opaque-origin iframe. The render CSP now grants `allow-forms` (so `submit` handlers
+  run, e.g. client-side validation) while `form-action 'none'` still blocks every real submission; the
+  prompts keep recommending button handlers + Enter, which work in every embedding — references do that.
 * **Graded where it is rendered.** 3D prompts warn that grading may run on software WebGL; references
   pick MSAA only on real GPUs, use dynamic resolution, culling or particle budgets, and hold ≥ 20 fps
   in headless SwiftShader. fps thresholds are 20 for 3D and 50 for 2D games/animation (fps weight 0.5:
   a blank page also runs at 60 fps, so it is a weak signal).
-* **Headless flags matter.** `--use-angle=swiftshader` (currently set by tools/verifier-node) routes all
-  compositing through SwiftShader and drops plain canvas/SVG pages from 60 to ~18 fps, so every 2D fps
-  check fails for every model. With only `--enable-unsafe-swiftshader --ignore-gpu-blocklist`, WebGL still
-  works (SwiftShader fallback) and 2D pages run at 60 fps. The validator uses the latter by default;
-  `--angle-swiftshader` reproduces the verifier's current flags.
+* **Headless flags matter.** `--use-angle=swiftshader` routes all compositing through SwiftShader and
+  drops plain canvas/SVG pages from 60 to ~18 fps, so every 2D fps check would fail for every model.
+  tools/verifier-node therefore uses only `--enable-unsafe-swiftshader --ignore-gpu-blocklist` (WebGL still
+  works through the SwiftShader fallback, 2D pages run at 60 fps — measured: walk-cycle 18 → 60 fps,
+  tower-defense 49 → 60 fps, galaxy 27 → 49 fps); the validator uses the same flags, and
+  `--angle-swiftshader` reproduces the old ones.
+* **Keyboard checks name their target** when the prompt fixes one: `{"type":"keyboard","keys":[…],"sel":"#well"}`
+  focuses that element and sends the keys to it (falling-blocks `#well`, tile-platformer `#game`, combobox
+  `input[role="combobox"]`, command palette `body` so "/" never starts inside a text field).
 * **Weights:** "free" checks (loads, parses, single file, size) are light; task-specific checks carry the
   weight, so the trivial page `<html><body>Hello</body></html>` stays under ~35 auto points
   (before the 0.5 render-fail factor).

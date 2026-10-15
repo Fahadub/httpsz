@@ -19,10 +19,15 @@ contributors. **If you only need the emergency steps, jump to [§9 A key or pass
 Model outputs are arbitrary HTML/JS written by third-party models — treat them exactly like attacker input.
 
 - **Never inlined into site pages.** On pages they appear only escaped (`e()`), or rendered through
-  `/render/{id}` inside `<iframe sandbox="allow-scripts">` **without** `allow-same-origin`.
-- `/render/*` and `/arena/frame/*` send `Http::sandboxHeaders()`: a CSP with the `sandbox` directive, so even when
-  opened directly (not in an iframe) the document gets an **opaque origin** — it cannot read our cookies, call our
-  APIs with credentials, or submit forms (`form-action 'none'`). Network access is limited to a short CDN allow-list.
+  `/render/{id}` inside `<iframe sandbox="allow-scripts …">` **without** `allow-same-origin`.
+- `/render/*` and `/arena/frame/*` send `Http::sandboxHeaders()`: a CSP with the `sandbox allow-scripts allow-forms
+  allow-pointer-lock` directive, so even when opened directly (not in an iframe) the document gets an **opaque
+  origin** — it cannot read our cookies or call our APIs with credentials. `allow-forms` only lets the page's own
+  `submit` handlers run (client-side validation); `form-action 'none'` still blocks every real submission.
+  Network access is limited to a short CDN allow-list.
+- Verifier submissions are untrusted too: results are matched against the task's own check definitions (unknown
+  checks dropped, sizes capped, metrics whitelisted), bodies are capped at 12 MB, and malformed UTF-16 in a body is
+  repaired instead of crashing the request.
 - The verifier receives a short-lived HMAC token (`vt`, 15 minutes) bound to the run and its lease; hold-out outputs
   need an admin session or a valid token.
 - Screenshots posted by verifiers are decoded and re-validated as images (size-capped) before they are written to

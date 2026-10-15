@@ -46,7 +46,10 @@ $cfg = [
   <section class="card admin-station-card">
     <div class="card-head card-pad">
       <h2 class="card-title"><?= ui_icon('shield', 18) ?> <?= _e('admin.nav.verify') ?></h2>
-      <span class="t-xs t-muted" data-station-stats></span>
+      <div class="cluster admin-station-meta">
+        <span class="t-xs t-muted t-num" data-station-stats></span>
+        <span class="badge badge-muted" data-station-state hidden></span>
+      </div>
     </div>
     <div class="admin-station" id="station">
       <?php if ($verifier_js): ?>
@@ -96,3 +99,4 @@ $cfg = [
   </section>
 </div>
 <script type="application/json" id="console-cfg"><?= js_json($cfg) ?></script>
+<?php if ($verifier_js): ?><script type="application/json" id="vs-i18n"><?= js_json(I18n::forJs(['verifier.js.', 'status.'])) ?></script><?php endif; ?>

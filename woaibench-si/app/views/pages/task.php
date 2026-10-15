@@ -64,7 +64,7 @@ $groupIcon = ['static' => 'list', 'browser' => 'eye', 'tests' => 'check', 'answe
                 <td><?= ui_rank($i + 1) ?></td>
                 <td><?= ui_model_chip($r) ?></td>
                 <td class="pub-result-score">
-                  <span class="score score-sm"><span class="t-num"><?= e(fmt_score($r['mean_score'])) ?></span><?php if ($r['sd'] !== null): ?><span class="score-ci t-num" data-tip="<?= _e('pub.sd_tip') ?> · <?= _e('pub.range') ?> <?= e(fmt_score($r['min_score']) . '–' . fmt_score($r['max_score'])) ?>">±<?= e(fmt_score($r['sd'])) ?></span><?php endif; ?></span>
+                  <span class="score score-sm"><span class="t-num"><?= e(fmt_score($r['mean_score'])) ?></span><?php if ($r['sd'] !== null): ?><span class="score-ci t-num" data-tip="<?= _e('pub.sd_tip') ?> · <?= _e('pub.range') ?> <?= e("\u{2066}" . fmt_score($r['min_score']) . '–' . fmt_score($r['max_score']) . "\u{2069}") ?>">±<?= e(fmt_score($r['sd'])) ?></span><?php endif; ?></span>
                   <?= ui_scorebar($r['mean_score']) ?>
                 </td>
                 <td class="num t-num"><?= (int) $r['attempts'] ?></td>
@@ -91,7 +91,7 @@ $groupIcon = ['static' => 'list', 'browser' => 'eye', 'tests' => 'check', 'answe
       <?php endif; ?>
     </div>
 
-    <aside class="stack pub-task-aside">
+    <div class="stack pub-task-aside">
       <div class="card card-pad stack-sm">
         <h2 class="card-title"><?= ui_icon('scale', 18) ?> <?= _e('pub.task.scoring') ?></h2>
         <div class="pub-formula" role="img" aria-label="<?= _e('pub.task.formula_aria', ['a' => fmt_num($auto_weight * 100), 'j' => fmt_num((1 - $auto_weight) * 100)]) ?>">
@@ -112,10 +112,10 @@ $groupIcon = ['static' => 'list', 'browser' => 'eye', 'tests' => 'check', 'answe
             <li>
               <div class="split"><span class="pub-rubric-label"><?= e($c['label']) ?></span><span class="t-num t-small t-muted" data-tip="<?= _e('pub.task.weight_tip', ['w' => fmt_num($c['weight'], 1)]) ?>"><?= e(fmt_num($c['pct'])) ?>%</span></div>
               <span class="progress"><span class="progress-bar" style="width:<?= e(number_format($c['pct'], 2, '.', '')) ?>%"></span></span>
-              <?php if ($c['guide'] !== ''): ?><p class="t-xs t-muted"><?= e($c['guide']) ?></p><?php endif; ?>
             </li>
           <?php endforeach; ?>
         </ul>
+        <p class="t-xs t-muted pub-private-note"><?= ui_icon('lock', 13) ?> <span><?= _e('pub.task.guide_private') ?></span></p>
       </div>
       <?php endif; ?>
 
@@ -128,7 +128,7 @@ $groupIcon = ['static' => 'list', 'browser' => 'eye', 'tests' => 'check', 'answe
               <?= ui_icon($groupIcon[$c['group']] ?? 'check', 14) ?>
               <span class="pub-check-label"><?php
                 if ($c['group'] === 'tests') { echo _e('pub.task.tests_n', ['n' => $c['count']]); }
-                elseif ($c['group'] === 'answer') { echo _e('pub.task.answer_check', ['type' => $c['type']]); }
+                elseif ($c['group'] === 'answer') { echo _e('pub.task.answer_check', ['type' => I18n::has('pub.answer_type.' . $c['type']) ? __('pub.answer_type.' . $c['type']) : $c['type']]); }
                 elseif ($c['group'] === 'agent') { echo _e('pub.task.agent_goals', ['n' => $c['count']]); }
                 else { echo e($c['label']); }
               ?></span>
@@ -138,6 +138,6 @@ $groupIcon = ['static' => 'list', 'browser' => 'eye', 'tests' => 'check', 'answe
         </ul>
       </div>
       <?php endif; ?>
-    </aside>
+    </div>
   </div>
 </section>

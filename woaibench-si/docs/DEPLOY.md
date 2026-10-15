@@ -128,6 +128,17 @@ post_max_size = 32M
 6. أبقِ **وحدة التحكم** مفتوحة أو اعتمد على الـ Cron؛ وشغّل محطة التحقق أو المتحقق الآلي للفحوص في المتصفح.
 7. بعد اكتمال التغطية تظهر النتائج في لوحة الصدارة مع فواصل الثقة.
 
+#### مهام الاختبار المحجوبة (Hold-out)
+
+المستودع **عام**، لذلك كل المهام المضمَّنة في `sql/seed/tasks/` عامة عمدًا (افترض أن النماذج ربما رأتها
+أثناء تدريبها). مهام الاختبار المحجوبة تُنشأ **داخل لوحة الإدارة فقط**: عبر **مصنع المهام (Task Forge)**
+(مسودة ← مراجعة ← تفعيل كمهمة محجوبة) أو عبر محرّر المهام مع ضبط الظهور على «محجوبة».
+
+- لا تُضِفها إلى `sql/seed/` ولا تلتزم بها (commit) في أي مستودع، ولا تنشر نصوصها في أي مكان عام.
+- تبقى في قاعدة بياناتك وحدها؛ لذا اشمل قاعدة البيانات في النسخ الاحتياطي. مزامنة البذور لا تحذفها ولا تعدّلها.
+- الموقع العام يعرض عددها فقط، ولا يعرض نصوصها ولا مخرجاتها، وتُفتح للمتحقق برمز مؤقت فقط.
+- جدّدها كل موسم، وأوقف المهمة التي يُشتبه في تسرّبها.
+
 ### 9. ضبط التكاليف
 
 - اضبط **سقف رصيد** على مفتاح OpenRouter نفسه؛ هذا هو صمّام الأمان الأهم.
@@ -302,6 +313,17 @@ execution-time limit.
 5. **Campaigns → New**: choose models, tasks and attempts, review the **cost estimate**, start.
 6. Keep **Console** open or rely on cron; run the Verification Station or the headless verifier for browser checks.
 7. Once coverage is complete, scores appear on the leaderboard with confidence intervals.
+
+#### Hold-out tasks
+
+The repository is **public**, so every task shipped in `sql/seed/tasks/` is deliberately public (assume models
+may have seen it during training). Hold-out tasks are created **only inside the admin panel**: with the
+**Task Forge** (draft → review → activate as hold-out) or with the task editor, visibility *Hold-out*.
+
+- Never add them to `sql/seed/`, never commit them to any repository, never post their prompts anywhere public.
+- They live only in your database, so include the database in your backups. Seed sync never deletes or edits them.
+- The public site shows how many exist, never their prompts or outputs; verifiers open them with a short-lived token only.
+- Refresh them every season and deactivate any task you suspect has leaked.
 
 ### 9. Cost control
 

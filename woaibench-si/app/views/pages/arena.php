@@ -83,7 +83,7 @@ $buttons = [
             </span>
           </header>
           <div class="render-frame arn-frame">
-            <iframe title="<?= _e('arena.output_label', ['x' => $letter]) ?>" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="eager"<?= $pair ? ' src="' . e($pair['frames'][$side]) . '"' : '' ?>></iframe>
+            <iframe title="<?= _e('arena.output_label', ['x' => $letter]) ?>" sandbox="allow-scripts allow-forms allow-pointer-lock" referrerpolicy="no-referrer" loading="eager"<?= $pair ? ' src="' . e($pair['frames'][$side]) . '"' : '' ?>></iframe>
             <div class="arn-crown" aria-hidden="true"><?= ui_icon('crown', 22) ?></div>
           </div>
         </article>

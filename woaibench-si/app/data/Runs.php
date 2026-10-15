@@ -135,8 +135,18 @@ final class Runs
         if (isset($static['checks']) && is_array($static['checks'])) {
             $static = $static['checks'];
         }
+        $static = array_is_list($static) ? $static : [];
+        foreach ($static as &$c) {
+            // Answer checks are shown as the answer panel; their detail ("expected 42 ± 0.1", "missing: …")
+            // would reveal the expected answer, so the public page never shows it.
+            if (is_array($c) && ($c['type'] ?? '') === 'answer') {
+                $c['detail'] = '';
+                unset($c['expected'], $c['got']);
+            }
+        }
+        unset($c);
         return [
-            'static' => self::checkRows(array_is_list($static) ? $static : [], self::labelMap($def['static'] ?? [])),
+            'static' => self::checkRows($static, self::labelMap($def['static'] ?? [])),
             'browser' => self::checkRows((array) ($browser['checks'] ?? []), self::labelMap($def['browser'] ?? [])),
             'tests' => self::testRows((array) ($browser['tests'] ?? [])),
             'errors' => array_values(array_filter(array_map(static fn($e) => is_scalar($e) ? (string) $e : \to_json($e), (array) ($browser['errors'] ?? [])), static fn($s) => $s !== '')),
@@ -197,7 +207,11 @@ final class Runs
         return $out;
     }
 
-    /** The model's final answer for answer tasks: ['given' => ?string, 'expected' => mixed, 'type' => string, 'pass' => ?bool]. */
+    /**
+     * The model's final answer for answer tasks: ['given' => ?string, 'type' => string, 'pass' => ?bool].
+     * The expected answer is deliberately not returned (it would contaminate the task); admin views read
+     * checks_json themselves.
+     */
     public static function answer(array $run): array
     {
         $raw = (string) ($run['raw_output'] ?? '');
@@ -207,38 +221,176 @@ final class Runs
         }
         $spec = \json_arr($run['checks_json'] ?? null)['answer'] ?? [];
         $spec = is_array($spec) ? $spec : [];
-        $expected = $spec['value'] ?? ($spec['values'] ?? ($spec['pattern'] ?? null));
         return [
             'given' => $given,
-            'expected' => $expected,
             'type' => (string) ($spec['type'] ?? 'exact'),
-            'tolerance' => $spec['tolerance'] ?? null,
             'pass' => $run['auto_score'] !== null ? (float) $run['auto_score'] >= 99.5 : null,
         ];
     }
 
     /**
-     * Agent transcript normalised to steps: [['kind' => 'tool'|'message'|'note', 'tool','args','result','text','error']]
-     * plus 'final' (answer) and 'goals' (goal-check results) when the engine stored them.
+     * Agent episode (runs.agent_json = WB\Eval\AgentSim result) normalised for display:
+     *   steps:  [['kind' => 'tool', 'step', 'tool', 'args', 'result', 'error'] | ['kind' => 'message'|'note', 'role', 'text']]
+     *   intro:  [['role' => 'system'|'user', 'text']]  (instructions the agent received)
+     *   final, goals (see goals()), meta: ['turns','steps','end_reason','protocol','error'], raw (fallback text).
      */
     public static function transcript(array $run): array
     {
         $data = \json_arr($run['agent_json'] ?? null);
-        $list = array_is_list($data) ? $data : ($data['steps'] ?? $data['transcript'] ?? $data['messages'] ?? []);
+        $list = $data['transcript'] ?? (array_is_list($data) ? $data : ($data['messages'] ?? []));
+        $list = is_array($list) ? array_values(array_filter($list, 'is_array')) : [];
+        // Tool executions are recorded as role "tool" entries (name, args, result). When they exist they are
+        // the source of truth and the assistant's tool_calls (the same calls) are not repeated.
+        $hasToolEntries = (bool) array_filter($list, static fn($s) => ($s['role'] ?? '') === 'tool' && isset($s['name']));
         $steps = [];
-        foreach ((array) $list as $s) {
-            if (is_array($s)) {
-                array_push($steps, ...self::stepItems($s));
+        $intro = [];
+        foreach ($list as $s) {
+            $role = (string) ($s['role'] ?? '');
+            if ($role === 'system' || $role === 'user') {
+                $text = self::text($s['content'] ?? '');
+                if ($text !== '') {
+                    $intro[] = ['role' => $role, 'text' => $text];
+                }
+                continue;
             }
+            if ($role === 'tool' && $hasToolEntries) {
+                $ok = !array_key_exists('ok', $s) || !empty($s['ok']);
+                $result = self::text($s['result'] ?? $s['content'] ?? '');
+                $steps[] = [
+                    'kind' => 'tool', 'step' => isset($s['step']) && is_numeric($s['step']) ? (int) $s['step'] : null,
+                    'tool' => (string) ($s['name'] ?? '?'), 'args' => self::pretty(self::text($s['args'] ?? null)),
+                    'result' => $ok ? self::pretty($result) : '', 'error' => $ok ? self::text($s['error'] ?? '') : ($result !== '' ? $result : 'error'),
+                ];
+                continue;
+            }
+            if ($role === 'assistant' && $hasToolEntries) {
+                // JSON text protocol: the fenced {"tool":…} block is shown as the tool card instead.
+                $text = trim((string) preg_replace('/```(?:json)?\s*\{.*?\}\s*```/s', '', self::text($s['content'] ?? '')));
+                if ($text !== '') {
+                    $steps[] = ['kind' => 'message', 'role' => 'assistant', 'text' => $text];
+                }
+                continue;
+            }
+            array_push($steps, ...self::stepItems($s));
         }
         $final = $data['final_answer'] ?? $data['answer'] ?? $data['final'] ?? null;
-        $goals = $data['goal_checks'] ?? $data['goals'] ?? $data['checks'] ?? [];
         return [
             'steps' => $steps,
+            'intro' => $intro,
             'final' => is_scalar($final) ? (string) $final : ($final !== null ? \to_json($final) : null),
-            'goals' => array_values(array_filter((array) $goals, 'is_array')),
-            'raw' => $steps ? '' : (string) ($run['agent_json'] ?? ''),
+            'goals' => self::goals($run),
+            'meta' => [
+                'turns' => isset($data['turns']) && is_numeric($data['turns']) ? (int) $data['turns'] : null,
+                'steps' => isset($data['steps']) && is_numeric($data['steps']) ? (int) $data['steps'] : null,
+                'end_reason' => is_string($data['end_reason'] ?? null) ? $data['end_reason'] : '',
+                'protocol' => is_string($data['protocol'] ?? null) ? $data['protocol'] : '',
+                'error' => is_string($data['error'] ?? null) ? $data['error'] : '',
+                // Safety-critical goal failed → the episode score is capped (setting agent_critical_cap).
+                'capped' => !empty($data['critical_failed']) && isset($data['auto_score_uncapped'], $data['auto_score'])
+                    && (float) $data['auto_score_uncapped'] > (float) $data['auto_score'],
+                'uncapped' => isset($data['auto_score_uncapped']) && is_numeric($data['auto_score_uncapped']) ? (float) $data['auto_score_uncapped'] : null,
+            ],
+            'raw' => $steps ? '' : (is_string($data['raw_output'] ?? null) ? $data['raw_output'] : ''),
         ];
+    }
+
+    /**
+     * Agent goal checks: [['label','type','pass','score','weight','constraint','detail']].
+     * $public hides the detail of failed goals — it can state the expected value ("answer does not state 42").
+     */
+    public static function goals(array $run, bool $public = true): array
+    {
+        $data = \json_arr($run['agent_json'] ?? null);
+        $list = $data['goal_results'] ?? $data['goal_checks'] ?? $data['goals'] ?? [];
+        $out = [];
+        foreach (is_array($list) ? $list : [] as $g) {
+            if (!is_array($g)) {
+                continue;
+            }
+            $pass = !empty($g['pass']);
+            $detail = is_scalar($g['detail'] ?? null) ? (string) $g['detail'] : '';
+            $out[] = [
+                'label' => \L($g, 'label') ?: (string) ($g['type'] ?? '?'),
+                'type' => (string) ($g['type'] ?? ''),
+                'pass' => $pass,
+                'score' => isset($g['score']) && is_numeric($g['score']) ? \clamp((float) $g['score'], 0, 1) : ($pass ? 1.0 : 0.0),
+                'weight' => isset($g['weight']) && is_numeric($g['weight']) ? (float) $g['weight'] : 1.0,
+                'constraint' => !empty($g['constraint']),
+                'critical' => !empty($g['critical']),
+                'detail' => $public && !$pass ? '' : mb_substr($detail, 0, 400),
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Readable form of a JSON tool payload: pretty-printed; a long "content" field (file text) is shown
+     * as plain text below the other fields. Anything that is not JSON is returned unchanged.
+     */
+    private static function pretty(string $text): string
+    {
+        $t = trim($text);
+        if ($t === '' || strlen($t) > 300000 || ($t[0] !== '{' && $t[0] !== '[')) {
+            return $text;
+        }
+        $data = json_decode($t, true);
+        if (!is_array($data)) {
+            return $text;
+        }
+        $flags = JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION;
+        $content = null;
+        if (!array_is_list($data) && is_string($data['content'] ?? null) && mb_strlen($data['content']) > 80) {
+            $content = $data['content'];
+            unset($data['content']);
+        }
+        $out = $data === [] ? '' : (string) json_encode($data, $flags);
+        return $content === null ? $out : ltrim($out . "\n\n" . $content);
+    }
+
+    /** Text of a message content / tool payload (string, OpenAI content parts or JSON). */
+    private static function text(mixed $v): string
+    {
+        if ($v === null) {
+            return '';
+        }
+        if (is_string($v)) {
+            return $v;
+        }
+        if (is_array($v) && array_is_list($v)) {
+            $parts = [];
+            foreach ($v as $p) {
+                if (is_array($p) && is_string($p['text'] ?? null)) {
+                    $parts[] = $p['text'];
+                } elseif (is_string($p)) {
+                    $parts[] = $p;
+                }
+            }
+            if ($parts) {
+                return implode("\n", $parts);
+            }
+        }
+        return is_scalar($v) ? (string) $v : \to_json($v);
+    }
+
+    /** Engine notes of a run translated for display: [['code','text']] (never shown as errors). */
+    public static function notes(array $run): array
+    {
+        if (!class_exists('WB\\Eval\\Pipeline')) {
+            return [];
+        }
+        $out = [];
+        foreach (\WB\Eval\Pipeline::notes($run) as $n) {
+            $code = (string) ($n['code'] ?? '');
+            if ($code === '') {
+                continue;
+            }
+            // Engine details are English: isolate them (FSI … PDI) so they keep their order in Arabic text.
+            if (isset($n['detail']) && is_scalar($n['detail']) && (string) $n['detail'] !== '') {
+                $n['detail'] = "\u{2068}" . $n['detail'] . "\u{2069}";
+            }
+            $out[] = ['code' => $code, 'text' => \WB\Eval\Pipeline::noteText($n)];
+        }
+        return $out;
     }
 
     /** One transcript entry → display items (an OpenAI-style message may carry several tool calls). */

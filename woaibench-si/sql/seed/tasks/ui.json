@@ -803,6 +803,7 @@
           "keys": [
             "/"
           ],
+          "sel": "body",
           "weight": 3,
           "label_en": "\"/\" opens the palette",
           "label_ar": "مفتاح «/» يفتح لوحة الأوامر"

@@ -1,12 +1,20 @@
 /*!
  * WOAIBench.si Verification Station (module: verifier).
  * Runs on a same-origin admin page. Claims runs from the verifier API, loads each output in a
- * sandboxed iframe per viewport (allow-scripts allow-pointer-lock, never allow-same-origin), collects
- * the probe result + an html2canvas screenshot over postMessage and submits them.
+ * sandboxed iframe per viewport (allow-scripts allow-forms allow-pointer-lock, never allow-same-origin), collects
+ * the probe result + an in-frame screenshot (probe.js: DOM → SVG foreignObject → canvas) over postMessage and submits them.
  *
- *   WBVerifier.start(containerEl, {concurrency: 2, onLog(entry), onStats(stats)})
+ *   WBVerifier.start(containerEl, {concurrency: 2, onLog(entry), onStats(stats), onState(name)})
  *   WBVerifier.stop()            graceful: in-flight runs finish, nothing new is claimed
  *   WBVerifier.setConcurrency(n) WBVerifier.running (bool) WBVerifier.stats()
+ *   onState names: idle · running · paused (tab hidden / station not rendered) · stopping
+ *
+ * Every claim spends one of the run's verify tries, so the Station only claims while it can actually
+ * show the live frame (document visible, container rendered). The live frame docks into a fixed
+ * corner viewer whenever its lane is scrolled out of view (browsers throttle off-screen frames), a
+ * viewport measured while the tab was hidden is re-measured locally instead of being released, and a
+ * renderer out-of-memory / crashed test worker is released as an infrastructure problem after the
+ * sandbox process has been recycled.
  *
  * Without onLog/onStats callbacks a compact stats bar + log is rendered inside the container
  * (used when the Station is embedded in the admin Console).
@@ -25,6 +33,10 @@
   var HELLO_TIMEOUT = 20000;
   var SHOT_TIMEOUT = 12000;
   var TIMING_TYPES = { animates: 1, fps: 1, keyboard: 1, click: 1 };
+  var REDO_MAX = 2;          // local re-measurements of a viewport that ran while hidden / off-screen
+  var OOM_COOLDOWN = 6000;   // let the browser tear down the sandbox renderer after a memory failure
+  // Renderer / worker failures that say nothing about the model's code (shared sandbox process).
+  var INFRA_RE = /array buffer allocation failed|out of memory|allocation failed|oom[ -]?kill|worker error: crashed|renderer (?:process )?(?:crashed|gone)/i;
 
   /* ------------------------------------------------------------ strings */
   var FALLBACK = {
@@ -40,7 +52,11 @@
     'verifier.js.log_stopping': 'Stopping after the current runs…', 'verifier.js.log_stopped': 'Station stopped',
     'verifier.js.log_auth': 'Not authorised — sign in again', 'verifier.js.processed': 'Processed',
     'verifier.js.pass_rate': 'Checks passed', 'verifier.js.avg_time': 'Avg time', 'verifier.js.released_n': 'Released',
-    'verifier.js.slot': 'Slot', 'verifier.js.frame_title': 'Sandboxed preview of run :id (:vp)'
+    'verifier.js.slot': 'Slot', 'verifier.js.frame_title': 'Sandboxed preview of run :id (:vp)',
+    'verifier.js.log_resumed': 'Station visible again — claiming resumed',
+    'verifier.js.log_redo': 'Run #:id (:vp) — measured while hidden or off-screen, measuring again',
+    'verifier.js.log_oom': 'Run #:id — browser memory failure, sandbox recycled, back to the queue',
+    'verifier.js.live': 'Live'
   };
   var STR = null;
   function strings() {
@@ -66,7 +82,14 @@
 
   /* ------------------------------------------------------------ helpers */
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-  function trunc(s, n) { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  function trunc(s, n) {
+    s = String(s == null ? '' : s);
+    if (s.length <= n) { return s; }
+    var cut = n - 1;
+    var c = s.charCodeAt(cut - 1);
+    if (c >= 0xD800 && c <= 0xDBFF) { cut--; } // never split a surrogate pair
+    return s.slice(0, cut) + '…';
+  }
   function num(v, dflt) { v = Number(v); return isFinite(v) ? v : dflt; }
   function el(tag, cls, text) {
     var n = document.createElement(tag);
@@ -122,9 +145,8 @@
       r = r && typeof r === 'object' ? r : {};
       var o = { name: trunc(r.name, 200), pass: r.pass === true, ms: Math.max(0, num(r.ms, 0)) };
       if (r.got !== undefined) {
-        // The probe sends a JSON preview string: send the parsed value when it is complete JSON.
-        var g = trunc(typeof r.got === 'string' ? r.got : JSON.stringify(r.got), 300);
-        try { o.got = JSON.parse(g); } catch (e) { o.got = g; }
+        // Forward the harness preview unchanged (the server stores strings as-is, like verify.mjs).
+        o.got = trunc(typeof r.got === 'string' ? r.got : JSON.stringify(r.got), 300);
       }
       if (r.error) { o.error = trunc(r.error, 300); }
       return o;
@@ -182,6 +204,29 @@
     };
   }
 
+  /**
+   * Memory / renderer failures of the shared sandbox process (another page's leak can starve this one):
+   * returns the matching message, or '' when the result is a normal (scorable) outcome.
+   */
+  function infraFailure(result) {
+    if (!result || typeof result !== 'object') { return ''; }
+    var texts = [];
+    (Array.isArray(result.errors) ? result.errors : []).forEach(function (e) { texts.push(String(e)); });
+    (Array.isArray(result.tests) ? result.tests : []).forEach(function (x) { if (x && x.error) { texts.push(String(x.error)); } });
+    for (var k = 0; k < texts.length; k++) { if (INFRA_RE.test(texts[k])) { return trunc(texts[k], 160); } }
+    // The probe / harness also flag memory failures explicitly (metrics.oom, test.oom after an in-page re-run).
+    var oomTest = (Array.isArray(result.tests) ? result.tests : []).some(function (x) { return x && x.oom === true; });
+    if (oomTest || (result.metrics && num(result.metrics.oom, 0) > 0)) { return 'out of memory'; }
+    return '';
+  }
+
+  /** True when a unit-test Worker had to be terminated (time limit) during this viewport. */
+  function workerKilled(result) {
+    var tests = result && Array.isArray(result.tests) ? result.tests : [];
+    for (var k = 0; k < tests.length; k++) { if (tests[k] && /worker terminated/i.test(String(tests[k].error || ''))) { return true; } }
+    return false;
+  }
+
   /* ------------------------------------------------------------ Station */
   var station = null;
 
@@ -196,6 +241,7 @@
     this.logLines = [];
     this.st = { processed: 0, released: 0, hung: 0, checks_passed: 0, checks_total: 0, tests_passed: 0, tests_total: 0, total_ms: 0, active: 0, avg_ms: 0, pass_rate: null };
     this.hiddenLogged = false;
+    this.paused = false;
     // Sandboxed frames of one site share a renderer process, so only one live frame runs at a time:
     // timing checks stay accurate and a frozen page is unambiguously the culprit. Lanes still overlap
     // claiming, screenshots upload and submitting.
@@ -219,16 +265,6 @@
       this.mini.appendChild(this.miniLog);
       c.appendChild(this.mini);
     }
-    // Picture-in-picture viewer: used when the lane's own preview is scrolled out of view, because
-    // browsers throttle off-screen cross-origin frames (that would distort FPS / animation checks).
-    this.pip = el('aside', 'vs-pip');
-    this.pip.hidden = true;
-    this.pip.setAttribute('aria-hidden', 'true');
-    this.pipLabel = el('div', 'vs-pip-label t-xs t-mono');
-    this.pipScreen = el('div', 'vs-screen vs-pip-screen');
-    this.pip.appendChild(this.pipLabel);
-    this.pip.appendChild(this.pipScreen);
-    document.body.appendChild(this.pip);
   };
   /** True when at least ~60 % of the element is inside the viewport. */
   function inView(node) {
@@ -238,16 +274,43 @@
     var h = Math.max(0, Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0));
     return (w * h) / (r.width * r.height) >= 0.6;
   }
+  /**
+   * True when a live frame can really be shown: the tab is visible and the Station's container is
+   * rendered (not display:none / visibility:hidden), so the docked viewer is on screen too.
+   */
+  Station.prototype.visible = function () {
+    if (document.visibilityState !== 'visible') { return false; }
+    if (!window.innerWidth || !window.innerHeight) { return false; }
+    var c = this.container;
+    if (!c || !c.isConnected || !c.getClientRects().length) { return false; }
+    try { if (window.getComputedStyle(c).visibility === 'hidden') { return false; } } catch (e) { /* ignore */ }
+    return true;
+  };
+  /** Pause / resume bookkeeping (log once per pause, report the state to the host page). */
+  Station.prototype.setPaused = function (on) {
+    if (on === this.paused) { return; }
+    this.paused = on;
+    if (on) {
+      if (!this.hiddenLogged) { this.hiddenLogged = true; this.log('warn', t('log_hidden')); }
+      if (this.running) { this.state('paused'); }
+    } else {
+      this.hiddenLogged = false;
+      if (this.running) { this.log('info', t('log_resumed')); this.state('running'); }
+    }
+  };
   Station.prototype.acquireFrame = function () {
     var self = this;
     return new Promise(function (resolve) { self.frameQueue.push(resolve); self.pumpFrames(); });
   };
   Station.prototype.pumpFrames = function () {
     if (this.frameBusy || !this.frameQueue.length) { return; }
-    var wait = this.coolUntil - Date.now();
+    var self = this;
+    // Never start a frame that nobody can see: hidden frames are throttled and their timings are void.
+    var shown = this.visible();
+    this.setPaused(!shown);
+    var wait = shown ? this.coolUntil - Date.now() : 500;
     if (wait > 0) {
       if (!this.coolTimer) {
-        var self = this;
         this.coolTimer = setTimeout(function () { self.coolTimer = null; self.pumpFrames(); }, wait);
       }
       return;
@@ -266,7 +329,7 @@
     if (this.opts.onLog) { try { this.opts.onLog(entry); } catch (e) { /* ignore */ } }
     if (this.miniLog) {
       var li = el('li', 'vs-log-' + level);
-      li.appendChild(el('time', 't-mono', entry.time.toLocaleTimeString()));
+      li.appendChild(el('time', 't-mono', entry.time.toLocaleTimeString('en-GB', { hour12: false })));
       li.appendChild(el('span', '', msg));
       this.miniLog.insertBefore(li, this.miniLog.firstChild);
       while (this.miniLog.children.length > 60) { this.miniLog.removeChild(this.miniLog.lastChild); }
@@ -289,13 +352,15 @@
   Station.prototype.state = function (name) {
     // While frames are measured the host page stays still: its own animations and blur effects would
     // compete with the sandboxed page for frames and distort FPS / animation checks.
-    document.documentElement.classList.toggle('vs-quiet', name !== 'idle');
+    document.documentElement.classList.toggle('vs-quiet', name === 'running' || name === 'stopping');
     if (this.opts.onState) { try { this.opts.onState(name); } catch (e) { /* ignore */ } }
   };
   Station.prototype.start = function () {
     if (this.running) { return; }
     this.running = true;
     this.stopping = false;
+    this.paused = false;
+    this.hiddenLogged = false;
     this.log('info', t('log_started', { n: this.concurrency }));
     this.state('running');
     this.wake();
@@ -453,12 +518,13 @@
       }
       return;
     }
-    if (document.hidden) {
-      if (!st.hiddenLogged) { st.hiddenLogged = true; st.log('warn', t('log_hidden')); }
+    // A claim spends one of the run's verify tries: only claim while the live frame can be shown.
+    if (!st.visible()) {
+      st.setPaused(true);
       this.later(1000);
       return;
     }
-    st.hiddenLogged = false;
+    st.setPaused(false);
     this.busy = true;
     api('/api/verifier/next', { agent: 'station' }).then(function (res) {
       if (!res.run) {
@@ -519,6 +585,9 @@
         .catch(function (e) { st.log('error', t('log_api_error', { error: e && e.message })); })
         .then(finish);
     };
+    var timing = (run.checks || []).some(function (c) { return c && TIMING_TYPES[c.type]; });
+    var redo = 0;
+    var oomFinal = 0;
     var nextVp = function () {
       if (i >= vps.length) { return Promise.resolve(null); }
       var vp = vps[i];
@@ -528,18 +597,48 @@
       return st.acquireFrame().then(function () {
         return self.runViewport(run, vp, light, idx, vps.length);
       }).then(function (r) {
+        var oom = r.status === 'ok' && infraFailure(r.result);
         var frozen = r.status === 'infra' || !!(r.result && r.result.metrics && r.result.metrics.hung);
-        st.releaseFrame(frozen ? 4000 : 0);
+        // A test Worker killed at its time limit (runaway loop / allocation) leaves the shared sandbox
+        // renderer loaded: the frame is already destroyed, give the browser a moment before the next one.
+        var killed = r.status === 'ok' && workerKilled(r.result);
+        st.releaseFrame(oom ? OOM_COOLDOWN : (frozen ? 4000 : (killed ? 2500 : 0)));
+        if (oom) {
+          // Same policy as the Playwright verifier: memory exhaustion is usually the browser (other tabs,
+          // leftovers), so the run goes back to the queue and is measured again in a fresh frame; only when it
+          // reproduces on the last allowed verify try is it counted as the output's own failure.
+          var attempt = num(run.attempt, 1);
+          var maxTries = num(run.max_attempts, 3);
+          if (attempt < maxTries) {
+            st.log('warn', t('log_oom', { id: run.id }));
+            return { status: 'infra', oom: true, error: 'browser memory failure in the ' + vp.name + ' sandbox, try ' + attempt + '/' + maxTries + ' (' + oom + ')' };
+          }
+          oomFinal = maxTries;
+        }
         return r;
       }, function (e) {
         st.releaseFrame(4000);
         throw e;
       }).then(function (r) {
+        var m = (r.result && r.result.metrics) || {};
+        // A viewport measured while the tab was hidden (throttled timers: false "hung" / "probe did not
+        // start") or, for timing checks, off-screen is void: measure it again locally (the lease is
+        // still ours) instead of releasing the run and spending another verify try.
+        var voided = !r.oom && (r.hidden || (timing && !light && r.status === 'ok' && (m.hidden === true || m.offscreen === true)));
+        if (voided) {
+          if (redo < REDO_MAX) {
+            redo++;
+            i = idx;
+            st.log('warn', t('log_redo', { id: run.id, vp: vp.name }));
+            return nextVp();
+          }
+          return { status: 'infra', error: 'station frame was hidden or off-screen during the checks' };
+        }
         if (r.status === 'infra') { return r; }
         out[vp.name] = r.result;
         if (r.shot) { shots[vp.name] = r.shot; }
         if (idx === 0) { self.showChecks(run, r.result); }
-        if (r.result && r.result.metrics && r.result.metrics.hung) { return null; }
+        if (m.hung) { return null; }
         return nextVp();
       });
     };
@@ -547,9 +646,10 @@
       if (fail) { return release(fail.error); }
       var results = merge(run, vps, out);
       var m = results.metrics;
-      var timing = (run.checks || []).some(function (c) { return c && TIMING_TYPES[c.type]; });
-      if (timing && (m.hidden === true || m.offscreen === true)) {
-        return release('station frame was hidden or off-screen during timing checks');
+      if (oomFinal) {
+        m.oom = 1;
+        results.errors.unshift('Out of memory on ' + oomFinal + ' separate tries in fresh browser frames: counted as the output\'s failure');
+        results.errors = results.errors.slice(0, 20);
       }
       self.setPhase(t('submitting'), 'blue', 0.94);
       var payload = { run_id: run.id, lock_token: run.lock_token, agent: 'station', results: results, screenshots: shots };
@@ -572,9 +672,11 @@
         if (m.hung) { st.st.hung++; }
         self.setPhase(t('done'), passed === results.checks.length && tPass === results.tests.length ? 'green' : 'gold', 1);
         self.card.className = 'vs-slot is-done';
-        st.log(passed === results.checks.length ? 'ok' : 'info', t('log_submitted', {
-          id: run.id, task: taskTitle, passed: passed, total: results.checks.length,
-          tests: results.tests.length ? ' · ' + t('tests') + ' ' + tPass + '/' + results.tests.length : '',
+        // Test-only runs (js outputs) report their test counts instead of an empty "0/0 checks".
+        var onlyTests = !results.checks.length && results.tests.length > 0;
+        st.log(passed === results.checks.length && tPass === results.tests.length ? 'ok' : 'info', t('log_submitted', {
+          id: run.id, task: taskTitle, passed: onlyTests ? tPass : passed, total: onlyTests ? results.tests.length : results.checks.length,
+          tests: results.tests.length && !onlyTests ? ' · ' + t('tests') + ' ' + tPass + '/' + results.tests.length : '',
           secs: (ms / 1000).toFixed(1), next: statusLabel((res && res.next_status) || 'ok')
         }));
         finish();
@@ -616,7 +718,7 @@
     var base = 0.04 + idx * span;
     return new Promise(function (resolve) {
       var frame = document.createElement('iframe');
-      frame.setAttribute('sandbox', 'allow-scripts allow-pointer-lock');
+      frame.setAttribute('sandbox', 'allow-scripts allow-forms allow-pointer-lock');
       frame.setAttribute('referrerpolicy', 'no-referrer');
       frame.setAttribute('loading', 'eager');
       frame.setAttribute('scrolling', 'no');
@@ -628,19 +730,34 @@
       frame.style.width = vp.w + 'px';
       frame.style.height = vp.h + 'px';
       var screen = slot.screen;
-      var pip = !inView(screen);
-      var host = pip ? st.pipScreen : screen;
-      if (pip) {
-        st.pipLabel.textContent = t('run') + ' #' + run.id + ' · ' + vp.name;
-        st.pipScreen.style.aspectRatio = vp.w + ' / ' + vp.h;
-        st.pip.className = 'vs-pip vs-pip-' + (vp.w < 700 ? 'mobile' : 'desktop');
-        st.pip.hidden = false;
-      }
+      // The frame stays in this element for its whole life (moving an iframe reloads it). When the lane
+      // is scrolled out of view the element docks into a fixed corner viewer, so the page under test is
+      // always on screen and never throttled.
+      var live = el('div', 'vs-live vs-live-' + (vp.w < 700 ? 'mobile' : 'desktop'));
+      live.style.setProperty('--vs-ar', vp.w + ' / ' + vp.h);
+      var liveLabel = el('div', 'vs-live-label t-xs t-mono', t('live') + ' · ' + t('run') + ' #' + run.id + ' · ' + vp.name);
+      liveLabel.setAttribute('aria-hidden', 'true');
+      var host = el('div', 'vs-live-screen');
+      live.appendChild(liveLabel);
+      live.appendChild(host);
+      host.appendChild(frame);
       screen.textContent = '';
       screen.classList.add('is-live');
-      if (pip) { screen.appendChild(el('div', 'vs-screen-empty')); }
-      host.textContent = '';
-      host.appendChild(frame);
+      screen.appendChild(live);
+      var dock = function () {
+        if (live.classList.contains('is-docked')) { return; }
+        live.classList.add('is-docked');
+        screen.classList.add('is-docked-src');
+      };
+      if (!inView(screen)) { dock(); }
+      var io = null;
+      if ('IntersectionObserver' in window) {
+        io = new IntersectionObserver(function (entries) {
+          var e = entries[entries.length - 1];
+          if (e && e.intersectionRatio < 0.6) { dock(); }
+        }, { threshold: [0, 0.6, 1] });
+        io.observe(screen);
+      }
       var fit = function () {
         var w = host.clientWidth || 1;
         frame.style.transform = 'scale(' + (w / vp.w) + ')';
@@ -648,6 +765,9 @@
       var ro = 'ResizeObserver' in window ? new ResizeObserver(fit) : null;
       if (ro) { ro.observe(host); }
       fit();
+      var wasHidden = document.visibilityState !== 'visible';
+      var onVis = function () { if (document.visibilityState !== 'visible') { wasHidden = true; } };
+      document.addEventListener('visibilitychange', onVis);
       var nonce = null;
       var result = null;
       var done = false;
@@ -655,10 +775,13 @@
       var later = function (fn, ms) { timers.push(setTimeout(fn, ms)); };
       var cleanup = function (shot) {
         window.removeEventListener('message', onMsg);
+        document.removeEventListener('visibilitychange', onVis);
         timers.forEach(clearTimeout);
         if (ro) { ro.disconnect(); }
-        if (pip) { st.pip.hidden = true; st.pipScreen.textContent = ''; }
-        screen.classList.remove('is-live');
+        if (io) { io.disconnect(); }
+        // Blank the document first so its memory is freed before the frame leaves the DOM.
+        try { frame.src = 'about:blank'; } catch (e) { /* ignore */ }
+        screen.classList.remove('is-live', 'is-docked-src');
         screen.textContent = '';
         if (shot) {
           var img = el('img', 'vs-shot');
@@ -673,7 +796,7 @@
         if (done) { return; }
         done = true;
         cleanup(payload && payload.shot);
-        resolve({ status: status, result: payload && payload.result, shot: payload && payload.shot, error: payload && payload.error });
+        resolve({ status: status, result: payload && payload.result, shot: payload && payload.shot, error: payload && payload.error, hidden: wasHidden });
       };
       var requestShot = function () {
         self.setPhase(t('capturing') + ' · ' + vp.name, 'violet', base + span * 0.8);
@@ -759,7 +882,7 @@
     var onLog = function (entry) {
       if (!logEl) { return; }
       var li = el('li', 'vs-log-' + entry.level);
-      li.appendChild(el('time', 't-mono', entry.time.toLocaleTimeString()));
+      li.appendChild(el('time', 't-mono', entry.time.toLocaleTimeString('en-GB', { hour12: false })));
       li.appendChild(el('span', '', entry.msg));
       logEl.insertBefore(li, logEl.firstChild);
       while (logEl.children.length > 200) { logEl.removeChild(logEl.lastChild); }

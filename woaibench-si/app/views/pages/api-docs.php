@@ -72,7 +72,7 @@ $csvCols = array_merge(WB\Data\Api::csvColumns(), ['track_<slug>']);
       <article class="card card-pad api-block stack" id="envelope">
         <h2 class="t-h3"><?= _e('tools.api_envelope') ?></h2>
         <p class="t-muted"><?= _e('tools.api_envelope_text') ?></p>
-        <pre class="code-block ltr" dir="ltr"><code>{
+        <pre class="code-block ltr" dir="ltr" tabindex="0"><code>{
   "data": …,
   "meta": {
     "season": "<?= e($season) ?>",
@@ -110,11 +110,11 @@ $csvCols = array_merge(WB\Data\Api::csvColumns(), ['track_<slug>']);
 <?php endif; ?>
         <div class="api-snippet">
           <div class="api-snippet-head"><span class="t-xs t-muted">curl</span><button class="btn btn-ghost btn-sm" type="button" data-copy="<?= e($curl) ?>"><?= ui_icon('copy', 14) ?><span><?= _e('common.copy') ?></span></button></div>
-          <pre class="code-block ltr" dir="ltr"><code><?= e($curl) ?></code></pre>
+          <pre class="code-block ltr" dir="ltr" tabindex="0"><code><?= e($curl) ?></code></pre>
         </div>
         <details class="api-sample">
           <summary><?= _e('tools.api_sample') ?></summary>
-          <pre class="code-block ltr api-json" dir="ltr"><code><?= e((string) $samples[$id]) ?></code></pre>
+          <pre class="code-block ltr api-json" dir="ltr" tabindex="0"><code><?= e((string) $samples[$id]) ?></code></pre>
         </details>
       </article>
 <?php endforeach; ?>
@@ -166,11 +166,11 @@ $csvCols = array_merge(WB\Data\Api::csvColumns(), ['track_<slug>']);
         </div>
         <div class="api-snippet">
           <div class="api-snippet-head"><span class="t-xs t-muted">Markdown</span><button class="btn btn-ghost btn-sm" type="button" data-copy="<?= e($badgeMd) ?>"><?= ui_icon('copy', 14) ?><span><?= _e('common.copy') ?></span></button></div>
-          <pre class="code-block ltr" dir="ltr"><code><?= e($badgeMd) ?></code></pre>
+          <pre class="code-block ltr" dir="ltr" tabindex="0"><code><?= e($badgeMd) ?></code></pre>
         </div>
         <div class="api-snippet">
           <div class="api-snippet-head"><span class="t-xs t-muted">HTML</span><button class="btn btn-ghost btn-sm" type="button" data-copy="<?= e($badgeHtml) ?>"><?= ui_icon('copy', 14) ?><span><?= _e('common.copy') ?></span></button></div>
-          <pre class="code-block ltr" dir="ltr"><code><?= e($badgeHtml) ?></code></pre>
+          <pre class="code-block ltr" dir="ltr" tabindex="0"><code><?= e($badgeHtml) ?></code></pre>
         </div>
         <p class="t-small t-muted"><?= _e('tools.api_badge_note') ?></p>
       </article>
@@ -183,7 +183,7 @@ $csvCols = array_merge(WB\Data\Api::csvColumns(), ['track_<slug>']);
           <div class="stack-sm">
             <div class="api-snippet">
               <div class="api-snippet-head"><span class="t-xs t-muted">HTML</span><button class="btn btn-ghost btn-sm" type="button" data-copy="<?= e($embedHtml) ?>"><?= ui_icon('copy', 14) ?><span><?= _e('common.copy') ?></span></button></div>
-              <pre class="code-block ltr is-wrap" dir="ltr"><code><?= e($embedHtml) ?></code></pre>
+              <pre class="code-block ltr is-wrap" dir="ltr" tabindex="0"><code><?= e($embedHtml) ?></code></pre>
             </div>
             <div class="table-wrap">
               <table class="table table-compact api-params">
@@ -211,7 +211,7 @@ $csvCols = array_merge(WB\Data\Api::csvColumns(), ['track_<slug>']);
             </tbody>
           </table>
         </div>
-        <pre class="code-block ltr" dir="ltr"><code>{"error": {"code": "rate_limited", "message": "Too many requests: the limit is 120 per minute."}, "meta": {…}}</code></pre>
+        <pre class="code-block ltr" dir="ltr" tabindex="0"><code>{"error": {"code": "rate_limited", "message": "Too many requests: the limit is 120 per minute."}, "meta": {…}}</code></pre>
       </article>
     </div>
   </div>

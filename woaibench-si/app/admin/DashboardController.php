@@ -10,6 +10,7 @@ defined('WB') || exit;
 
 use DB;
 use Config;
+use Throwable;
 
 final class DashboardController
 {
@@ -23,7 +24,16 @@ final class DashboardController
         $progress = array_map([Admin::class, 'progress'], $running);
         $hasRunning = (bool) array_filter($running, static fn($c) => $c['status'] === 'running');
         $age = Admin::heartbeatAge();
+        $needsUpgrade = false;
+        if (class_exists('WB\\Setup\\Migrator')) {
+            try {
+                $needsUpgrade = (bool) (\WB\Setup\Migrator::status()['needs_upgrade'] ?? false);
+            } catch (Throwable $e) {
+                \log_error('Migrator::status failed', ['error' => $e->getMessage()]);
+            }
+        }
         Admin::render('dashboard', [
+            'needs_upgrade' => $needsUpgrade,
             'title' => \__('admin.nav.dashboard'),
             'nav_active' => 'dashboard',
             'user' => $user,

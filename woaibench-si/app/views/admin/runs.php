@@ -33,7 +33,7 @@ echo partial('admin/_head', ['title' => __('admin.nav.runs'), 'sub' => __('admin
           <td><?= ui_model_chip(['name' => $r['model'], 'provider' => $r['provider'], 'provider_name' => $r['provider_name']], false, false) ?></td>
           <td><span class="t-small"><?= e(L($r, 'title')) ?></span><div class="t-xs t-muted"><span class="t-mono" dir="ltr"><?= e($r['task_slug']) ?></span> · <?= _e('admin.runs.attempt_n', ['n' => (int) $r['attempt']]) ?><?= $r['visibility'] === 'holdout' ? ' · ' . ui_icon('lock', 11) : '' ?></div></td>
           <td><?= ui_status($r['status']) ?><?= (int) $r['contested'] ? ' ' . ui_badge(__('admin.runs.contested'), 'gold') : '' ?><?= (int) $r['tries'] > 0 && $r['status'] !== 'scored' ? ' <span class="t-xs t-muted">×' . (int) $r['tries'] . '</span>' : '' ?>
-            <?php if ($r['status'] === 'failed' && $r['error']): ?><div class="t-xs t-red admin-err-cell" title="<?= e((string) $r['error']) ?>"><?= e(mb_strimwidth((string) $r['error'], 0, 70, '…')) ?></div><?php endif; ?></td>
+            <?php $errText = $r['status'] === 'failed' ? \WB\Admin\Admin::errorText($r['error']) : ''; ?><?php if ($errText !== ''): ?><div class="t-xs t-red admin-err-cell" dir="auto" title="<?= e($errText) ?>"><?= e(mb_strimwidth($errText, 0, 70, '…')) ?></div><?php endif; ?></td>
           <td class="num"><?= $r['final_score'] !== null ? ui_heat_cell($r['final_score']) : '—' ?></td>
           <td class="num t-num"><?= e(fmt_score($r['auto_score'])) ?></td>
           <td class="num t-num"><?= e(fmt_score($r['judge_score'])) ?><?= $r['judge_spread'] !== null ? '<div class="t-xs t-muted">±' . e(fmt_score($r['judge_spread'])) . '</div>' : '' ?></td>

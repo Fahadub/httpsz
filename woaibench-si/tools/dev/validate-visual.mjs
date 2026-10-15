@@ -361,7 +361,7 @@ echo json_encode(\\WB\\Eval\\StaticChecks::run($code, 'html', $checks));
 /** Same document-level CSP as Http::sandboxHeaders() (self = the serving origin, for the probe script). */
 function cspFor(self) {
   return [
-    'sandbox allow-scripts allow-pointer-lock', "default-src 'none'",
+    'sandbox allow-scripts allow-forms allow-pointer-lock', "default-src 'none'",
     `script-src 'unsafe-inline' 'unsafe-eval' blob: data: ${self} ${CDN}`, `style-src 'unsafe-inline' ${CDN}`,
     `img-src data: blob: ${self} ${CDN}`, `font-src data: ${CDN}`, 'media-src data: blob:', `connect-src data: blob: ${CDN}`,
     'worker-src blob: data:', 'child-src blob: data:', "form-action 'none'",

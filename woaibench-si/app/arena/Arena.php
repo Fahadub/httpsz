@@ -24,9 +24,13 @@ final class Arena
     public const RECOMPUTE_BATCH = 20;        // …unless at least this many new votes are waiting
     public const FEW_VOTES = 30;              // ratings with fewer votes are flagged as provisional
 
-    /** Eligible-run SQL filter (runs r, tasks t, models m). */
+    /**
+     * Eligible-run SQL filter (runs r, tasks t, models m). Only campaigns that count in the leaderboard feed the
+     * Arena, so test / smoke campaigns (include_in_scores = 0) never reach public duels or ratings.
+     */
     private const ELIGIBLE = "r.status = 'scored' AND t.visibility = 'public' AND t.is_active = 1 AND t.output_type = 'html'
-        AND m.is_active = 1 AND (r.code_bytes > 0 OR (r.code_bytes IS NULL AND r.code IS NOT NULL AND r.code <> ''))";
+        AND m.is_active = 1 AND (r.code_bytes > 0 OR (r.code_bytes IS NULL AND r.code IS NOT NULL AND r.code <> ''))
+        AND EXISTS (SELECT 1 FROM campaigns c WHERE c.id = r.campaign_id AND c.include_in_scores = 1)";
 
     private static ?array $pool = null;
 
