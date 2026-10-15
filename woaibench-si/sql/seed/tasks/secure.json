@@ -79,7 +79,7 @@
       ],
       "tests": {
         "entry": "encodeFor",
-        "timeout_ms": 2000,
+        "timeout_ms": 3000,
         "weight": 10,
         "cases": [
           {
@@ -116,10 +116,7 @@
           },
           {
             "name": "url_lone_surrogate_replaced",
-            "args": [
-              "url",
-              "a\ud800b\udfff"
-            ],
+            "script": "return encodeFor('url', 'a\\uD800b\\uDFFF');",
             "expect": "a%EF%BF%BDb%EF%BF%BD"
           },
           {

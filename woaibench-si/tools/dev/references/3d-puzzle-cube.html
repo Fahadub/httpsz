@@ -1,0 +1,267 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cube 3×3 — twisty puzzle</title>
+<style>
+  :root { --bg: #101218; --panel: rgba(22,25,34,.8); --line: rgba(255,255,255,.1); --text: #eef1f6; --muted: #9aa3b4; --accent: #ffd166; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: radial-gradient(900px 700px at 50% 40%, #232838, var(--bg)); color: var(--text); font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; flex-wrap: wrap; z-index: 2; }
+  h1 { font-size: 18px; margin: 0; letter-spacing: .02em; }
+  .stats { display: flex; gap: 8px; margin-inline-start: auto; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; font-variant-numeric: tabular-nums; font-weight: 700; min-width: 90px; text-align: center; }
+  .stat small { display: block; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; font-weight: 600; }
+  .actions { display: flex; gap: 8px; }
+  button { font: inherit; font-weight: 650; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; cursor: pointer; min-height: 38px; }
+  button:hover { border-color: rgba(255,255,255,.25); }
+  #scramble { background: var(--accent); color: #2a1d00; border-color: var(--accent); }
+  .stage { position: relative; flex: 1; min-height: 0; }
+  #cube { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; outline: none; }
+  #move-pad { position: absolute; bottom: 14px; inset-inline: 0; margin: 0 auto; width: min(560px, calc(100% - 20px)); display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  #move-pad button { padding: 8px 0; font-family: ui-monospace, Menlo, monospace; min-height: 40px; }
+  .hint { position: absolute; top: 4px; inset-inline: 0; text-align: center; color: var(--muted); font-size: 12px; pointer-events: none; }
+  kbd { font: 600 11px ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  .overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(10,12,18,.55); backdrop-filter: blur(2px); }
+  .overlay[hidden] { display: none; }
+  .card { background: #1a1e2a; border: 1px solid var(--line); border-radius: 18px; padding: 24px 30px; text-align: center; }
+  .card h2 { margin: 0 0 6px; color: var(--accent); font-size: 30px; }
+  .card p { margin: 0 0 14px; color: var(--muted); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (max-width: 600px) { header { padding: 10px; } .stats { margin-inline-start: 0; } .stat { min-width: 76px; padding: 4px 8px; } .hint { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cube 3×3</h1>
+  <div class="actions"><button type="button" id="scramble">Scramble</button><button type="button" id="reset">Reset</button></div>
+  <div class="stats" aria-live="polite"><div class="stat"><small>Moves</small><span id="moves">0</span></div><div class="stat"><small>Time</small><span id="timer">0:00.0</span></div></div>
+</header>
+<div class="stage">
+  <canvas id="cube" tabindex="0" role="img" aria-label="3D puzzle cube. Use the U D L R F B keys to turn faces, Shift for counter-clockwise; drag to orbit."></canvas>
+  <p class="hint">Keys <kbd>U</kbd> <kbd>D</kbd> <kbd>L</kbd> <kbd>R</kbd> <kbd>F</kbd> <kbd>B</kbd> turn clockwise · <kbd>Shift</kbd> = counter-clockwise · drag to orbit</p>
+  <div id="move-pad" role="group" aria-label="Face turns"></div>
+  <div class="overlay" id="overlay" hidden><div class="card" role="dialog" aria-modal="true" aria-labelledby="ov-title"><h2 id="ov-title">Solved!</h2><p id="ov-text"></p><button type="button" id="ov-close">Continue</button></div></div>
+</div>
+<script>
+(() => {
+  'use strict';
+  // ---------- cube model ----------
+  // Face order in a cubie's local frame: +X(R) -X(L) +Y(U) -Y(D) +Z(F) -Z(B)
+  const NORMALS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+  const COLORS = { R: [0.80, 0.09, 0.12], L: [1.0, 0.46, 0.05], U: [0.96, 0.96, 0.94], D: [1.0, 0.84, 0.08], F: [0.05, 0.62, 0.30], B: [0.07, 0.30, 0.85] };
+  const FACE_OF = ['R', 'L', 'U', 'D', 'F', 'B'];
+  const MOVES = { U: { axis: 1, layer: 1 }, D: { axis: 1, layer: -1 }, R: { axis: 0, layer: 1 }, L: { axis: 0, layer: -1 }, F: { axis: 2, layer: 1 }, B: { axis: 2, layer: -1 } };
+  const ident3 = () => [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  const mul3 = (a, b) => { const o = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) o[r * 3 + c] = a[r * 3] * b[c] + a[r * 3 + 1] * b[3 + c] + a[r * 3 + 2] * b[6 + c]; return o; };
+  const apply3 = (m, v) => [m[0] * v[0] + m[1] * v[1] + m[2] * v[2], m[3] * v[0] + m[4] * v[1] + m[5] * v[2], m[6] * v[0] + m[7] * v[1] + m[8] * v[2]];
+  function rot3(axis, ang) {
+    const c = Math.cos(ang), s = Math.sin(ang);
+    if (axis === 0) return [1, 0, 0, 0, c, -s, 0, s, c];
+    if (axis === 1) return [c, 0, s, 0, 1, 0, -s, 0, c];
+    return [c, -s, 0, s, c, 0, 0, 0, 1];
+  }
+  const round3 = (m) => m.map((x) => Math.round(x));
+  let cubies;
+  function resetCube() {
+    cubies = [];
+    for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) for (let z = -1; z <= 1; z++) {
+      if (!x && !y && !z) continue;
+      const colors = NORMALS.map((n, i) => (n[0] && n[0] === x) || (n[1] && n[1] === y) || (n[2] && n[2] === z) ? COLORS[FACE_OF[i]] : null);
+      cubies.push({ pos: [x, y, z], rot: ident3(), colors });
+    }
+  }
+  /** Clockwise as seen from outside the face = −90° about the face's outward normal. */
+  const angleOf = (face, prime) => (prime ? 1 : -1) * MOVES[face].layer * Math.PI / 2;
+  function commitMove(face, prime) {
+    const { axis, layer } = MOVES[face];
+    const R = round3(rot3(axis, angleOf(face, prime)));
+    for (const c of cubies) if (c.pos[axis] === layer) { c.pos = apply3(R, c.pos).map(Math.round); c.rot = round3(mul3(R, c.rot)); }
+  }
+  function isSolved() {
+    for (let f = 0; f < 6; f++) {
+      const n = NORMALS[f], axis = n.findIndex((v) => v !== 0);
+      let seen = null;
+      for (const c of cubies) {
+        if (c.pos[axis] !== n[axis]) continue;
+        for (let i = 0; i < 6; i++) {
+          if (!c.colors[i]) continue;
+          const w = apply3(c.rot, NORMALS[i]);
+          if (w[0] === n[0] && w[1] === n[1] && w[2] === n[2]) { if (seen && seen !== c.colors[i]) return false; seen = c.colors[i]; }
+        }
+      }
+    }
+    return true;
+  }
+
+  // ---------- game state ----------
+  const queue = [];
+  let anim = null, moves = 0, timerStart = 0, timerOn = false, elapsed = 0, scrambling = false;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const fmtTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+  function hud() { document.getElementById('moves').textContent = moves; document.getElementById('timer').textContent = fmtTime(elapsed); }
+  function enqueue(face, prime, user = true) { queue.push({ face, prime, user }); }
+  function startNext(now) {
+    if (anim || !queue.length) return;
+    const m = queue.shift();
+    anim = { ...m, t0: now, dur: m.user ? (reduced ? 1 : 220) : 70 };
+    if (m.user) {
+      moves++;
+      if (!timerOn && !scrambling) { timerOn = true; timerStart = now - elapsed * 1000; }
+      hud();
+    }
+  }
+  function finishAnim() {
+    commitMove(anim.face, anim.prime);
+    const wasUser = anim.user;
+    anim = null;
+    if (!queue.length && scrambling) { scrambling = false; moves = 0; elapsed = 0; timerOn = false; hud(); }
+    if (wasUser && isSolved()) {
+      timerOn = false; queue.length = 0;
+      document.getElementById('ov-text').textContent = `${moves} moves · ${fmtTime(elapsed)}`;
+      document.getElementById('overlay').hidden = false;
+      document.getElementById('ov-close').focus();
+    }
+  }
+  function scramble() {
+    if (anim) return;
+    queue.length = 0; scrambling = true;
+    const faces = Object.keys(MOVES); let prev = '';
+    for (let i = 0; i < 25; i++) {
+      let f; do { f = faces[Math.floor(Math.random() * 6)]; } while (f === prev);
+      prev = f; enqueue(f, Math.random() < 0.5, false);
+    }
+    moves = 0; elapsed = 0; timerOn = false; hud();
+  }
+  function reset() { queue.length = 0; anim = null; scrambling = false; resetCube(); moves = 0; elapsed = 0; timerOn = false; hud(); document.getElementById('overlay').hidden = true; }
+
+  // ---------- WebGL ----------
+  const canvas = document.getElementById('cube');
+  function softwareGL() { try { const t = document.createElement('canvas').getContext('webgl'); if (!t) return true; const e = t.getExtension('WEBGL_debug_renderer_info'); const r = String(t.getParameter(e ? e.UNMASKED_RENDERER_WEBGL : t.RENDERER)); const l = t.getExtension('WEBGL_lose_context'); if (l) l.loseContext(); return /swiftshader|llvmpipe|software/i.test(r); } catch (err) { return false; } }
+  const gl = canvas.getContext('webgl', { antialias: !softwareGL(), preserveDrawingBuffer: true, alpha: true, premultipliedAlpha: true });
+  if (!gl) { document.body.insertAdjacentHTML('beforeend', '<p style="padding:20px">WebGL is unavailable.</p>'); return; }
+  const VS = `attribute vec3 aPos; attribute vec3 aNrm; attribute vec2 aUv; attribute float aFace;
+    uniform mat4 uVP; uniform mat4 uModel; varying vec3 vN; varying vec2 vUv; varying float vFace; varying vec3 vW;
+    void main(){ vec4 w = uModel * vec4(aPos, 1.0); vW = w.xyz; vN = mat3(uModel) * aNrm; vUv = aUv; vFace = aFace; gl_Position = uVP * w; }`;
+  const FS = `precision mediump float; varying vec3 vN; varying vec2 vUv; varying float vFace; varying vec3 vW;
+    uniform vec3 uColors[6]; uniform vec3 uHas; uniform vec3 uHas2; uniform vec3 uEye;
+    float has(float f){ return f < 0.5 ? uHas.x : f < 1.5 ? uHas.y : f < 2.5 ? uHas.z : f < 3.5 ? uHas2.x : f < 4.5 ? uHas2.y : uHas2.z; }
+    vec3 col(float f){ return f < 0.5 ? uColors[0] : f < 1.5 ? uColors[1] : f < 2.5 ? uColors[2] : f < 3.5 ? uColors[3] : f < 4.5 ? uColors[4] : uColors[5]; }
+    void main(){
+      vec3 N = normalize(vN); vec3 V = normalize(uEye - vW);
+      vec2 q = abs(vUv - 0.5); float d = length(max(q - vec2(0.33), 0.0)) - 0.09;
+      float sticker = has(vFace) * (1.0 - smoothstep(-0.01, 0.01, d));
+      vec3 base = mix(vec3(0.035), pow(col(vFace), vec3(2.2)), sticker);
+      vec3 L = normalize(vec3(0.5, 0.9, 0.7)); vec3 H = normalize(L + V);
+      float diff = max(dot(N, L), 0.0) * 0.75 + 0.35 + 0.15 * max(dot(N, normalize(vec3(-0.6, 0.2, -0.4))), 0.0);
+      float spec = pow(max(dot(N, H), 0.0), sticker > 0.5 ? 60.0 : 20.0) * (sticker > 0.5 ? 0.35 : 0.12);
+      vec3 c = base * diff + spec;
+      gl_FragColor = vec4(pow(c, vec3(1.0/2.2)), 1.0);
+    }`;
+  function program(vs, fs) {
+    const p = gl.createProgram();
+    for (const [t, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) { const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); gl.attachShader(p, s); }
+    gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    const u = {}; for (let i = 0; i < gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); i++) { const n = gl.getActiveUniform(p, i).name; u[n.replace('[0]', '')] = gl.getUniformLocation(p, n); }
+    return { p, u };
+  }
+  const prog = program(VS, FS);
+  // one cubie = 6 quads (half-size 0.47 leaves a thin gap between pieces)
+  const data = [];
+  const H = 0.47;
+  NORMALS.forEach((n, f) => {
+    const axis = n.findIndex((v) => v !== 0), u = (axis + 1) % 3, v = (axis + 2) % 3;
+    const corners = [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]];
+    for (const [a, b] of corners) {
+      const p = [0, 0, 0]; p[axis] = n[axis] * H; p[u] = a * H; p[v] = b * H * n[axis];
+      data.push(...p, ...n, (a + 1) / 2, (b + 1) / 2, f);
+    }
+  });
+  const vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbo); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+  const STRIDE = 9 * 4;
+  const attr = (name, size, off) => { const l = gl.getAttribLocation(prog.p, name); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, size, gl.FLOAT, false, STRIDE, off * 4); };
+
+  // ---------- camera ----------
+  const cam = { yaw: 0.62, pitch: 0.5, dist: 10.5 };
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const norm = (a) => { const l = Math.hypot(...a); return a.map((x) => x / l); };
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const mul4 = (a, b) => { const o = new Float32Array(16); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3]; return o; };
+  /** 3×3 row-major rotation + translation → column-major mat4. */
+  const model4 = (m, t) => [m[0], m[3], m[6], 0, m[1], m[4], m[7], 0, m[2], m[5], m[8], 0, t[0], t[1], t[2], 1];
+
+  function resize() { const d = Math.min(2, window.devicePixelRatio || 1); canvas.width = Math.round(canvas.clientWidth * d); canvas.height = Math.round(canvas.clientHeight * d); }
+  let lastT = performance.now();
+  function frame(now) {
+    const dt = (now - lastT) / 1000; lastT = now;
+    if (canvas.width !== Math.round(canvas.clientWidth * Math.min(2, window.devicePixelRatio || 1))) resize();
+    startNext(now);
+    let layerRot = null;
+    if (anim) {
+      const k = Math.min(1, (now - anim.t0) / anim.dur), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      layerRot = rot3(MOVES[anim.face].axis, angleOf(anim.face, anim.prime) * e);
+      if (k >= 1) { finishAnim(); layerRot = null; startNext(now); }
+    }
+    if (timerOn) { elapsed = (now - timerStart) / 1000; if (Math.floor(elapsed * 10) !== Math.floor((elapsed - dt) * 10)) hud(); }
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE);
+    const aspect = canvas.width / canvas.height;
+    const eye = [Math.cos(cam.pitch) * Math.sin(cam.yaw) * cam.dist, Math.sin(cam.pitch) * cam.dist, Math.cos(cam.pitch) * Math.cos(cam.yaw) * cam.dist];
+    const z = norm(eye), x = norm(cross([0, 1, 0], z)), y = cross(z, x);
+    const view = [x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -dot(x, eye), -dot(y, eye), -dot(z, eye), 1];
+    const fov = aspect < 1 ? 2 * Math.atan(Math.tan(0.35) / aspect) : 0.7, f = 1 / Math.tan(fov / 2);
+    const proj = [f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, -1.0067, -1, 0, 0, -0.2007, 0]; // near 0.1, far 30
+    gl.useProgram(prog.p);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo); attr('aPos', 3, 0); attr('aNrm', 3, 3); attr('aUv', 2, 6); attr('aFace', 1, 8);
+    gl.uniformMatrix4fv(prog.u.uVP, false, mul4(proj, view)); gl.uniform3fv(prog.u.uEye, eye);
+    for (const c of cubies) {
+      let R = c.rot, P = c.pos;
+      if (layerRot && c.pos[MOVES[anim.face].axis] === MOVES[anim.face].layer) { R = mul3(layerRot, c.rot); P = apply3(layerRot, c.pos); }
+      gl.uniformMatrix4fv(prog.u.uModel, false, model4(R, P));
+      gl.uniform3fv(prog.u.uColors, c.colors.flatMap((v) => v || [0, 0, 0]));
+      gl.uniform3f(prog.u.uHas, c.colors[0] ? 1 : 0, c.colors[1] ? 1 : 0, c.colors[2] ? 1 : 0);
+      gl.uniform3f(prog.u.uHas2, c.colors[3] ? 1 : 0, c.colors[4] ? 1 : 0, c.colors[5] ? 1 : 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 36);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- input ----------
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.target.tagName === 'INPUT') return;
+    const k = e.key.toUpperCase();
+    if (MOVES[k] && !scrambling) { e.preventDefault(); if (queue.length < 8) enqueue(k, e.shiftKey); }
+  });
+  const pad = document.getElementById('move-pad');
+  for (const f of Object.keys(MOVES)) for (const p of [false, true]) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = f + (p ? '′' : ''); b.setAttribute('aria-label', `Turn ${f} face ${p ? 'counter-clockwise' : 'clockwise'}`);
+    b.addEventListener('click', () => { if (!scrambling) enqueue(f, p); });
+    pad.appendChild(b);
+  }
+  let drag = null;
+  canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    cam.yaw -= (e.clientX - drag.x) * 0.008; cam.pitch = Math.max(-1.4, Math.min(1.4, cam.pitch + (e.clientY - drag.y) * 0.008));
+    drag = { x: e.clientX, y: e.clientY };
+  });
+  canvas.addEventListener('pointerup', () => { drag = null; });
+  canvas.addEventListener('wheel', (e) => { e.preventDefault(); cam.dist = Math.max(6, Math.min(16, cam.dist * Math.exp(e.deltaY * 0.001))); }, { passive: false });
+  document.getElementById('scramble').addEventListener('click', scramble);
+  document.getElementById('reset').addEventListener('click', reset);
+  document.getElementById('ov-close').addEventListener('click', () => { document.getElementById('overlay').hidden = true; canvas.focus(); });
+  window.addEventListener('resize', resize);
+
+  window.__wbDebug = { solved: isSolved, busy: () => !!anim || queue.length > 0 };
+  resetCube(); resize(); hud();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

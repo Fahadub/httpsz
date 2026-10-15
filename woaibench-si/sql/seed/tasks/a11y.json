@@ -17,35 +17,35 @@
         "label_en": "APG dialog conformance",
         "label_ar": "المطابقة لنمط الحوار في APG",
         "weight": 3,
-        "guide": "role=\"dialog\", aria-modal, labelled and described; focus moves to the first field; Tab/Shift+Tab wrap inside; Escape, Cancel, Close and backdrop close it; focus returns to the opener."
+        "guide": "role=\"dialog\", aria-modal, labelled and described; focus moves to the first field; Tab/Shift+Tab wrap inside; Escape, Cancel, Close and backdrop close it; focus returns to the opener. 9-10 = every role, state and keyboard interaction of the APG pattern is present and stays in sync; 5-6 = the main roles exist but states or keys are missing or drift; 0-3 = generic divs/clickable elements with little or no ARIA."
       },
       {
         "key": "focus",
         "label_en": "Focus management & inertness",
         "label_ar": "إدارة التركيز وتعطيل الخلفية",
         "weight": 3,
-        "guide": "Background truly inert (inert/aria-hidden), scroll locked, no focus leaks to the page or lost focus after closing; validation keeps focus on the invalid field."
+        "guide": "Background truly inert (inert/aria-hidden), scroll locked, no focus leaks to the page or lost focus after closing; validation keeps focus on the invalid field. 9-10 = focus is never lost or leaked and returns exactly where expected; 5-6 = focus moves in but can escape or is not restored; 0-3 = no focus management."
       },
       {
         "key": "announce",
         "label_en": "Announcements & errors",
         "label_ar": "الإعلانات ورسائل الخطأ",
         "weight": 2,
-        "guide": "Inline error wired with aria-describedby + aria-invalid, live region present from load and used for the success message, member list updated."
+        "guide": "Inline error wired with aria-describedby + aria-invalid, live region present from load and used for the success message, member list updated. 9-10 = every change a sighted user sees is announced once, politely, with the right wording; 5-6 = some announcements missing or noisy; 0-3 = nothing is announced."
       },
       {
         "key": "visual",
         "label_en": "Visual design & contrast",
         "label_ar": "التصميم البصري والتباين",
         "weight": 2,
-        "guide": "Polished, coherent design; text contrast ≥ 4.5:1 (3:1 for large text and UI boundaries); focus indicators clearly visible in every state; works at 390 px and 1440 px."
+        "guide": "Polished, coherent design; text contrast ≥ 4.5:1 (3:1 for large text and UI boundaries); focus indicators clearly visible in every state; works at 390 px and 1440 px. 9-10 = could ship on a premium product; 5-6 = clean but generic template; 0-3 = unstyled, broken at 390 px or low contrast."
       },
       {
         "key": "code",
         "label_en": "Code quality",
         "label_ar": "جودة الشيفرة",
         "weight": 1,
-        "guide": "Clean, robust JS (no duplicate listeners on reopen, works repeatedly), semantic markup, reduced-motion handled."
+        "guide": "Clean, robust JS (no duplicate listeners on reopen, works repeatedly), semantic markup, reduced-motion handled. 9-10 = clean, idiomatic and robust; 5-6 = works but repetitive or fragile; 0-3 = hard to follow, globals everywhere, obvious bugs."
       }
     ],
     "checks": {
@@ -251,35 +251,35 @@
         "label_en": "APG combobox conformance",
         "label_ar": "المطابقة لنمط combobox في APG",
         "weight": 3,
-        "guide": "Correct roles and states (combobox, listbox, option, aria-expanded, aria-controls, aria-autocomplete, aria-activedescendant, aria-selected) kept in sync at all times."
+        "guide": "Correct roles and states (combobox, listbox, option, aria-expanded, aria-controls, aria-autocomplete, aria-activedescendant, aria-selected) kept in sync at all times. 9-10 = every role, state and keyboard interaction of the APG pattern is present and stays in sync; 5-6 = the main roles exist but states or keys are missing or drift; 0-3 = generic divs/clickable elements with little or no ARIA."
       },
       {
         "key": "keyboard",
         "label_en": "Keyboard model",
         "label_ar": "نموذج لوحة المفاتيح",
         "weight": 3,
-        "guide": "Arrow keys with wrapping, Alt+ArrowDown, Enter, double Escape, Tab, Home/End behave exactly as specified; DOM focus stays in the input."
+        "guide": "Arrow keys with wrapping, Alt+ArrowDown, Enter, double Escape, Tab, Home/End behave exactly as specified; DOM focus stays in the input. 9-10 = every specified key works, including wrapping and edge keys; 5-6 = arrows work but Home/End/Escape/Tab details are wrong; 0-3 = mouse-only."
       },
       {
         "key": "matching",
         "label_en": "Matching & feedback",
         "label_ar": "المطابقة والتغذية الراجعة",
         "weight": 2,
-        "guide": "Word-start, case- and diacritic-insensitive matching on all three fields; highlighted matches; debounced, correctly pluralised live announcements; empty state not selectable."
+        "guide": "Word-start, case- and diacritic-insensitive matching on all three fields; highlighted matches; debounced, correctly pluralised live announcements; empty state not selectable. 9-10 = matching rules implemented exactly with clear highlighting and correct counts; 5-6 = case-insensitive substring only; 0-3 = no filtering logic."
       },
       {
         "key": "visual",
         "label_en": "Visual design & contrast",
         "label_ar": "التصميم البصري والتباين",
         "weight": 2,
-        "guide": "Polished, coherent design; text contrast ≥ 4.5:1 (3:1 for large text and UI boundaries); focus indicators clearly visible in every state; works at 390 px and 1440 px."
+        "guide": "Polished, coherent design; text contrast ≥ 4.5:1 (3:1 for large text and UI boundaries); focus indicators clearly visible in every state; works at 390 px and 1440 px. 9-10 = could ship on a premium product; 5-6 = clean but generic template; 0-3 = unstyled, broken at 390 px or low contrast."
       },
       {
         "key": "code",
         "label_en": "Code quality",
         "label_ar": "جودة الشيفرة",
         "weight": 1,
-        "guide": "Data-driven rendering, no duplicated ids, robust event handling (no blur races), works on touch."
+        "guide": "Data-driven rendering, no duplicated ids, robust event handling (no blur races), works on touch. 9-10 = clean, idiomatic and robust; 5-6 = works but repetitive or fragile; 0-3 = hard to follow, globals everywhere, obvious bugs."
       }
     ],
     "checks": {
@@ -475,35 +475,35 @@
         "label_en": "Table semantics",
         "label_ar": "دلالات الجدول",
         "weight": 3,
-        "guide": "caption, thead/tbody, scope on column and row headers, buttons inside headers, aria-sort only on the sorted column, decorative icons hidden."
+        "guide": "caption, thead/tbody, scope on column and row headers, buttons inside headers, aria-sort only on the sorted column, decorative icons hidden. 9-10 = complete native table semantics with buttons in headers and aria-sort only where it belongs; 5-6 = clickable <th> or missing scope/caption; 0-3 = div grid."
       },
       {
         "key": "sorting",
         "label_en": "Sorting correctness",
         "label_ar": "صحة الفرز",
         "weight": 3,
-        "guide": "Numbers with separators, dates and accented text all sort correctly in both directions; stable; toggling works from any column."
+        "guide": "Numbers with separators, dates and accented text all sort correctly in both directions; stable; toggling works from any column. 9-10 = all column types sort correctly both ways and stably; 5-6 = text sorting only, numbers compared as strings; 0-3 = broken or no sorting."
       },
       {
         "key": "announce",
         "label_en": "Announcements & keyboard",
         "label_ar": "الإعلانات ولوحة المفاتيح",
         "weight": 2,
-        "guide": "Polite live announcement after every sort, keyboard-operable headers with visible focus, focusable scroll region with an accessible name."
+        "guide": "Polite live announcement after every sort, keyboard-operable headers with visible focus, focusable scroll region with an accessible name. 9-10 = every change a sighted user sees is announced once, politely, with the right wording; 5-6 = some announcements missing or noisy; 0-3 = nothing is announced."
       },
       {
         "key": "visual",
         "label_en": "Visual design & contrast",
         "label_ar": "التصميم البصري والتباين",
         "weight": 2,
-        "guide": "Polished, coherent design; text contrast ≥ 4.5:1 (3:1 for large text and UI boundaries); focus indicators clearly visible in every state; works at 390 px and 1440 px."
+        "guide": "Polished, coherent design; text contrast ≥ 4.5:1 (3:1 for large text and UI boundaries); focus indicators clearly visible in every state; works at 390 px and 1440 px. 9-10 = could ship on a premium product; 5-6 = clean but generic template; 0-3 = unstyled, broken at 390 px or low contrast."
       },
       {
         "key": "code",
         "label_en": "Code quality",
         "label_ar": "جودة الشيفرة",
         "weight": 1,
-        "guide": "Data-driven, no hard-coded orderings, numeric parsing robust."
+        "guide": "Data-driven, no hard-coded orderings, numeric parsing robust. 9-10 = clean, idiomatic and robust; 5-6 = works but repetitive or fragile; 0-3 = hard to follow, globals everywhere, obvious bugs."
       }
     ],
     "checks": {
@@ -700,35 +700,35 @@
         "label_en": "Error summary & focus",
         "label_ar": "ملخص الأخطاء والتركيز",
         "weight": 3,
-        "guide": "Summary appears on failed submit, receives focus, links focus the right fields in order, title gets the \"Error:\" prefix; success panel heading focused."
+        "guide": "Summary appears on failed submit, receives focus, links focus the right fields in order, title gets the \"Error:\" prefix; success panel heading focused. 9-10 = GOV.UK-quality summary, focus and title handling; 5-6 = summary shown but not focused or links do not move focus; 0-3 = no summary."
       },
       {
         "key": "wiring",
         "label_en": "Error wiring & semantics",
         "label_ar": "ربط الأخطاء والدلالات",
         "weight": 3,
-        "guide": "aria-invalid and aria-describedby (hint + error) correct for text fields, the radio fieldset and the checkbox; visually-hidden \"Error:\" prefix; fieldset/legend; autocomplete tokens."
+        "guide": "aria-invalid and aria-describedby (hint + error) correct for text fields, the radio fieldset and the checkbox; visually-hidden \"Error:\" prefix; fieldset/legend; autocomplete tokens. 9-10 = every error and hint is programmatically associated, including groups; 5-6 = text fields wired, groups not; 0-3 = colour-only errors."
       },
       {
         "key": "logic",
         "label_en": "Validation logic",
         "label_ar": "منطق التحقق",
         "weight": 2,
-        "guide": "Specific messages, conditional Student ID with format check, blur re-validation after first submit, polite and throttled character counter."
+        "guide": "Specific messages, conditional Student ID with format check, blur re-validation after first submit, polite and throttled character counter. 9-10 = every rule and edge case behaves as specified; 5-6 = main path works but conditions or numbers are off; 0-3 = logic largely missing or wrong."
       },
       {
         "key": "visual",
         "label_en": "Visual design & contrast",
         "label_ar": "التصميم البصري والتباين",
         "weight": 2,
-        "guide": "Polished, coherent design; text contrast ≥ 4.5:1 (3:1 for large text and UI boundaries); focus indicators clearly visible in every state; works at 390 px and 1440 px."
+        "guide": "Polished, coherent design; text contrast ≥ 4.5:1 (3:1 for large text and UI boundaries); focus indicators clearly visible in every state; works at 390 px and 1440 px. 9-10 = could ship on a premium product; 5-6 = clean but generic template; 0-3 = unstyled, broken at 390 px or low contrast."
       },
       {
         "key": "code",
         "label_en": "Code quality",
         "label_ar": "جودة الشيفرة",
         "weight": 1,
-        "guide": "Single source of truth for rules, no duplicated messages, progressive enhancement."
+        "guide": "Single source of truth for rules, no duplicated messages, progressive enhancement. 9-10 = clean, idiomatic and robust; 5-6 = works but repetitive or fragile; 0-3 = hard to follow, globals everywhere, obvious bugs."
       }
     ],
     "checks": {
@@ -924,35 +924,35 @@
         "label_en": "APG carousel conformance",
         "label_ar": "المطابقة لنمط عرض الشرائح في APG",
         "weight": 3,
-        "guide": "aria-roledescription on carousel and slides, slide labels, rotation control first with accurate name, tablist/tab/tabpanel wiring, hidden inactive slides."
+        "guide": "aria-roledescription on carousel and slides, slide labels, rotation control first with accurate name, tablist/tab/tabpanel wiring, hidden inactive slides. 9-10 = every role, state and keyboard interaction of the APG pattern is present and stays in sync; 5-6 = the main roles exist but states or keys are missing or drift; 0-3 = generic divs/clickable elements with little or no ARIA."
       },
       {
         "key": "rotation",
         "label_en": "Rotation & motion behaviour",
         "label_ar": "سلوك الدوران والحركة",
         "weight": 3,
-        "guide": "Pauses on hover and focus, explicit stop is permanent, reduced-motion stops rotation and animation, aria-live toggles between off and polite."
+        "guide": "Pauses on hover and focus, explicit stop is permanent, reduced-motion stops rotation and animation, aria-live toggles between off and polite. 9-10 = pause on hover/focus, permanent stop, reduced motion and live-region switching all correct; 5-6 = rotation control exists but pausing or reduced motion is missing; 0-3 = uncontrollable auto-rotation."
       },
       {
         "key": "keyboard",
         "label_en": "Keyboard model",
         "label_ar": "نموذج لوحة المفاتيح",
         "weight": 2,
-        "guide": "Roving tabindex, Arrow/Home/End on tabs with wrapping, prev/next in sync, visible focus everywhere."
+        "guide": "Roving tabindex, Arrow/Home/End on tabs with wrapping, prev/next in sync, visible focus everywhere. 9-10 = every specified key works, including wrapping and edge keys; 5-6 = arrows work but Home/End/Escape/Tab details are wrong; 0-3 = mouse-only."
       },
       {
         "key": "visual",
         "label_en": "Visual design & contrast",
         "label_ar": "التصميم البصري والتباين",
         "weight": 2,
-        "guide": "Polished, coherent design; text contrast ≥ 4.5:1 (3:1 for large text and UI boundaries); focus indicators clearly visible in every state; works at 390 px and 1440 px."
+        "guide": "Polished, coherent design; text contrast ≥ 4.5:1 (3:1 for large text and UI boundaries); focus indicators clearly visible in every state; works at 390 px and 1440 px. 9-10 = could ship on a premium product; 5-6 = clean but generic template; 0-3 = unstyled, broken at 390 px or low contrast."
       },
       {
         "key": "code",
         "label_en": "Code quality",
         "label_ar": "جودة الشيفرة",
         "weight": 1,
-        "guide": "Single state source, timers cleaned up, no layout shift between slides."
+        "guide": "Single state source, timers cleaned up, no layout shift between slides. 9-10 = clean, idiomatic and robust; 5-6 = works but repetitive or fragile; 0-3 = hard to follow, globals everywhere, obvious bugs."
       }
     ],
     "checks": {

@@ -763,6 +763,8 @@ return [
     'admin.js.c_started' => 'بدأت وحدة التشغيل',
     'admin.js.c_stopped_detail' => 'اضغط «تشغيل» للاستئناف.',
     'admin.js.c_stopped_log' => 'توقفت وحدة التشغيل',
+    'admin.js.c_wait' => 'بانتظار فحوص المتصفح',
+    'admin.js.c_wait_detail' => ':n تشغيلًا بانتظار محطة التحقق — الخطوة التالية بعد :s ث.',
     'admin.js.c_idle_detail' => 'لا يوجد عمل — فحص جديد بعد :s ث.',
     'admin.js.c_running_detail' => 'آخر خطوة: :n وحدة عمل في :ms مللي ثانية',
     'admin.js.c_retry' => 'الخطأ :n من :max — إعادة المحاولة بعد :s ث',

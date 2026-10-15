@@ -43,7 +43,7 @@ $cfg = [
 </section>
 
 <div class="admin-grid admin-grid-main">
-  <section class="card stack-sm admin-station-card">
+  <section class="card admin-station-card">
     <div class="card-head card-pad">
       <h2 class="card-title"><?= ui_icon('shield', 18) ?> <?= _e('admin.nav.verify') ?></h2>
       <span class="t-xs t-muted" data-station-stats></span>
@@ -79,7 +79,7 @@ $cfg = [
 </div>
 
 <div class="admin-grid admin-grid-2">
-  <section class="card stack-sm admin-log-card">
+  <section class="card admin-log-card">
     <div class="card-head card-pad">
       <h2 class="card-title"><?= ui_icon('activity', 18) ?> <?= _e('admin.console.log') ?></h2>
       <button class="btn btn-sm btn-ghost" type="button" data-console-clear><?= _e('admin.console.clear') ?></button>
@@ -88,7 +88,7 @@ $cfg = [
       <li class="admin-log-empty t-muted t-small"><?= _e('admin.console.log_empty') ?></li>
     </ol>
   </section>
-  <section class="card stack-sm admin-log-card">
+  <section class="card admin-log-card">
     <div class="card-head card-pad"><h2 class="card-title"><?= ui_icon('shield', 18) ?> <?= _e('admin.console.station_log') ?></h2></div>
     <ol class="admin-log" data-station-log aria-live="off">
       <li class="admin-log-empty t-muted t-small"><?= $verifier_js ? _e('admin.console.station_idle') : _e('admin.console.no_verifier') ?></li>

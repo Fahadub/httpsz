@@ -19,12 +19,12 @@ final class TasksController
     private static function filters(): array
     {
         $f = [
-            'track' => (string) \input('track', ''),
-            'visibility' => (string) \input('visibility', ''),
-            'active' => (string) \input('active', ''),
-            'type' => (string) \input('type', ''),
-            'source' => (string) \input('source', ''),
-            'q' => mb_substr((string) \input('q', ''), 0, 100),
+            'track' => Admin::str('track', ''),
+            'visibility' => Admin::str('visibility', ''),
+            'active' => Admin::str('active', ''),
+            'type' => Admin::str('type', ''),
+            'source' => Admin::str('source', ''),
+            'q' => mb_substr(Admin::str('q', ''), 0, 100),
         ];
         $w = [];
         $p = [];
@@ -204,7 +204,7 @@ final class TasksController
         if (!$task) {
             \abort(404);
         }
-        switch ((string) \input('action')) {
+        switch (Admin::str('action')) {
             case 'duplicate':
                 $new = TaskStore::duplicate($id);
                 \flash('success', \__('admin.tasks.duplicated'));

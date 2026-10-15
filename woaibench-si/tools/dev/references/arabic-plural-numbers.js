@@ -2,9 +2,9 @@
 // Formatting is done by hand (not Intl) because ICU builds disagree on the default numbering system
 // for "ar"; plural categories follow CLDR: zero, one, two, few (n%100 3–10), many (n%100 11–99), other.
 
-const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩';
-const AR_GROUP = '٬'; // ٬
-const AR_DECIMAL = '٫'; // ٫
+const AR_DIGITS = '\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669'; // ٠١٢٣٤٥٦٧٨٩
+const AR_GROUP = '\u066C'; // ٬ Arabic thousands separator
+const AR_DECIMAL = '\u066B'; // ٫ Arabic decimal separator
 
 function toArabicDigits(s) {
   return s.replace(/[0-9]/g, (d) => AR_DIGITS[d.charCodeAt(0) - 48]);

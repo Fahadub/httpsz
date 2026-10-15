@@ -139,7 +139,7 @@
   var SEP = /[\s\-–—(),'’.]/;
 
   /** Fold one character: lower-case, strip combining marks (ü → u, è → e). */
-  function foldChar(ch) { return ch.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+  function foldChar(ch) { return ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
   function fold(s) { return Array.from(s).map(foldChar).join(''); }
 
   /** Index of a word-start match of q (already folded) inside text, as [start, end) in original chars. */

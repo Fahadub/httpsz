@@ -1,0 +1,104 @@
+[
+  {
+    "slug": "reasoning-elevator-trace",
+    "track": "reasoning",
+    "title_en": "Trace the Elevator Program",
+    "title_ar": "تتبّع برنامج المصعد",
+    "summary_en": "Predict the exact console output of a short elevator-scheduling program — loop termination, Set semantics and default sort order included.",
+    "summary_ar": "توقّع المخرجات الحرفية لبرنامج قصير يجدول حركة مصعد، مع مراعاة شرط انتهاء الحلقة ودلالات Set وترتيب الفرز الافتراضي.",
+    "difficulty": 3,
+    "prompt": "# Trace the Elevator Program\n\nWhat exactly does this JavaScript program print? Assume standard semantics of a modern browser or Node.js. Do not run it — trace it.\n\n```js\nfunction elevator(requests, start) {\n  let floor = start, dir = -1, time = 0;\n  const pending = new Set(requests);\n  const served = [];\n  while (pending.size > 0) {\n    if (pending.has(floor)) {\n      pending.delete(floor);\n      served.push(floor);\n      time += 3;\n    }\n    const ahead = [...pending].some((f) => (f - floor) * dir > 0);\n    if (!ahead) dir = -dir;\n    floor += dir;\n    time += 1;\n  }\n  return served.join('>') + ' t=' + time + ' end=' + floor;\n}\n\nconst report = elevator([12, 3, 7, 10, 3, 0, 9], 5);\nconst labels = report.split(' ')[0].split('>').sort();\nconsole.log(report + ' | ' + labels.join(','));\n```\n\n## Answer format\nWork it out as carefully as you need, then give the final answer exactly once, inside <answer></answer> tags: the single line printed by `console.log`, character for character.\nFormat illustration only (not the answer): `1>2 t=9 end=4 | 1,2`",
+    "output_type": "answer",
+    "visibility": "public",
+    "auto_weight": 1,
+    "rubric": [],
+    "checks": {
+      "answer": {
+        "type": "exact",
+        "value": "3>0>7>9>10>12 t=36 end=11 | 0,10,12,3,7,9"
+      }
+    }
+  },
+  {
+    "slug": "reasoning-judge-assignment",
+    "track": "reasoning",
+    "title_en": "Blind Judge Assignment Odds",
+    "title_ar": "احتمالات توزيع المحكّمين المعمّى",
+    "summary_en": "A conditional probability over random judge assignments with vendor conflicts — answer as an exact reduced fraction.",
+    "summary_ar": "احتمال شرطي في توزيع عشوائي للمحكّمين مع تعارض الجهات المطوِّرة — والإجابة كسر دقيق في أبسط صورة.",
+    "difficulty": 3,
+    "prompt": "# Blind Judge Assignment Odds\n\nA benchmark grades nine anonymised submissions with three judges. Four submissions come from models of vendor A, three from vendor B and two from vendor C (all nine submissions are distinct). Judge A is built by vendor A, judge B by vendor B and judge C by vendor C.\n\nThe submissions are dealt out uniformly at random so that **each judge receives exactly three submissions** (every such split is equally likely). A judge has a *conflict* when it receives a submission from its own vendor.\n\nAn auditor is told only that **judge C has no conflict**. Given this, what is the probability that **no judge** has a conflict?\n\n## Answer format\nWork it out as carefully as you need, then give the final answer exactly once, inside <answer></answer> tags: a fraction a/b in lowest terms, with no spaces and no other text.\nFormat illustration only (not the answer): `3/8`",
+    "output_type": "answer",
+    "visibility": "public",
+    "auto_weight": 1,
+    "rubric": [],
+    "checks": {
+      "answer": {
+        "type": "exact",
+        "value": "13/175"
+      }
+    }
+  },
+  {
+    "slug": "reasoning-ci-schedule",
+    "track": "reasoning",
+    "title_en": "Shortest CI Pipeline Schedule",
+    "title_ar": "أقصر جدولة لخط التكامل المستمر",
+    "summary_en": "Schedule nine dependent build jobs on two runners with an exclusive licence server and find the minimum total time.",
+    "summary_ar": "جدولة تسع مهام بناء مترابطة على مُشغّلَين مع خادم ترخيص لا يتسع إلا لمهمة واحدة، وإيجاد أقل زمن إجمالي ممكن.",
+    "difficulty": 4,
+    "prompt": "# Shortest CI Pipeline Schedule\n\nA release pipeline has nine jobs. Durations are in minutes.\n\n| job | what it does | duration | may start only after |\n|---|---|---|---|\n| A | lint | 1 | — |\n| B | generate API client | 2 | A |\n| C | build web UI | 5 | — |\n| D | build API server | 5 | A, B |\n| E | UI tests | 3 | A, C |\n| F | train ranking model | 6 | — |\n| G | API contract tests | 2 | C, D |\n| H | write model card | 1 | A, F |\n| I | deploy preview | 4 | F, G |\n\nRules:\n- There are **two identical runners**. Each job runs on one runner, without interruption, from start to finish; a runner runs one job at a time.\n- A job may start only when all jobs in its \"may start only after\" column have **finished**.\n- Jobs **D** and **F** both need the single build-licence server, so they can never run at the same time (one may start at the moment the other finishes).\n- Runners may stay idle, and everything starts at time 0.\n\nWhat is the **minimum** number of minutes after which all nine jobs can be finished?\n\n## Answer format\nWork it out as carefully as you need, then give the final answer exactly once, inside <answer></answer> tags: a single integer (minutes), with no units.\nFormat illustration only (not the answer): `42`",
+    "output_type": "answer",
+    "visibility": "public",
+    "auto_weight": 1,
+    "rubric": [],
+    "checks": {
+      "answer": {
+        "type": "number",
+        "value": 17,
+        "tolerance": 0
+      }
+    }
+  },
+  {
+    "slug": "reasoning-flaky-reruns",
+    "track": "reasoning",
+    "title_en": "Flaky-Test Rerun Estimate",
+    "title_ar": "تقدير إعادات تشغيل الاختبارات المتقلّبة",
+    "summary_en": "Expected number of random reruns until each of 8 tests has run twice — a numeric answer graded within a ±0.05 band.",
+    "summary_ar": "العدد المتوقع لإعادات التشغيل العشوائية حتى يُشغَّل كل اختبار من ثمانية اختبارات مرتين على الأقل — إجابة رقمية تُقبل ضمن هامش ±0.05.",
+    "difficulty": 4,
+    "prompt": "# Flaky-Test Rerun Estimate\n\nA flaky-test detector works on a suite of **8** distinct tests. In each round it picks one test uniformly at random (independently of earlier rounds, so the same test can be picked again) and runs it. It stops as soon as **every one of the 8 tests has been run at least twice**.\n\nWhat is the **expected number of rounds** until it stops?\n\nGive the value rounded to two decimal places. Answers within ±0.05 of the exact expectation are accepted.\n\n## Answer format\nWork it out as carefully as you need, then give the final answer exactly once, inside <answer></answer> tags: a decimal number only (no units, no \"≈\").\nFormat illustration only (not the answer): `12.34`",
+    "output_type": "answer",
+    "visibility": "public",
+    "auto_weight": 1,
+    "rubric": [],
+    "checks": {
+      "answer": {
+        "type": "number",
+        "value": 34.88,
+        "tolerance": 0.05
+      }
+    }
+  },
+  {
+    "slug": "reasoning-die-path",
+    "track": "reasoning",
+    "title_en": "Rolling Die Path",
+    "title_ar": "مسار النرد المتدحرج",
+    "summary_en": "Track a die through fourteen rolls on a grid — sum of the top faces plus the final orientation.",
+    "summary_ar": "تتبّع نرد عبر أربع عشرة دحرجة على شبكة — مجموع الأوجه العلوية مع الاتجاه النهائي للنرد.",
+    "difficulty": 3,
+    "prompt": "# Rolling Die Path\n\nA die whose opposite faces sum to 7 sits on a square grid with **1 on top, 2 facing north and 3 facing east** (so 6 is at the bottom, 5 faces south and 4 faces west).\n\nRolling the die one cell **north** tips it over its bottom northern edge: the face that pointed north ends up at the bottom, the top face now points north, the south face comes to the top and the bottom face now points south. Rolls to the south, east and west work the same way in their directions.\n\nThe die makes these 14 rolls, in this order:\n\n`N, N, E, S, E, E, N, W, W, S, E, N, N, E`\n\nAfter **each** roll, write down the number on the top face (14 numbers in total).\n\nReport three numbers: the **sum** of the 14 numbers you wrote down, the number on **top** after the last roll, and the number facing **north** after the last roll.\n\n## Answer format\nWork it out as carefully as you need, then give the final answer exactly once, inside <answer></answer> tags: three integers separated by commas, in the order sum,top,north.\nFormat illustration only (not the answer): `30,2,6`",
+    "output_type": "answer",
+    "visibility": "public",
+    "auto_weight": 1,
+    "rubric": [],
+    "checks": {
+      "answer": {
+        "type": "regex",
+        "pattern": "^\\s*48\\s*,\\s*5\\s*,\\s*3\\s*$"
+      }
+    }
+  }
+]

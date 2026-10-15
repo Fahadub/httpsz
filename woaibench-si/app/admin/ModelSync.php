@@ -16,9 +16,11 @@ final class ModelSync
 {
     private const CACHE_TTL = 1800;
 
+    /** Cache file per API base, so switching endpoints never shows a stale catalogue. */
     private static function cacheFile(): string
     {
-        return WB_STORAGE . '/cache/admin-openrouter-models.json';
+        $base = (string) Config::get('openrouter_base', 'https://openrouter.ai/api/v1');
+        return WB_STORAGE . '/cache/admin-openrouter-models-' . substr(hash('sha256', $base), 0, 12) . '.json';
     }
 
     /**
@@ -27,15 +29,15 @@ final class ModelSync
      */
     public static function catalog(bool $refresh = false): array
     {
+        if ((string) Config::get('openrouter_key', '') === '') {
+            return ['ok' => false, 'models' => [], 'error' => \__('admin.sync.err_key'), 'fetched_at' => null, 'cached' => false];
+        }
         $file = self::cacheFile();
         if (!$refresh && is_file($file) && filemtime($file) > time() - self::CACHE_TTL) {
             $data = json_decode((string) file_get_contents($file), true);
             if (is_array($data) && isset($data['models'])) {
                 return ['ok' => true, 'models' => $data['models'], 'error' => null, 'fetched_at' => (int) ($data['at'] ?? filemtime($file)), 'cached' => true];
             }
-        }
-        if ((string) Config::get('openrouter_key', '') === '') {
-            return ['ok' => false, 'models' => [], 'error' => \__('admin.sync.err_key'), 'fetched_at' => null, 'cached' => false];
         }
         if (!Admin::engine('OpenRouter')) {
             return ['ok' => false, 'models' => [], 'error' => \__('admin.engine_missing', ['c' => 'WB\\Eval\\OpenRouter']), 'fetched_at' => null, 'cached' => false];

@@ -44,7 +44,7 @@ final class TracksController
         if (!DB::val('SELECT id FROM tracks WHERE id = ?', [$id])) {
             \abort(404);
         }
-        $s = static fn(string $k, int $max) => mb_substr(trim((string) \input($k, '')), 0, $max);
+        $s = static fn(string $k, int $max) => mb_substr(trim(Admin::str($k, '')), 0, $max);
         $data = [
             'name_ar' => $s('name_ar', 120), 'name_en' => $s('name_en', 120),
             'desc_ar' => $s('desc_ar', 2000) ?: null, 'desc_en' => $s('desc_en', 2000) ?: null,
@@ -62,7 +62,7 @@ final class TracksController
         if (!preg_match('/^#[0-9A-F]{6}$/', $data['color'])) {
             $errors[] = \__('admin.v.color');
         }
-        $aw = trim((string) \input('auto_weight', ''));
+        $aw = trim(Admin::str('auto_weight', ''));
         if (!is_numeric($aw) || (float) $aw < 0 || (float) $aw > 1) {
             $errors[] = \__('admin.tracks.err_weight');
         } else {

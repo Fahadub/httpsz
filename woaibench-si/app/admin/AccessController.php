@@ -37,14 +37,19 @@ final class AccessController
     public static function login(): void
     {
         \csrf_check();
-        $email = strtolower(trim((string) \input('email', '')));
+        $email = strtolower(trim(Admin::str('email', '')));
         $password = (string) ($_POST['password'] ?? '');
-        if (!\rate_limit('admin_login_ip:' . \ip_hash(), self::LOGIN_MAX, self::LOGIN_WINDOW)
-            || !\rate_limit('admin_login_email:' . $email, self::LOGIN_MAX, self::LOGIN_WINDOW)) {
+        // Only failed attempts are counted: 5 per 15 minutes per IP and per e-mail address.
+        $ipKey = 'admin_login_ip:' . \ip_hash();
+        $emailKey = 'admin_login_email:' . $email;
+        if (\RateLimit::remaining($ipKey, self::LOGIN_MAX, self::LOGIN_WINDOW) <= 0
+            || \RateLimit::remaining($emailKey, self::LOGIN_MAX, self::LOGIN_WINDOW) <= 0) {
             self::loginForm(\__('admin.login.too_many'), 429);
             return;
         }
         if ($email === '' || $password === '' || strlen($password) > 1024 || !Auth::attempt($email, $password)) {
+            \rate_limit($ipKey, self::LOGIN_MAX, self::LOGIN_WINDOW);
+            \rate_limit($emailKey, self::LOGIN_MAX, self::LOGIN_WINDOW);
             usleep(random_int(150000, 350000));
             self::loginForm(\__('admin.login.failed'), 401);
             return;
@@ -99,8 +104,8 @@ final class AccessController
     public static function addAdmin(): void
     {
         Admin::guardPost();
-        $email = strtolower(trim((string) \input('email', '')));
-        $name = trim((string) \input('name', ''));
+        $email = strtolower(trim(Admin::str('email', '')));
+        $name = trim(Admin::str('name', ''));
         $pass = (string) ($_POST['password'] ?? '');
         if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 190) {
             \flash('error', \__('admin.account.err_email'));
@@ -150,7 +155,7 @@ final class AccessController
     public static function createToken(): void
     {
         Admin::guardPost();
-        $name = trim((string) \input('name', ''));
+        $name = trim(Admin::str('name', ''));
         if ($name === '' || mb_strlen($name) > 120) {
             \flash('error', \__('admin.tokens.err_name'));
             \redirect('/admin/tokens');

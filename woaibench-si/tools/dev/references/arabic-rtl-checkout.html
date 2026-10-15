@@ -44,7 +44,7 @@
   .steps li[aria-current="step"] { color: var(--text); font-weight: 700; border-color: var(--accent); }
   .steps li[aria-current="step"]::before { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
-  .page { max-width: 1180px; margin-inline: auto; padding: 28px clamp(16px, 4vw, 40px) 72px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); gap: 32px; align-items: start; }
+  .page { max-width: 1180px; margin-inline: auto; padding: 28px clamp(16px, 4vw, 40px) 72px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 440px); gap: 32px; align-items: start; }
   h1 { font-family: var(--display); font-size: clamp(1.7rem, 3.4vw, 2.3rem); line-height: 1.3; margin: 0 0 6px; }
   .lead { margin: 0 0 24px; color: var(--muted); }
   .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: clamp(18px, 3vw, 28px); margin-block-end: 20px; }
@@ -83,10 +83,10 @@
 
   .summary { position: sticky; top: 20px; }
   .items { list-style: none; margin: 0 0 8px; padding: 0; }
-  .item { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding-block: 14px; border-block-end: 1px solid var(--border); }
-  .thumb { width: 64px; height: 64px; border-radius: 14px; background: var(--surface-2); display: grid; place-items: center; }
+  .item { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding-block: 14px; border-block-end: 1px solid var(--border); }
+  .thumb { width: 56px; height: 56px; border-radius: 14px; background: var(--surface-2); display: grid; place-items: center; }
   .thumb svg { width: 44px; height: 44px; }
-  .item-name { font-weight: 600; line-height: 1.5; }
+  .item-name { font-weight: 600; line-height: 1.5; font-size: .96rem; }
   .unit { color: var(--muted); font-size: .88rem; }
   .qty { display: inline-flex; align-items: center; gap: 2px; margin-block-start: 6px; border: 1px solid var(--border); border-radius: 999px; padding: 2px; }
   .qty button { width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--surface-2); color: var(--text); font: inherit; font-weight: 700; cursor: pointer; display: grid; place-items: center; }
@@ -357,7 +357,7 @@
       coupon = null;
       input.setAttribute('aria-invalid', 'true');
       msg.className = 'err';
-      msg.textContent = 'رمز القسيمة غير صالح أو منتهي الصلاحية. تحقَّق منه وحاول مرة أخرى.';
+      msg.textContent = 'رمز القسيمة غير صالح أو منتهي الصلاحية. تحقَ\u0651ق منه وحاول مرة أخرى.';
     }
     render();
   }

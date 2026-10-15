@@ -72,6 +72,13 @@ final class Admin
         return $next;
     }
 
+    /** String request value; arrays and other non-strings (e.g. x[]=1) fall back to $default. */
+    public static function str(string $key, string $default = ''): string
+    {
+        $v = \input($key, $default);
+        return is_string($v) ? $v : $default;
+    }
+
     /** Is an engine class (WB\Eval\<name>) available? */
     public static function engine(string $class): bool
     {
@@ -174,6 +181,19 @@ final class Admin
     public static function iso(string $value): string
     {
         return "\u{2066}" . $value . "\u{2069}";
+    }
+
+    /**
+     * Persist settings. Writes the JSON itself because core to_json() turns 0 / 0.0 / false into "null"
+     * (json_encode() returns the falsy string "0"); see the request to fix to_json() in helpers.php.
+     */
+    public static function saveSettings(array $values): void
+    {
+        foreach ($values as $k => $v) {
+            $json = json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
+            DB::upsert('settings', ['k' => (string) $k, 'v' => $json === false ? 'null' : $json], ['v']);
+        }
+        \Settings::flush();
     }
 
     /** Mask a secret: "••••abcd". */

@@ -204,7 +204,16 @@ export function extractAnswer(text) {
   return last === null ? null : last.trim();
 }
 
-const normSpace = (s) => String(s).replace(/\s+/gu, ' ').trim();
+const normSpace = (s) => {
+  let t = String(s).normalize('NFC').replace(/\s+/gu, ' ').trim();
+  for (let k = 0; k < 3; k++) {
+    const before = t;
+    t = t.replace(/^(\*\*|__|\$\$|\$)(.*)\1$/su, '$2').replace(/^(["'`«“‘])(.*)(["'`»”’])$/su, '$2');
+    t = t.replace(/[.。]+$/u, '').trim();
+    if (t === before) break;
+  }
+  return t;
+};
 function parseNumber(s) {
   const t = String(s).replace(/[\s,  _]/gu, '');
   if (!/^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i.test(t)) return null;
@@ -324,13 +333,11 @@ function staticPass(code, c) {
 function phpAnswerCheck(spec, response) {
   const file = path.join(ROOT, 'app/eval/AnswerCheck.php');
   if (!existsSync(file)) return null;
-  const php = `define('WB', true); define('WB_ROOT', ${JSON.stringify(ROOT)}); require WB_ROOT . '/app/eval/AnswerCheck.php';
+  // Uses the real engine class through the app bootstrap (no DB access happens for answer checks).
+  const php = `require ${JSON.stringify(path.join(ROOT, 'app/bootstrap.php'))};
 $in = json_decode(stream_get_contents(STDIN), true);
-$cls = 'WB\\\\Eval\\\\AnswerCheck';
-foreach (['check', 'evaluate', 'score'] as $m) { if (method_exists($cls, $m)) { $r = $cls::$m($in['spec'], $in['text']); break; } }
-if (!isset($r)) { echo 'nomethod'; exit; }
-if (is_array($r)) { $r = $r['pass'] ?? $r['ok'] ?? (($r['score'] ?? 0) >= 1); } elseif (is_numeric($r)) { $r = $r >= 1 || $r >= 100; }
-echo $r ? 'pass' : 'fail';`;
+$r = \\WB\\Eval\\AnswerCheck::check((string) $in['text'], (array) $in['spec']);
+echo !empty($r['pass']) ? 'pass' : 'fail';`;
   const out = spawnSync('php', ['-d', 'display_errors=stderr', '-r', php], { input: JSON.stringify({ spec, text: response }), encoding: 'utf8' });
   const s = (out.stdout || '').trim();
   if (s === 'pass') return true;
@@ -352,13 +359,25 @@ async function main() {
   const tracks = new Set(JSON.parse(readFileSync(path.join(ROOT, 'sql/seed/tracks.json'), 'utf8')).map((t) => t.slug));
   const taskDir = path.join(ROOT, 'sql/seed/tasks');
   const all = [];
+  const LONE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+  const loneSurrogates = (v, p, out) => {
+    if (typeof v === 'string') { if (LONE.test(v)) out.push(p); } else if (v && typeof v === 'object') for (const k of Object.keys(v)) loneSurrogates(v[k], p + '.' + k, out);
+    return out;
+  };
+  let fileProblems = 0;
   for (const f of readdirSync(taskDir).filter((f) => f.endsWith('.json')).sort()) {
     const list = JSON.parse(readFileSync(path.join(taskDir, f), 'utf8'));
     if (!Array.isArray(list)) throw new Error(`${f}: expected an array of tasks`);
+    // PHP's json_decode (seed import) and MySQL utf8mb4 reject unpaired surrogates: build them inside
+    // test scripts with \\uD800-style escapes instead of putting them in JSON strings.
+    const lone = loneSurrogates(list, f, []);
+    if (lone.length) { console.error(`${f}: unpaired UTF-16 surrogates (PHP json_decode would fail) at ${lone.slice(0, 5).join(', ')}`); fileProblems++; }
+    const php = spawnSync('php', ['-r', 'json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR); echo "ok";', path.join(taskDir, f)], { encoding: 'utf8' });
+    if (!php.error && php.stdout.trim() !== 'ok') { console.error(`${f}: PHP json_decode failed: ${(php.stderr || php.stdout).slice(0, 200)}`); fileProblems++; }
     for (const t of list) all.push({ ...t, __file: f });
   }
   const seen = new Map();
-  let failures = 0;
+  let failures = fileProblems;
   const report = [];
   for (const t of all) {
     if (seen.has(t.slug)) { console.error(`DUPLICATE slug ${t.slug} in ${t.__file} and ${seen.get(t.slug)}`); failures++; }

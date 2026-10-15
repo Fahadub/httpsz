@@ -316,10 +316,17 @@
       }
       renderMeters();
       const idle = !!res.idle && did.length === 0;
+      const c = res.counts || {};
+      const waiting = Number(c.awaiting_verify || 0) + Number(c.verifying || 0);
       if (idle) {
-        delay = state.idleDelay;
-        state.idleDelay = Math.min(IDLE_MAX, Math.round(state.idleDelay * 1.6));
-        if (state.running) setMode('idle', t('admin.js.c_idle_detail', { s: Math.round(delay / 1000) }));
+        // Runs waiting for the browser station: poll briskly so verified runs move on to judging quickly.
+        const cap = waiting > 0 && state.station ? 5000 : IDLE_MAX;
+        delay = Math.min(cap, state.idleDelay);
+        state.idleDelay = Math.min(cap, Math.round(state.idleDelay * 1.6));
+        if (state.running) {
+          setMode('idle', t(waiting > 0 ? 'admin.js.c_wait_detail' : 'admin.js.c_idle_detail', { n: num(waiting), s: Math.round(delay / 1000) }));
+          if (waiting > 0) ui.status.textContent = t('admin.js.c_wait');
+        }
       } else {
         state.idleDelay = IDLE_MIN;
         if (state.running) setMode('running', t('admin.js.c_running_detail', { n: num(did.length), ms: num(res.ms || 0) }));

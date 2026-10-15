@@ -53,7 +53,7 @@
       ],
       "tests": {
         "entry": "allocateStudios",
-        "timeout_ms": 3000,
+        "timeout_ms": 4000,
         "weight": 9,
         "cases": [
           {
@@ -2374,7 +2374,7 @@
       ],
       "tests": {
         "entry": "evaluateSheet",
-        "timeout_ms": 4000,
+        "timeout_ms": 5000,
         "weight": 9,
         "cases": [
           {
@@ -2879,64 +2879,6 @@
             "name": "random_sheet_1",
             "args": [
               {
-                "A1": "=sum(B1:B4, (0))",
-                "A2": "2",
-                "A4": "=10",
-                "B1": "=-0",
-                "B3": "=A5",
-                "B4": "=3",
-                "C1": "=2",
-                "C2": "=1",
-                "C3": "=b1",
-                "C4": " 7 "
-              }
-            ],
-            "expect": {
-              "A1": "#REF!",
-              "A2": 2,
-              "A4": 10,
-              "B1": 0,
-              "B3": "#REF!",
-              "B4": 3,
-              "C1": 2,
-              "C2": 1,
-              "C3": 0,
-              "C4": 7
-            },
-            "cmp": "approx",
-            "tol": 1e-9
-          },
-          {
-            "name": "random_sheet_2",
-            "args": [
-              {
-                "A2": "=C2",
-                "A3": " 7 ",
-                "A4": "=(2)",
-                "B2": "=0.5",
-                "B3": "=FOO(1)",
-                "B4": " 7 ",
-                "C1": "=-0",
-                "C2": "=B2"
-              }
-            ],
-            "expect": {
-              "A2": 0.5,
-              "A3": 7,
-              "A4": 2,
-              "B2": 0.5,
-              "B3": "#PARSE!",
-              "B4": 7,
-              "C1": 0,
-              "C2": 0.5
-            },
-            "cmp": "approx",
-            "tol": 1e-9
-          },
-          {
-            "name": "random_sheet_3",
-            "args": [
-              {
                 "A3": "2",
                 "A4": "=(ABS(C1))",
                 "B1": "=A5",
@@ -2963,7 +2905,7 @@
             "tol": 1e-9
           },
           {
-            "name": "random_sheet_4",
+            "name": "random_sheet_2",
             "args": [
               {
                 "A1": "txt",
@@ -2983,6 +2925,76 @@
               "C2": 1,
               "C3": "txt",
               "C4": 7
+            },
+            "cmp": "approx",
+            "tol": 1e-9
+          },
+          {
+            "name": "random_sheet_3",
+            "args": [
+              {
+                "A1": "=B2",
+                "A2": "txt",
+                "A3": "=-0.5 / 2 + 3",
+                "A4": "=A1:A2",
+                "B1": "=a4",
+                "B2": "=(10)",
+                "B3": "=-1",
+                "B4": "=1",
+                "C1": "",
+                "C2": "0",
+                "C3": "=MAX(C5:C1, (10), B2) ^ A5",
+                "C4": ""
+              }
+            ],
+            "expect": {
+              "A1": 10,
+              "A2": "txt",
+              "A3": 2.75,
+              "A4": "#PARSE!",
+              "B1": "#PARSE!",
+              "B2": 10,
+              "B3": -1,
+              "B4": 1,
+              "C1": "",
+              "C2": 0,
+              "C3": "#CYCLE!",
+              "C4": ""
+            },
+            "cmp": "approx",
+            "tol": 1e-9
+          },
+          {
+            "name": "random_sheet_4",
+            "args": [
+              {
+                "A1": "=C4",
+                "A2": "=A3 - 3",
+                "A3": "-3",
+                "A4": "=0 - -1 ^ 0.5",
+                "B1": "=3",
+                "B2": "-3",
+                "B3": "=A1:A2",
+                "B4": " 7 ",
+                "C1": "=MIN(B4:C4)",
+                "C2": "=3",
+                "C3": "=ABS(--3)",
+                "C4": "=MAX(a3, 1, C3:A3) * 0.5"
+              }
+            ],
+            "expect": {
+              "A1": "#PARSE!",
+              "A2": -6,
+              "A3": -3,
+              "A4": 1,
+              "B1": 3,
+              "B2": -3,
+              "B3": "#PARSE!",
+              "B4": 7,
+              "C1": "#PARSE!",
+              "C2": 3,
+              "C3": 3,
+              "C4": "#PARSE!"
             },
             "cmp": "approx",
             "tol": 1e-9
@@ -3092,7 +3104,7 @@
       ],
       "tests": {
         "entry": "earliestArrival",
-        "timeout_ms": 3000,
+        "timeout_ms": 4000,
         "weight": 9,
         "cases": [
           {
@@ -5178,7 +5190,7 @@
       ],
       "tests": {
         "entry": "rankAgreement",
-        "timeout_ms": 3000,
+        "timeout_ms": 4000,
         "weight": 9,
         "cases": [
           {

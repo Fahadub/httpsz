@@ -1180,11 +1180,14 @@
           },
           {
             "name": "lone_surrogate_input_is_one_code_point",
-            "args": [
-              "ab\ud83dcdefgh",
-              5
-            ],
-            "expect": "ab\ud83dc…"
+            "script": "const r = previewText('ab\\uD83Dcdefgh', 5); return Array.from(r).map((ch) => ch.codePointAt(0).toString(16));",
+            "expect": [
+              "61",
+              "62",
+              "d83d",
+              "63",
+              "2026"
+            ]
           },
           {
             "name": "cjk_text",

@@ -126,7 +126,7 @@ final class SettingsController
     public static function save(): void
     {
         Admin::guardPost();
-        $section = (string) \input('section', '');
+        $section = Admin::str('section', '');
         $schema = self::schema();
         if (!isset($schema[$section])) {
             \abort(400, 'Unknown section');
@@ -148,7 +148,7 @@ final class SettingsController
             \redirect('/admin/settings#s-' . $section);
         }
         $prevSeason = (string) \setting('season');
-        Settings::setMany($values);
+        Admin::saveSettings($values);
         if ($section === 'season' && $values['season'] !== $prevSeason) {
             Settings::set('aggregate_dirty', 1);
             \flash('warn', \__('admin.settings.season_changed', ['s' => $values['season']]));
@@ -184,7 +184,7 @@ final class SettingsController
             \flash('error', \__('admin.settings.err_writable', ['f' => 'config/config.local.php']));
             \redirect('/admin/settings#s-secrets');
         }
-        $action = (string) \input('action');
+        $action = Admin::str('action');
         $changes = [];
         switch ($action) {
             case 'key':
@@ -205,7 +205,7 @@ final class SettingsController
                 $changes['cron_key'] = '';
                 break;
             case 'csp':
-                $csp = trim(preg_replace('/\s+/', ' ', (string) \input('csp_extra_script', '')) ?? '');
+                $csp = trim(preg_replace('/\s+/', ' ', Admin::str('csp_extra_script', '')) ?? '');
                 foreach ($csp === '' ? [] : explode(' ', $csp) as $origin) {
                     if (!preg_match('#^https://[a-z0-9.\-]+(:\d+)?$#i', $origin)) {
                         \flash('error', \__('admin.settings.err_csp'));

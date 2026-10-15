@@ -23,7 +23,7 @@
 .admin-sidebar .admin-brand { padding-bottom: 10px; }
 .admin-sidebar-foot { display: flex; flex-direction: column; gap: 2px; padding-top: 10px; margin-top: 8px; border-top: 1px solid var(--border); }
 .admin-sidebar-foot form { margin: 0; }
-.admin-logout { width: 100%; border: 0; background: transparent; cursor: pointer; font: inherit; text-align: start; }
+.admin-logout { width: 100%; border: 0; background: transparent; cursor: pointer; font-family: inherit; text-align: start; }
 .admin-logout:hover .icon { color: var(--red); }
 
 .admin-topbar-context { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 auto; }

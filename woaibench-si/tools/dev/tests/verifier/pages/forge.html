@@ -7,7 +7,7 @@
   try { Object.defineProperty(window, '__WB_PROBE_RESULT_JSON', { value: '{"forged":true}' }); } catch (e) { window.__forgeErr = e.name; }
   try { parent.postMessage({ type: 'wb-probe', nonce: 'guess', checks: [] }, '*'); } catch (e) {}
   window.__cfgSeen = typeof window.__WB_PROBE_CFG;
-  window.__cfgInDom = !!document.querySelector('script[data-wb-probe]') && /nonce/.test(document.documentElement.innerHTML);
+  window.__cfgInDom = Array.from(document.scripts).some((s) => s.textContent.indexOf('window.__WB_PROBE_CFG=') === 0);
   document.body.innerHTML = '';
 </script>
 </body></html>

@@ -41,8 +41,8 @@ echo partial('admin/_head', ['title' => __('admin.nav.forge'), 'sub' => __('admi
         <article class="card card-pad stack admin-draft" id="draft-<?= (int) $i ?>">
           <div class="card-head">
             <h3 class="card-title"><?= e($d['title']) ?></h3>
-            <?= $d['errors'] ? ui_badge(__('admin.forge.n_errors', ['n' => count($d['errors'])]), 'red', 'x') : ui_badge(__('admin.forge.valid'), 'green', 'check') ?>
-            <?= $d['warnings'] ? ui_badge(__('admin.forge.n_warnings', ['n' => count($d['warnings'])]), 'gold') : '' ?>
+            <span class="cluster"><?= $d['errors'] ? ui_badge(__('admin.forge.n_errors', ['n' => count($d['errors'])]), 'red', 'x') : ui_badge(__('admin.forge.valid'), 'green', 'check') ?>
+            <?= $d['warnings'] ? ui_badge(__('admin.forge.n_warnings', ['n' => count($d['warnings'])]), 'gold') : '' ?></span>
           </div>
           <?php if ($d['errors'] || $d['warnings']): ?>
             <ul class="admin-msgs">

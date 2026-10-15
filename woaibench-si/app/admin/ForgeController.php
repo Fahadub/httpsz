@@ -35,17 +35,17 @@ final class ForgeController
     public static function generate(): void
     {
         Admin::guardPost();
-        $track = DB::one('SELECT * FROM tracks WHERE slug = ?', [(string) \input('track', '')]);
-        $type = (string) \input('output_type', 'html');
+        $track = DB::one('SELECT * FROM tracks WHERE slug = ?', [Admin::str('track', '')]);
+        $type = Admin::str('output_type', 'html');
         $opts = [
             'track' => $track['slug'] ?? '',
             'difficulty' => \input_int('difficulty', 2, 1, 4),
             'output_type' => in_array($type, TaskValidator::OUTPUT_TYPES, true) ? $type : 'html',
             'count' => \input_int('count', 1, 1, 5),
-            'theme' => mb_substr(trim((string) \input('theme', '')), 0, 300),
+            'theme' => mb_substr(trim(Admin::str('theme', '')), 0, 300),
         ];
         if (!$track) {
-            \flash('error', \__('admin.v.unknown_track', ['v' => (string) \input('track', '')]));
+            \flash('error', \__('admin.v.unknown_track', ['v' => Admin::str('track', '')]));
             \redirect('/admin/forge');
         }
         if (!\rate_limit('admin_forge:' . (\auth_user()['id'] ?? 0), 20, 3600)) {

@@ -18,7 +18,7 @@ final class ContentController
     public static function requests(): void
     {
         \require_admin();
-        $status = (string) \input('status', 'new');
+        $status = Admin::str('status', 'new');
         $where = in_array($status, self::REQUEST_STATUSES, true) ? ' WHERE status = ?' : '';
         $params = $where ? [$status] : [];
         $total = (int) DB::val('SELECT COUNT(*) FROM model_requests' . $where, $params);
@@ -51,7 +51,7 @@ final class ContentController
     public static function requestStatus(int $id): void
     {
         Admin::guardPost();
-        $status = (string) \input('status');
+        $status = Admin::str('status');
         if ($status === 'delete') {
             DB::exec('DELETE FROM model_requests WHERE id = ?', [$id]);
             \flash('success', \__('admin.deleted'));
@@ -104,7 +104,7 @@ final class ContentController
         if ($id !== null && !DB::val('SELECT id FROM changelog WHERE id = ?', [$id])) {
             \abort(404);
         }
-        $s = static fn(string $k, int $max) => mb_substr(trim((string) \input($k, '')), 0, $max);
+        $s = static fn(string $k, int $max) => mb_substr(trim(Admin::str($k, '')), 0, $max);
         $data = [
             'version' => $s('version', 32), 'title_ar' => $s('title_ar', 200), 'title_en' => $s('title_en', 200),
             'body_ar' => $s('body_ar', 20000) ?: null, 'body_en' => $s('body_en', 20000) ?: null,

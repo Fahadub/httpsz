@@ -17,10 +17,10 @@ final class ModelsController
     {
         \require_admin();
         $f = [
-            'active' => (string) \input('active', ''),
-            'judge' => (string) \input('judge', ''),
-            'vendor' => (string) \input('vendor', ''),
-            'q' => mb_substr((string) \input('q', ''), 0, 100),
+            'active' => Admin::str('active', ''),
+            'judge' => Admin::str('judge', ''),
+            'vendor' => Admin::str('vendor', ''),
+            'q' => mb_substr(Admin::str('q', ''), 0, 100),
         ];
         $where = [];
         $params = [];

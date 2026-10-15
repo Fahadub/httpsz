@@ -17,14 +17,14 @@
         "label_en": "Correctness & edge cases",
         "label_ar": "الصحة والحالات الحدّية",
         "weight": 3,
-        "guide": "Judge against the specification and the unit-test results shown: every rule implemented exactly, edge cases (empty input, boundaries, option defaults) handled, no hard-coding of test values."
+        "guide": "Judge against the specification and the unit-test results shown: every rule implemented exactly, edge cases (empty input, boundaries, option defaults) handled, no hard-coding of test values. 9-10 = every rule and edge case of the specification handled; 5-6 = typical inputs correct, edge cases fail; 0-3 = core behaviour wrong."
       },
       {
         "key": "unicode",
         "label_en": "Unicode rigour",
         "label_ar": "الدقة في يونيكود",
         "weight": 2,
-        "guide": "Uses exact code-point ranges from the spec, applies NFC first and in the specified order, never strips non-Arabic combining marks, handles Persian digits and NBSP."
+        "guide": "Uses exact code-point ranges from the spec, applies NFC first and in the specified order, never strips non-Arabic combining marks, handles Persian digits and NBSP. 9-10 = exact code-point handling with grapheme and normalisation awareness; 5-6 = works for common Arabic text, breaks on combining marks or controls; 0-3 = code-unit string handling."
       },
       {
         "key": "robustness",
@@ -38,7 +38,7 @@
         "label_en": "Code quality",
         "label_ar": "جودة الشيفرة",
         "weight": 1,
-        "guide": "Readable, small functions, named constants for code points/ranges, no needless dependencies, no mutation of inputs, no global side effects beyond the requested functions."
+        "guide": "Readable, small functions, named constants for code points/ranges, no needless dependencies, no mutation of inputs, no global side effects beyond the requested functions. 9-10 = clean, idiomatic and robust; 5-6 = works but repetitive or fragile; 0-3 = hard to follow, globals everywhere, obvious bugs."
       }
     ],
     "checks": {
@@ -160,7 +160,7 @@
           {
             "name": "whitespace_collapse",
             "args": [
-              "  نصٌّ  مع   مسافات\n\tكثيرة  "
+              "  نصٌّ\u00a0\u00a0مع   مسافات\n\tكثيرة  "
             ],
             "expect": "نص مع مسافات كثيرة",
             "cmp": "deep"
@@ -190,7 +190,7 @@
           {
             "name": "nfc_before_stripping",
             "args": [
-              "أحمد",
+              "ا\u0654حمد",
               {
                 "alef": false
               }
@@ -201,7 +201,7 @@
           {
             "name": "nfc_then_alef",
             "args": [
-              "إسلام"
+              "ا\u0655سلام"
             ],
             "expect": "اسلام",
             "cmp": "deep"
@@ -209,7 +209,7 @@
           {
             "name": "latin_marks_preserved",
             "args": [
-              "Café — قَهْوَةٌ"
+              "Cafe\u0301 — قَهْوَةٌ"
             ],
             "expect": "Café — قهوة",
             "cmp": "deep"
@@ -249,7 +249,7 @@
           {
             "name": "whitespace_only",
             "args": [
-              "     "
+              "   \u00a0 "
             ],
             "expect": "",
             "cmp": "deep"
@@ -309,7 +309,7 @@
     "title_ar": "عبارات العدّ العربية والأرقام المشرقية",
     "summary_en": "CLDR Arabic plural categories (zero/one/two/few/many/other, mod-100 rules) and Arabic-Indic number formatting with the Arabic thousands and decimal separators. Prompt written in Arabic.",
     "summary_ar": "فئات الجمع العربية في CLDR (صفر/مفرد/مثنى/قليل/كثير/أخرى وقواعد باقي القسمة على ١٠٠) وتنسيق الأعداد بالأرقام المشرقية وفاصلي الآلاف والكسور العربيين. نص المهمة بالعربية.",
-    "prompt": "نحتاج في واجهة تطبيق عربي إلى صياغة عبارات العدّ صياغةً صحيحة لغويًا وبالأرقام العربية المشرقية.\n\nاكتب دالتين في JavaScript:\n\n**١. `formatNumberAr(n)`** — تُعيد العدد `n` (عدد حقيقي منتهٍ غير سالب) نصًّا بالأرقام ٠١٢٣٤٥٦٧٨٩:\n- فاصل الآلاف «٬» (U+066C) كل ثلاث خانات في الجزء الصحيح (للأعداد من ١٠٠٠ فما فوق).\n- الفاصلة العشرية «٫» (U+066B)، وخانات الكسر تبقى كما تظهر في `String(n)` (مثلًا 2.5 ← «٢٫٥»، و1234567.25 ← «١٬٢٣٤٬٥٦٧٫٢٥»).\n- لا تُضِف أي محارف اتجاه خفية (مثل U+200F أو U+061C) ولا مسافات.\n\n**٢. `pluralAr(n, forms)`** — تختار الصيغة المناسبة من الكائن `forms` وفق فئات الجمع العربية في معيار CLDR:\n- `zero`: ‏n = 0\n- `one`: ‏n = 1\n- `two`: ‏n = 2\n- `few`: ‏n عدد صحيح وباقي قسمته على 100 بين 3 و10\n- `many`: ‏n عدد صحيح وباقي قسمته على 100 بين 11 و99\n- `other`: كل ما عدا ذلك (مثل 100 و101 و102 و1000 والأعداد غير الصحيحة)\n\nثم تستبدل **كل** علامة `#` في الصيغة المختارة بناتج `formatNumberAr(n)`. إذا لم يحتوِ `forms` على الفئة المطلوبة فاستخدم `forms.other`.\n\nمثال:\n```js\nconst files = { zero: 'لا توجد ملفات', one: 'ملف واحد', two: 'ملفان', few: '# ملفات', many: '# ملفًا', other: '# ملف' };\npluralAr(3, files);   // «٣ ملفات»\npluralAr(11, files);  // «١١ ملفًا»\npluralAr(100, files); // «١٠٠ ملف»\npluralAr(103, files); // «١٠٣ ملفات»\n```\n\nانتبه: بعض بيئات التشغيل الحديثة تُخرج `Intl.NumberFormat('ar')` بالأرقام اللاتينية، فلا تفترض ذلك.\n\nأعِد ملف JavaScript واحدًا يعرّف الدالتين في النطاق العام (من دون import أو export، ومن دون الاعتماد على DOM).",
+    "prompt": "نحتاج في واجهة تطبيق عربي إلى صياغة عبارات العدّ صياغةً صحيحة لغويًا وبالأرقام العربية المشرقية.\n\nاكتب دالتين في JavaScript:\n\n**١. `formatNumberAr(n)`** — تُعيد العدد `n` (عدد حقيقي منتهٍ غير سالب) نصًّا بالأرقام ٠١٢٣٤٥٦٧٨٩:\n- فاصل الآلاف «٬» (U+066C) كل ثلاث خانات في الجزء الصحيح (للأعداد من ١٠٠٠ فما فوق).\n- الفاصلة العشرية «٫» (U+066B)، وخانات الكسر تبقى كما تظهر في `String(n)` (مثلًا 2.5 ← «٢٫٥»، و1234567.25 ← «١٬٢٣٤٬٥٦٧٫٢٥»).\n- لا تُضِف أي محارف اتجاه خفية (مثل U+200F أو U+061C) ولا مسافات.\n\n**٢. `pluralAr(n, forms)`** — تختار الصيغة المناسبة من الكائن `forms` وفق فئات الجمع العربية في معيار CLDR:\n- `zero`: إذا كان `n === 0`\n- `one`: إذا كان `n === 1`\n- `two`: إذا كان `n === 2`\n- `few`: إذا كان `n` عددًا صحيحًا و`n % 100` بين 3 و10\n- `many`: إذا كان `n` عددًا صحيحًا و`n % 100` بين 11 و99\n- `other`: كل ما عدا ذلك (مثل 100 و101 و102 و1000 والأعداد غير الصحيحة)\n\nثم تستبدل **كل** علامة `#` في الصيغة المختارة بناتج `formatNumberAr(n)`. إذا لم يحتوِ `forms` على الفئة المطلوبة فاستخدم `forms.other`.\n\nمثال:\n```js\nconst files = { zero: 'لا توجد ملفات', one: 'ملف واحد', two: 'ملفان', few: '# ملفات', many: '# ملفًا', other: '# ملف' };\npluralAr(3, files);   // «٣ ملفات»\npluralAr(11, files);  // «١١ ملفًا»\npluralAr(100, files); // «١٠٠ ملف»\npluralAr(103, files); // «١٠٣ ملفات»\n```\n\nانتبه: بعض بيئات التشغيل الحديثة تُخرج `Intl.NumberFormat('ar')` بالأرقام اللاتينية، فلا تفترض ذلك.\n\nأعِد ملف JavaScript واحدًا يعرّف الدالتين في النطاق العام (من دون import أو export، ومن دون الاعتماد على DOM).",
     "output_type": "js",
     "difficulty": 3,
     "visibility": "public",
@@ -320,14 +320,14 @@
         "label_en": "Correctness & edge cases",
         "label_ar": "الصحة والحالات الحدّية",
         "weight": 3,
-        "guide": "Judge against the specification and the unit-test results shown: every rule implemented exactly, edge cases (empty input, boundaries, option defaults) handled, no hard-coding of test values."
+        "guide": "Judge against the specification and the unit-test results shown: every rule implemented exactly, edge cases (empty input, boundaries, option defaults) handled, no hard-coding of test values. 9-10 = every rule and edge case of the specification handled; 5-6 = typical inputs correct, edge cases fail; 0-3 = core behaviour wrong."
       },
       {
         "key": "locale",
         "label_en": "Locale correctness",
         "label_ar": "صحة الإعدادات المحلية",
         "weight": 2,
-        "guide": "Correct mod-100 logic for few/many, fractions fall into \"other\", exact separators U+066C/U+066B, no hidden bidi marks, does not rely on environment-dependent Intl defaults."
+        "guide": "Correct mod-100 logic for few/many, fractions fall into \"other\", exact separators U+066C/U+066B, no hidden bidi marks, does not rely on environment-dependent Intl defaults. 9-10 = locale rules implemented exactly and independent of the host ICU; 5-6 = categories mostly right, separators or fractions wrong; 0-3 = naive pluralisation."
       },
       {
         "key": "robustness",
@@ -341,7 +341,7 @@
         "label_en": "Code quality",
         "label_ar": "جودة الشيفرة",
         "weight": 1,
-        "guide": "Readable, small functions, named constants for code points/ranges, no needless dependencies, no mutation of inputs, no global side effects beyond the requested functions."
+        "guide": "Readable, small functions, named constants for code points/ranges, no needless dependencies, no mutation of inputs, no global side effects beyond the requested functions. 9-10 = clean, idiomatic and robust; 5-6 = works but repetitive or fragile; 0-3 = hard to follow, globals everywhere, obvious bugs."
       }
     ],
     "checks": {
@@ -798,14 +798,14 @@
         "label_en": "Correctness & edge cases",
         "label_ar": "الصحة والحالات الحدّية",
         "weight": 3,
-        "guide": "Judge against the specification and the unit-test results shown: every rule implemented exactly, edge cases (empty input, boundaries, option defaults) handled, no hard-coding of test values."
+        "guide": "Judge against the specification and the unit-test results shown: every rule implemented exactly, edge cases (empty input, boundaries, option defaults) handled, no hard-coding of test values. 9-10 = every rule and edge case of the specification handled; 5-6 = typical inputs correct, edge cases fail; 0-3 = core behaviour wrong."
       },
       {
         "key": "unicode",
         "label_en": "Unicode & bidi rigour",
         "label_ar": "الدقة في يونيكود والاتجاه",
         "weight": 2,
-        "guide": "Uses grapheme segmentation (not code units or code points), trims only trailing whitespace of the prefix, implements the embedding/isolate stack exactly (PDI terminates inner embeddings, stray closers ignored), wraps with FSI/PDI when requested."
+        "guide": "Uses grapheme segmentation (not code units or code points), trims only trailing whitespace of the prefix, implements the embedding/isolate stack exactly (PDI terminates inner embeddings, stray closers ignored), wraps with FSI/PDI when requested. 9-10 = exact code-point handling with grapheme and normalisation awareness; 5-6 = works for common Arabic text, breaks on combining marks or controls; 0-3 = code-unit string handling."
       },
       {
         "key": "robustness",
@@ -819,7 +819,7 @@
         "label_en": "Code quality",
         "label_ar": "جودة الشيفرة",
         "weight": 1,
-        "guide": "Readable, small functions, named constants for code points/ranges, no needless dependencies, no mutation of inputs, no global side effects beyond the requested functions."
+        "guide": "Readable, small functions, named constants for code points/ranges, no needless dependencies, no mutation of inputs, no global side effects beyond the requested functions. 9-10 = clean, idiomatic and robust; 5-6 = works but repetitive or fragile; 0-3 = hard to follow, globals everywhere, obvious bugs."
       }
     ],
     "checks": {
@@ -901,10 +901,10 @@
           {
             "name": "emoji_zwj_sequence",
             "args": [
-              "👨‍👩‍👧 family",
+              "👨\u200d👩\u200d👧 family",
               3
             ],
-            "expect": "👨‍👩‍👧…",
+            "expect": "👨\u200d👩\u200d👧…",
             "cmp": "deep"
           },
           {
@@ -937,10 +937,10 @@
           {
             "name": "latin_combining",
             "args": [
-              "éééé",
+              "e\u0301e\u0301e\u0301e\u0301",
               3
             ],
-            "expect": "éé…",
+            "expect": "e\u0301e\u0301…",
             "cmp": "deep"
           },
           {
@@ -955,10 +955,10 @@
           {
             "name": "decomposed_hamza_one_char",
             "args": [
-              "أب",
+              "ا\u0654ب",
               2
             ],
-            "expect": "أب",
+            "expect": "ا\u0654ب",
             "cmp": "deep"
           },
           {
@@ -982,64 +982,64 @@
           {
             "name": "open_embedding_closed",
             "args": [
-              "x‫عربي‬ y",
+              "x\u202bعربي\u202c y",
               4
             ],
-            "expect": "x‫ع…‬",
+            "expect": "x\u202bع…\u202c",
             "cmp": "deep"
           },
           {
             "name": "open_isolate_closed",
             "args": [
-              "⁧مرحبا بالعالم⁩!",
+              "\u2067مرحبا بالعالم\u2069!",
               5
             ],
-            "expect": "⁧مرح…⁩",
+            "expect": "\u2067مرح…\u2069",
             "cmp": "deep"
           },
           {
             "name": "nested_mixed_stack",
             "args": [
-              "⁨a‫bc‬d‮ef",
+              "\u2068a\u202bbc\u202cd\u202eef",
               9
             ],
-            "expect": "⁨a‫bc‬d‮…‬⁩",
+            "expect": "\u2068a\u202bbc\u202cd\u202e…\u202c\u2069",
             "cmp": "deep"
           },
           {
             "name": "pdi_closes_inner_embeddings",
             "args": [
-              "⁦a‪b⁩c‫de",
+              "\u2066a\u202ab\u2069c\u202bde",
               8
             ],
-            "expect": "⁦a‪b⁩c‫…‬",
+            "expect": "\u2066a\u202ab\u2069c\u202b…\u202c",
             "cmp": "deep"
           },
           {
             "name": "stray_pdf_ignored_in_isolate",
             "args": [
-              "⁧a‬bcdef",
+              "\u2067a\u202cbcdef",
               4
             ],
-            "expect": "⁧a‬…⁩",
+            "expect": "\u2067a\u202c…\u2069",
             "cmp": "deep"
           },
           {
             "name": "stray_pdi_ignored",
             "args": [
-              "‫a⁩bcdef",
+              "\u202ba\u2069bcdef",
               4
             ],
-            "expect": "‫a⁩…‬",
+            "expect": "\u202ba\u2069…\u202c",
             "cmp": "deep"
           },
           {
             "name": "balanced_not_closed_again",
             "args": [
-              "⁧عربي⁩ text here",
+              "\u2067عربي\u2069 text here",
               9
             ],
-            "expect": "⁧عربي⁩ t…",
+            "expect": "\u2067عربي\u2069 t…",
             "cmp": "deep"
           },
           {
@@ -1051,7 +1051,7 @@
                 "isolate": true
               }
             ],
-            "expect": "⁨abc⁩",
+            "expect": "\u2068abc\u2069",
             "cmp": "deep"
           },
           {
@@ -1063,19 +1063,19 @@
                 "isolate": true
               }
             ],
-            "expect": "⁨مرحبا…⁩",
+            "expect": "\u2068مرحبا…\u2069",
             "cmp": "deep"
           },
           {
             "name": "isolate_with_closers",
             "args": [
-              "‮abc def",
+              "\u202eabc def",
               3,
               {
                 "isolate": true
               }
             ],
-            "expect": "⁨‮a…‬⁩",
+            "expect": "\u2068\u202ea…\u202c\u2069",
             "cmp": "deep"
           },
           {
@@ -1087,7 +1087,7 @@
                 "isolate": true
               }
             ],
-            "expect": "⁨⁩",
+            "expect": "\u2068\u2069",
             "cmp": "deep"
           },
           {
@@ -1117,35 +1117,35 @@
         "label_en": "RTL mirroring & bidi",
         "label_ar": "الانعكاس والاتجاه الثنائي",
         "weight": 3,
-        "guide": "Whole layout mirrored (columns, stepper, icons, arrows, alignment); logical CSS properties; LTR content (phone, coupon) isolated correctly; no punctuation or numbers jumping to the wrong side."
+        "guide": "Whole layout mirrored (columns, stepper, icons, arrows, alignment); logical CSS properties; LTR content (phone, coupon) isolated correctly; no punctuation or numbers jumping to the wrong side. 9-10 = indistinguishable from a native Arabic product: everything mirrored, nothing jumps; 5-6 = dir=\"rtl\" set but icons, arrows, alignment or numbers left un-mirrored; 0-3 = LTR layout with Arabic text."
       },
       {
         "key": "numerals",
         "label_en": "Arabic typography & numerals",
         "label_ar": "الطباعة العربية والأرقام",
         "weight": 2,
-        "guide": "Readable Arabic font stack and sizes, comfortable line height, Arabic-Indic digits with ٬ and ٫ everywhere, currency after the amount, natural Modern Standard Arabic copy."
+        "guide": "Readable Arabic font stack and sizes, comfortable line height, Arabic-Indic digits with ٬ and ٫ everywhere, currency after the amount, natural Modern Standard Arabic copy. 9-10 = consistent Arabic-Indic numerals with correct separators and polished Arabic typography; 5-6 = mixed digit systems or cramped type; 0-3 = Latin digits and default fonts throughout."
       },
       {
         "key": "logic",
         "label_en": "Checkout logic",
         "label_ar": "منطق الطلب",
         "weight": 2,
-        "guide": "Quantities, shipping, coupon and 15% VAT computed exactly as specified (initial total ٩٠٢٫٧٥ ر.س), no floating-point artefacts, totals update instantly."
+        "guide": "Quantities, shipping, coupon and 15% VAT computed exactly as specified (initial total ٩٠٢٫٧٥ ر.س), no floating-point artefacts, totals update instantly. 9-10 = every rule and edge case behaves as specified; 5-6 = main path works but conditions or numbers are off; 0-3 = logic largely missing or wrong."
       },
       {
         "key": "visual",
         "label_en": "Visual polish",
         "label_ar": "الإتقان البصري",
         "weight": 2,
-        "guide": "Premium look worthy of a luxury perfume brand: hierarchy, spacing, colour, states; works at 390 px and 1440 px."
+        "guide": "Premium look worthy of a luxury perfume brand: hierarchy, spacing, colour, states; works at 390 px and 1440 px. 9-10 = could ship on a premium product; 5-6 = clean but generic template; 0-3 = unstyled, broken at 390 px or low contrast."
       },
       {
         "key": "a11y",
         "label_en": "Forms & accessibility",
         "label_ar": "النماذج وإمكانية الوصول",
         "weight": 2,
-        "guide": "Labels, grouped radios with legends, Arabic error messages wired with aria-invalid/aria-describedby, focus moved to the first error, visible focus styles, sufficient contrast."
+        "guide": "Labels, grouped radios with legends, Arabic error messages wired with aria-invalid/aria-describedby, focus moved to the first error, visible focus styles, sufficient contrast. 9-10 = no accessibility barriers found; 5-6 = labels present but focus/error handling gaps; 0-3 = unlabeled controls and keyboard traps."
       }
     ],
     "checks": {
@@ -1328,35 +1328,35 @@
         "label_en": "RTL & mixed-direction handling",
         "label_ar": "الاتجاه والنص المختلط",
         "weight": 3,
-        "guide": "Stepper, arrows and layout mirrored; Latin/numeric values isolated with dir=\"ltr\" inputs and <bdi> so nothing reorders; Arabic-Indic digits in dates, distances and slots."
+        "guide": "Stepper, arrows and layout mirrored; Latin/numeric values isolated with dir=\"ltr\" inputs and <bdi> so nothing reorders; Arabic-Indic digits in dates, distances and slots. 9-10 = every mixed-direction value isolated and rendered in the right order; 5-6 = some LTR values isolated, punctuation still jumps elsewhere; 0-3 = no bidi handling."
       },
       {
         "key": "flow",
         "label_en": "Wizard logic & validation",
         "label_ar": "منطق المعالج والتحقق",
         "weight": 3,
-        "guide": "Cannot advance with invalid data; ID accepts both digit systems; precise Arabic error messages; error summary with working links; review reflects the entered data; edit buttons work; confirmation reference shown."
+        "guide": "Cannot advance with invalid data; ID accepts both digit systems; precise Arabic error messages; error summary with working links; review reflects the entered data; edit buttons work; confirmation reference shown. 9-10 = wizard is airtight: validation, normalisation, review and edit loops all work; 5-6 = steps work but validation is shallow; 0-3 = steps can be skipped or data is lost."
       },
       {
         "key": "visual",
         "label_en": "Visual design",
         "label_ar": "التصميم البصري",
         "weight": 2,
-        "guide": "Trustworthy, calm public-service aesthetic with clear hierarchy, good spacing and a polished slot picker; dark/light schemes; works at 390 px."
+        "guide": "Trustworthy, calm public-service aesthetic with clear hierarchy, good spacing and a polished slot picker; dark/light schemes; works at 390 px. 9-10 = could ship on a premium product; 5-6 = clean but generic template; 0-3 = unstyled, broken at 390 px or low contrast."
       },
       {
         "key": "typography",
         "label_en": "Arabic typography & language",
         "label_ar": "الطباعة العربية واللغة",
         "weight": 2,
-        "guide": "Legible Arabic font stack and sizes, comfortable line height, fluent Modern Standard Arabic microcopy (no machine-literal phrasing)."
+        "guide": "Legible Arabic font stack and sizes, comfortable line height, fluent Modern Standard Arabic microcopy (no machine-literal phrasing). 9-10 = refined, legible Arabic typography and fluent copy; 5-6 = readable but generic or slightly machine-like copy; 0-3 = broken shaping, tiny text or poor Arabic."
       },
       {
         "key": "a11y",
         "label_en": "Accessibility",
         "label_ar": "إمكانية الوصول",
         "weight": 2,
-        "guide": "Labels, fieldsets/legends for radio groups, aria-current on the stepper, disabled slots explained, focus management between steps and on errors, visible focus."
+        "guide": "Labels, fieldsets/legends for radio groups, aria-current on the stepper, disabled slots explained, focus management between steps and on errors, visible focus. 9-10 = no accessibility barriers found; 5-6 = labels present but focus/error handling gaps; 0-3 = unlabeled controls and keyboard traps."
       }
     ],
     "checks": {

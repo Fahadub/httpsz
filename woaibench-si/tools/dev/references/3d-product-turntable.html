@@ -127,7 +127,18 @@
 
   // ---------- GL setup ----------
   const canvas = document.getElementById('view');
-  const gl = canvas.getContext('webgl', { antialias: true, preserveDrawingBuffer: true, alpha: false });
+  /** Software WebGL (SwiftShader/llvmpipe) makes MSAA very expensive: only request it on real GPUs. */
+  function softwareGL() {
+    try {
+      const t = document.createElement('canvas').getContext('webgl');
+      if (!t) return true;
+      const ext = t.getExtension('WEBGL_debug_renderer_info');
+      const r = String(t.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : t.RENDERER));
+      const lose = t.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext();
+      return /swiftshader|llvmpipe|software|basic render/i.test(r);
+    } catch (e) { return false; }
+  }
+  const gl = canvas.getContext('webgl', { antialias: !softwareGL(), preserveDrawingBuffer: true, alpha: false });
   if (!gl) { canvas.replaceWith(Object.assign(document.createElement('p'), { textContent: 'WebGL is not available in this browser.' })); return; }
   gl.getExtension('OES_element_index_uint');
   function program(vs, fs) {
@@ -255,8 +266,19 @@
   const autoBtn = document.getElementById('autorotate');
   autoBtn.setAttribute('aria-pressed', String(auto));
 
+  // Dynamic resolution: drop the internal render scale when frames get slow (e.g. software WebGL), recover when fast.
+  let renderScale = 1, perfFrames = 0, perfT = 0;
+  function adaptResolution(dt) {
+    perfFrames++; perfT += dt;
+    if (perfT < 0.5) return;
+    const fps = perfFrames / perfT; perfFrames = 0; perfT = 0;
+    const prev = renderScale;
+    if (fps < 42 && renderScale > 0.4) renderScale = Math.max(0.4, renderScale * 0.75);
+    else if (fps > 58 && renderScale < 1) renderScale = Math.min(1, renderScale * 1.1);
+    if (prev !== renderScale) resize();
+  }
   function resize() {
-    dpr = Math.min(2, window.devicePixelRatio || 1);
+    dpr = Math.min(2, window.devicePixelRatio || 1) * renderScale;
     const w = canvas.clientWidth, h = canvas.clientHeight;
     canvas.width = Math.max(1, Math.round(w * dpr)); canvas.height = Math.max(1, Math.round(h * dpr));
   }
@@ -268,6 +290,7 @@
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    adaptResolution(dt);
     if (canvas.width !== Math.round(canvas.clientWidth * dpr) || canvas.height !== Math.round(canvas.clientHeight * dpr)) resize();
     // camera motion: inertia + auto-rotate
     if (!dragging) {

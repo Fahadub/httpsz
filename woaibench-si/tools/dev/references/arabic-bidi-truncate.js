@@ -2,12 +2,12 @@
 // Counts extended grapheme clusters with Intl.Segmenter, trims the kept prefix, and re-closes any
 // explicit embeddings/overrides (PDF) and isolates (PDI) that the cut left open, innermost first.
 
-const FSI = '⁨';
-const PDI = '⁩';
-const PDF = '‬';
-const ELLIPSIS = '…';
-const EMBEDDINGS = new Set(['‪', '‫', '‭', '‮']); // LRE RLE LRO RLO
-const ISOLATES = new Set(['⁦', '⁧', '⁨']); // LRI RLI FSI
+const FSI = '\u2068';
+const PDI = '\u2069';
+const PDF = '\u202C';
+const ELLIPSIS = '\u2026';
+const EMBEDDINGS = new Set(['\u202A', '\u202B', '\u202D', '\u202E']); // LRE RLE LRO RLO
+const ISOLATES = new Set(['\u2066', '\u2067', '\u2068']); // LRI RLI FSI
 
 function graphemes(text) {
   const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' });

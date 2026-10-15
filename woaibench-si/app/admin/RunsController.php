@@ -22,8 +22,8 @@ final class RunsController
             'campaign' => \input_int('campaign', 0, 0),
             'model' => \input_int('model', 0, 0),
             'task' => \input_int('task', 0, 0),
-            'status' => (string) \input('status', ''),
-            'contested' => (string) \input('contested', ''),
+            'status' => Admin::str('status', ''),
+            'contested' => Admin::str('contested', ''),
         ];
         $w = [];
         $p = [];
@@ -133,7 +133,7 @@ final class RunsController
         if (!$run) {
             \abort(404);
         }
-        switch ((string) \input('action')) {
+        switch (Admin::str('action')) {
             case 'retry':
                 self::resetRuns('id = ?', [$id]);
                 DB::exec("UPDATE campaigns SET status = 'running', finished_at = NULL WHERE id = ? AND status = 'done'", [(int) $run['campaign_id']]);

@@ -19,7 +19,7 @@ final class CampaignsController
     public static function index(): void
     {
         \require_admin();
-        $status = (string) \input('status', '');
+        $status = Admin::str('status', '');
         $where = in_array($status, self::STATUSES, true) ? ' WHERE status = ?' : '';
         $params = $where !== '' ? [$status] : [];
         $total = (int) DB::val('SELECT COUNT(*) FROM campaigns' . $where, $params);
@@ -151,7 +151,7 @@ final class CampaignsController
     {
         $user = Admin::guardPost();
         [$m, $t, $runs, $gen, $errors] = self::selection($_POST);
-        $name = mb_substr(trim((string) \input('name', '')), 0, 190);
+        $name = mb_substr(trim(Admin::str('name', '')), 0, 190);
         if ($name === '') {
             $errors[] = \__('admin.campaigns.err_name');
         }
@@ -235,7 +235,7 @@ final class CampaignsController
         if (!$c) {
             \abort(404);
         }
-        $action = (string) \input('action');
+        $action = Admin::str('action');
         $msg = \__('admin.saved');
         switch ($action) {
             case 'pause':

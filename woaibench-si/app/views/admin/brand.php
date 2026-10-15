@@ -66,7 +66,7 @@ foreach ($presets as $k => $p) {
             <div class="cluster"><?= ui_badge(__('admin.brand.kind.' . $a['kind']), 'gold') ?><?= $act ? ui_badge(__('admin.brand.active'), 'green', 'check') : '' ?><span class="t-xs t-muted t-num"><?= (int) $a['width'] ?>×<?= (int) $a['height'] ?></span></div>
             <p class="t-xs t-muted admin-clamp" title="<?= e((string) $a['prompt']) ?>"><?= e((string) $a['prompt']) ?></p>
             <div class="t-xs t-muted"><span class="t-mono" dir="ltr"><?= e((string) $a['model']) ?></span> · <?= e(fmt_date($a['created_at'], 'relative')) ?></div>
-            <div class="cluster">
+            <div class="cluster admin-actions">
               <form method="post" action="<?= e(url('/admin/brand/' . $a['id'] . '/action')) ?>"><?= csrf_field() ?><input type="hidden" name="action" value="<?= $act ? 'deactivate' : 'activate' ?>"><button class="btn btn-sm <?= $act ? 'btn-ghost' : 'btn-outline' ?>" type="submit"><?= ui_icon($act ? 'x' : 'check', 14) ?><span><?= _e($act ? 'admin.brand.unset' : 'admin.brand.set_active') ?></span></button></form>
               <a class="btn btn-sm btn-ghost btn-icon" href="<?= e(upload_url($a['path'])) ?>" download aria-label="<?= _e('common.download') ?>"><?= ui_icon('download', 14) ?></a>
               <form method="post" action="<?= e(url('/admin/brand/' . $a['id'] . '/action')) ?>" data-confirm="<?= _e('admin.brand.delete_confirm') ?>"><?= csrf_field() ?><input type="hidden" name="action" value="delete"><button class="btn btn-sm btn-ghost btn-icon" type="submit" aria-label="<?= _e('common.delete') ?>"><?= ui_icon('trash', 14) ?></button></form>

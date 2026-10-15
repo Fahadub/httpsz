@@ -1,0 +1,212 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kinetic Sculpture — raymarched</title>
+<style>
+  :root { --panel: rgba(16,14,12,.55); --line: rgba(255,240,220,.16); --text: #f6efe6; --muted: #c9bba8; --accent: #e9b872; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: #17130f; color: var(--text); font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; outline: none; image-rendering: auto; }
+  .card { position: fixed; inset-inline-start: 18px; bottom: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; backdrop-filter: blur(10px); display: grid; gap: 10px; min-width: 250px; }
+  h1 { margin: 0; font: 400 22px/1.1 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; letter-spacing: .01em; }
+  h1 small { display: block; font: 500 11px ui-sans-serif, system-ui, sans-serif; color: var(--muted); letter-spacing: .14em; text-transform: uppercase; margin-top: 6px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  label { color: var(--muted); }
+  select, button { font: inherit; color: var(--text); background: rgba(255,255,255,.08); border: 1px solid var(--line); border-radius: 10px; padding: 7px 12px; min-height: 36px; cursor: pointer; }
+  select option { color: #111; }
+  #pause[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+  #fps { margin-inline-start: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .hint { position: fixed; top: 16px; inset-inline-end: 18px; color: var(--muted); font-size: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; backdrop-filter: blur(8px); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (max-width: 600px) { .card { inset-inline: 10px; bottom: 10px; min-width: 0; } .hint { display: none; } }
+</style>
+</head>
+<body>
+<canvas id="view" tabindex="0" role="img" aria-label="A raymarched kinetic sculpture: a gyroid-carved sphere on a plinth with three orbiting liquid-metal drops. Drag to orbit."></canvas>
+<div class="hint">Drag to orbit · scroll to zoom</div>
+<div class="card">
+  <h1>Kinetic Sculpture<small>Signed distance fields · soft shadows · AO</small></h1>
+  <div class="row">
+    <label for="quality">Quality</label>
+    <select id="quality"><option value="high" selected>High</option><option value="low">Low</option></select>
+    <button type="button" id="pause" aria-pressed="false">Pause</button>
+    <span id="fps">— fps</span>
+  </div>
+</div>
+<script>
+(() => {
+  'use strict';
+  const canvas = document.getElementById('view');
+  const gl = canvas.getContext('webgl', { antialias: false, preserveDrawingBuffer: true, alpha: false });
+  if (!gl) { document.body.insertAdjacentHTML('beforeend', '<p style="padding:20px">WebGL is unavailable.</p>'); return; }
+  const VS = `attribute vec2 aPos; void main(){ gl_Position = vec4(aPos, 0.0, 1.0); }`;
+  const FS = `precision highp float;
+    uniform vec2 uRes; uniform float uTime; uniform vec3 uCam; uniform float uSteps; uniform float uShadowQ;
+    #define MAX_STEPS 128
+    mat2 rot(float a){ float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
+    float smin(float a, float b, float k){ float h = clamp(0.5 + 0.5*(b-a)/k, 0.0, 1.0); return mix(b, a, h) - k*h*(1.0-h); }
+    float sdRoundCyl(vec3 p, float r, float h, float rr){ vec2 d = vec2(length(p.xz) - r + rr, abs(p.y) - h + rr); return min(max(d.x, d.y), 0.0) + length(max(d, 0.0)) - rr; }
+    // Objects only (the floor is intersected analytically). Returns (distance, material): 1 plinth, 2 ceramic gyroid, 3 liquid metal.
+    vec2 map(vec3 p){
+      vec2 res = vec2(sdRoundCyl(p - vec3(0.0, -0.72, 0.0), 0.95, 0.28, 0.06), 1.0);
+      vec3 q = p - vec3(0.0, 0.55, 0.0);
+      q.xz *= rot(uTime * 0.25);
+      float sphere = length(q) - 0.95;
+      vec3 g = q * 5.2;
+      float gyroid = abs(dot(sin(g), cos(g.zxy))) / 5.2 - 0.045;
+      float carved = min(max(sphere, gyroid * 0.75), length(q) - 0.42);
+      if (carved < res.x) res = vec2(carved, 2.0);
+      float blobs = 1e5;
+      for (int i = 0; i < 3; i++) {
+        float fi = float(i);
+        float a = uTime * (0.6 + fi * 0.13) + fi * 2.094;
+        vec3 c = vec3(cos(a) * 1.45, 0.45 + sin(uTime * 0.9 + fi * 1.7) * 0.45, sin(a) * 1.45);
+        blobs = smin(blobs, length(p - c) - (0.2 + 0.04 * fi), 0.35);
+      }
+      if (blobs < res.x) res = vec2(blobs, 3.0);
+      return res;
+    }
+    // Every object lies inside this bounding sphere: rays that miss it never march.
+    const vec3 BC = vec3(0.0, 0.1, 0.0); const float BR = 2.25;
+    vec2 hitBounds(vec3 ro, vec3 rd){ vec3 oc = ro - BC; float b = dot(oc, rd), c = dot(oc, oc) - BR*BR, h = b*b - c; if (h < 0.0) return vec2(-1.0); h = sqrt(h); return vec2(-b - h, -b + h); }
+    vec3 normal(vec3 p){ vec2 e = vec2(0.0015, 0.0); return normalize(vec3(map(p+e.xyy).x - map(p-e.xyy).x, map(p+e.yxy).x - map(p-e.yxy).x, map(p+e.yyx).x - map(p-e.yyx).x)); }
+    float softShadow(vec3 ro, vec3 rd){
+      vec2 b = hitBounds(ro, rd);
+      if (b.y < 0.0) return 1.0;
+      float res = 1.0, t = max(b.x, 0.02);
+      for (int i = 0; i < 32; i++) {
+        if (float(i) >= uShadowQ || t > b.y) break;
+        float h = map(ro + rd * t).x;
+        res = min(res, 10.0 * h / t);
+        t += clamp(h, 0.02, 0.25);
+        if (res < 0.002) break;
+      }
+      return clamp(res, 0.0, 1.0);
+    }
+    float ao(vec3 p, vec3 n){ float o = 0.0, s = 1.0; for (int i = 1; i <= 5; i++){ float h = 0.03 + 0.11 * float(i); o += (h - map(p + n*h).x) * s; s *= 0.7; } return clamp(1.0 - 1.6*o, 0.0, 1.0); }
+    vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14), 0.0, 1.0); }
+    vec3 env(vec3 d){ return mix(vec3(0.20,0.16,0.12), vec3(0.95,0.85,0.70), smoothstep(-0.2, 0.8, d.y)) + vec3(2.0,1.7,1.3) * pow(max(dot(d, normalize(vec3(0.6,0.7,0.3))),0.0), 40.0); }
+    void main(){
+      vec2 uv = (gl_FragCoord.xy * 2.0 - uRes) / uRes.y;
+      float yaw = uCam.x, pitch = uCam.y, dist = uCam.z;
+      vec3 ta = vec3(0.0, 0.25, 0.0);
+      vec3 ro = vec3(cos(pitch)*sin(yaw), sin(pitch), cos(pitch)*cos(yaw)) * dist + ta;
+      vec3 ww = normalize(ta - ro), uu = normalize(cross(ww, vec3(0.0,1.0,0.0))), vv = cross(uu, ww);
+      vec3 rd = normalize(uv.x*uu + uv.y*vv + 1.7*ww);
+      vec3 L = normalize(vec3(0.6, 0.7, 0.3));
+      vec3 bg = mix(vec3(0.05,0.04,0.035), vec3(0.16,0.13,0.10), smoothstep(-0.6, 0.6, uv.y));
+      float tFloor = rd.y < 0.0 ? (-1.0 - ro.y) / rd.y : 1e5;
+      float t = 1e5; float mat = -1.0;
+      vec2 b = hitBounds(ro, rd);
+      if (b.y > 0.0) {
+        float tm = max(b.x, 0.0), tEnd = min(b.y, tFloor);
+        for (int i = 0; i < MAX_STEPS; i++) {
+          if (float(i) >= uSteps || tm > tEnd) break;
+          vec2 h = map(ro + rd*tm);
+          if (h.x < 0.0008*tm) { t = tm; mat = h.y; break; }
+          tm += h.x * 0.9;
+        }
+      }
+      vec3 col = bg;
+      if (mat < 0.0 && tFloor < 40.0) {
+        vec3 p = ro + rd*tFloor;
+        vec2 c = floor(p.xz*1.5);
+        vec3 alb = mix(vec3(0.23,0.19,0.16), vec3(0.19,0.16,0.135), mod(c.x+c.y, 2.0));
+        float sh = softShadow(p + vec3(0.0, 0.004, 0.0), L);
+        float occ = clamp(0.45 + 0.9 * map(p).x, 0.0, 1.0);
+        col = alb * (max(L.y, 0.0) * sh * vec3(2.0,1.75,1.5) + env(vec3(0.0,1.0,0.0)) * 0.3 * occ);
+        col = mix(col, bg, smoothstep(5.0, 14.0, tFloor));
+      } else if (mat > 0.0) {
+        vec3 p = ro + rd*t, n = normal(p), v = -rd;
+        float sh = softShadow(p + n*0.004, L), occ = ao(p, n);
+        float dif = max(dot(n, L), 0.0) * sh;
+        float fre = pow(1.0 - max(dot(n, v), 0.0), 5.0);
+        vec3 hv = normalize(L + v);
+        vec3 alb; float rough, metal;
+        if (mat < 1.5) { alb = vec3(0.10,0.09,0.085); rough = 0.35; metal = 0.0; }
+        else if (mat < 2.5) { alb = vec3(0.80,0.74,0.66); rough = 0.4; metal = 0.0; }
+        else { alb = vec3(0.98,0.75,0.42); rough = 0.12; metal = 1.0; }
+        vec3 F0 = mix(vec3(0.04), alb, metal);
+        float shin = mix(300.0, 12.0, rough);
+        vec3 spec = (F0 + (1.0 - F0) * fre) * pow(max(dot(n, hv), 0.0), shin) * (shin + 8.0) / 25.0 * sh;
+        vec3 amb = env(n) * 0.35 * occ;
+        vec3 refl = env(reflect(rd, n)) * (F0 + (1.0-F0)*fre) * occ * (1.0 - rough*0.7);
+        col = alb * (1.0 - metal) * (dif * vec3(2.0,1.75,1.5) + amb) + spec * vec3(1.8,1.6,1.35) + refl;
+      }
+      col *= 1.0 - 0.25 * dot(uv*0.6, uv*0.6);
+      gl_FragColor = vec4(pow(aces(col), vec3(1.0/2.2)), 1.0);
+    }`;
+  function compile(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  gl.useProgram(prog);
+  const U = (n) => gl.getUniformLocation(prog, n);
+  const uRes = U('uRes'), uTime = U('uTime'), uCam = U('uCam'), uSteps = U('uSteps'), uShadowQ = U('uShadowQ');
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, 'aPos'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+  // ---------- quality, dynamic resolution ----------
+  const QUALITY = { high: { steps: 110, shadow: 32, maxScale: 1 }, low: { steps: 60, shadow: 12, maxScale: 0.6 } };
+  let quality = 'high', scale = 0.6, frames = 0, acc = 0;
+  const qualitySel = document.getElementById('quality');
+  function resize() {
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1) * scale;
+    canvas.width = Math.max(64, Math.round(innerWidth * dpr)); canvas.height = Math.max(64, Math.round(innerHeight * dpr));
+  }
+  function adapt(dt) {
+    frames++; acc += dt;
+    if (acc < 0.5) return;
+    const fps = frames / acc; frames = 0; acc = 0;
+    document.getElementById('fps').textContent = `${Math.round(fps)} fps`;
+    const prev = scale, max = QUALITY[quality].maxScale;
+    if (fps < 40 && scale > 0.15) scale = Math.max(0.15, scale * 0.75);
+    else if (fps > 57 && scale < max) scale = Math.min(max, scale * 1.12);
+    if (scale !== prev) resize();
+  }
+
+  // ---------- camera & loop ----------
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const cam = { yaw: 0.5, pitch: 0.32, dist: 5.2, vy: 0 };
+  let time = 0, paused = reduced, last = performance.now(), dragging = false;
+  const pauseBtn = document.getElementById('pause');
+  pauseBtn.setAttribute('aria-pressed', String(paused)); pauseBtn.textContent = paused ? 'Play' : 'Pause';
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    adapt(dt);
+    if (!paused) time += dt;
+    if (!dragging && !paused) cam.yaw += dt * 0.08;
+    cam.yaw += cam.vy * dt; cam.vy *= Math.pow(0.05, dt);
+    const q = QUALITY[quality];
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.uniform2f(uRes, canvas.width, canvas.height); gl.uniform1f(uTime, time);
+    gl.uniform3f(uCam, cam.yaw, cam.pitch, cam.dist); gl.uniform1f(uSteps, q.steps); gl.uniform1f(uShadowQ, q.shadow);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    requestAnimationFrame(frame);
+  }
+  let drag = null;
+  canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, t: performance.now() }; dragging = true; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    cam.yaw -= dx * 0.006; cam.pitch = Math.max(0.02, Math.min(1.3, cam.pitch + dy * 0.005)); cam.vy = -dx * 0.3;
+    drag = { x: e.clientX, y: e.clientY };
+  });
+  const up = () => { drag = null; dragging = false; };
+  canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
+  canvas.addEventListener('wheel', (e) => { e.preventDefault(); cam.dist = Math.max(3, Math.min(9, cam.dist * Math.exp(e.deltaY * 0.001))); }, { passive: false });
+  canvas.addEventListener('keydown', (e) => { const k = { ArrowLeft: -0.1, ArrowRight: 0.1 }[e.key]; if (k) { e.preventDefault(); cam.yaw += k; } });
+  pauseBtn.addEventListener('click', () => { paused = !paused; pauseBtn.setAttribute('aria-pressed', String(paused)); pauseBtn.textContent = paused ? 'Play' : 'Pause'; });
+  qualitySel.addEventListener('change', () => { quality = qualitySel.value; scale = Math.min(scale, QUALITY[quality].maxScale); resize(); });
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -2,7 +2,8 @@
 /**
  * WOAIBench.si — validator for the agentic, arabic and a11y task packs (module tasks-agentic).
  *
- *   node tools/dev/validate-agentic.mjs [--only=slug,slug] [--no-browser] [--no-php] [--shots=DIR] [--verbose]
+ *   node tools/dev/validate-agentic.mjs [--only=slug,slug] [--no-browser] [--no-php] [--db] [--no-gate] [--shots=DIR] [--verbose]
+ *   (--db also replays each reference against the task row stored by the Seeder; set WB_DB_NAME.)
  *
  * 1. Lints sql/seed/tasks/{agentic,arabic,a11y}.json against ARCHITECTURE §5.1/§5.6.
  * 2. Agent tasks: replays tools/dev/references/<slug>.agent.json through a faithful JS port of
@@ -48,7 +49,7 @@ const STATIC_TYPES = ['contains', 'not_contains', 'selector', 'max_bytes', 'min_
 const BROWSER_TYPES = ['loads', 'no_errors', 'nonblank', 'selector', 'text', 'animates', 'fps', 'responsive', 'keyboard', 'click', 'rtl', 'a11y_basic', 'canvas'];
 const GOAL_TYPES = ['file_equals', 'file_contains', 'file_json_equals', 'file_exists', 'file_absent', 'record_equals', 'email_sent', 'email_count', 'calendar_has', 'answer_contains', 'answer_number', 'tool_not_called', 'tool_called', 'no_write_outside', 'max_steps'];
 const TOOLS = ['list_dir', 'read_file', 'write_file', 'append_file', 'delete_file', 'move_file', 'search_files', 'http_get', 'query_records', 'update_record', 'send_email', 'calendar_list', 'calendar_add', 'calc', 'finish'];
-const hasArabic = (s) => /[؀-ۿ]/.test(String(s || ''));
+const hasArabic = (s) => /[\u0600-\u06ff]/.test(String(s || ''));
 
 function loadTasks() {
   const all = [];
@@ -596,6 +597,7 @@ function checkAgentTasks(tasks, php) {
       const task = { prompt: t.prompt, output_type: 'agent', checks: t.checks };
       jobs.push({ id: `${t.slug}|${name}|native`, task, steps, native: true, _mini: replay(t, steps) });
       if (name === 'reference') { jobs.push({ id: `${t.slug}|${name}|json`, task, steps, native: false, _mini: replay(t, steps) }); }
+      if (name === 'reference' && ARGS.db) { jobs.push({ id: `${t.slug}|${name}|db`, db_slug: t.slug, steps, native: true, _mini: replay(t, steps) }); }
     }
   }
   if (!php) { return; }

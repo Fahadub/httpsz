@@ -315,7 +315,7 @@
   var checked = function (name) { return document.querySelector('input[name="' + name + '"]:checked'); };
   var RULES = {
     1: [
-      { id: 'full-name', test: function (v) { v = v.trim(); if (!v) { return 'أدخل الاسم الكامل.'; } return /^[ء-ي٠-٩ً-ْ\s]+$/.test(v) && v.split(/\s+/).length >= 2 ? '' : 'اكتب الاسم بالحروف العربية ويتضمن الاسم الأول واسم العائلة.'; } },
+      { id: 'full-name', test: function (v) { v = v.trim(); if (!v) { return 'أدخل الاسم الكامل.'; } return /^[ء-ي٠-٩\u064b-\u0652\s]+$/.test(v) && v.split(/\s+/).length >= 2 ? '' : 'اكتب الاسم بالحروف العربية ويتضمن الاسم الأول واسم العائلة.'; } },
       { id: 'national-id', test: function (v) { var d = western(v).replace(/\s/g, ''); if (!d) { return 'أدخل رقم الهوية الوطنية.'; } return /^[12]\d{9}$/.test(d) ? '' : 'رقم الهوية يجب أن يتكوّن من ١٠ أرقام ويبدأ بـ ١ أو ٢.'; } },
       { id: 'mobile', test: function (v) { var d = western(v).replace(/[\s-]/g, ''); if (!d) { return 'أدخل رقم الجوال.'; } return /^(\+966|00966)5\d{8}$/.test(d) ? '' : 'اكتب رقم الجوال بالصيغة الدولية التي تبدأ بـ +966 5.'; } },
       { id: 'plate', test: function (v) { return /^[A-Za-z]{3}\s?\d{1,4}$/.test(v.trim()) ? '' : 'رقم اللوحة يتكوّن من ثلاثة أحرف لاتينية ثم رقم من ١ إلى ٤ خانات.'; } },

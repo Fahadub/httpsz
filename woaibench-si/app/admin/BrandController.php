@@ -16,7 +16,7 @@ final class BrandController
     public static function index(): void
     {
         \require_admin();
-        $kind = (string) \input('kind', '');
+        $kind = Admin::str('kind', '');
         $where = in_array($kind, BrandStudio::KINDS, true) ? ' WHERE kind = ?' : '';
         Admin::render('brand', [
             'title' => \__('admin.nav.brand'),
@@ -36,10 +36,10 @@ final class BrandController
     public static function generate(): void
     {
         Admin::guardPost();
-        $kind = (string) \input('kind', 'logo');
-        $prompt = trim((string) \input('prompt', ''));
-        $model = trim((string) \input('model', '')) ?: (string) \setting('image_model');
-        $size = (string) \input('size', '1024x1024');
+        $kind = Admin::str('kind', 'logo');
+        $prompt = trim(Admin::str('prompt', ''));
+        $model = trim(Admin::str('model', '')) ?: (string) \setting('image_model');
+        $size = Admin::str('size', '1024x1024');
         if ($prompt === '' || mb_strlen($prompt) > 4000) {
             \flash('error', \__('admin.brand.err_prompt'));
             \redirect('/admin/brand');
@@ -69,13 +69,14 @@ final class BrandController
     public static function action(int $id): void
     {
         Admin::guardPost();
-        $ok = match ((string) \input('action')) {
+        $action = Admin::str('action');
+        $ok = match ($action) {
             'activate' => BrandStudio::activate($id),
             'deactivate' => BrandStudio::deactivate($id),
             'delete' => BrandStudio::delete($id),
             default => \abort(400, 'Unknown action'),
         };
-        \flash($ok ? 'success' : 'error', $ok ? \__('admin.saved') : \__('admin.not_found'));
+        \flash($ok ? 'success' : 'error', $ok ? \__($action === 'delete' ? 'admin.deleted' : 'admin.saved') : \__('admin.not_found'));
         \redirect('/admin/brand');
     }
 }

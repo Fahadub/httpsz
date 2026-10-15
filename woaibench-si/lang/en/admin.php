@@ -763,6 +763,8 @@ return [
     'admin.js.c_started' => 'Console started',
     'admin.js.c_stopped_detail' => 'Press Start to resume.',
     'admin.js.c_stopped_log' => 'Console stopped',
+    'admin.js.c_wait' => 'Waiting for browser checks',
+    'admin.js.c_wait_detail' => ':n run(s) wait for the Verification Station — next step in :s s.',
     'admin.js.c_idle_detail' => 'Nothing to do — checking again in :s s.',
     'admin.js.c_running_detail' => 'Last step: :n unit(s) in :ms ms',
     'admin.js.c_retry' => 'Error :n of :max — retrying in :s s',

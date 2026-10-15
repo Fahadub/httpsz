@@ -3,9 +3,10 @@
  * Dev-only bridge used by tools/dev/validate-agentic.mjs: replays scripted agent trajectories through
  * the real WB\Eval\AgentSim (with a scripted ChatClient, in native tool-calling and JSON-protocol
  * mode) and runs WB\Eval\StaticChecks on reference outputs. Reads one JSON job from STDIN, writes
- * one JSON result to STDOUT. Never touches the database or the network.
+ * one JSON result to STDOUT. Never writes to the database and never uses the network (it only reads
+ * settings and, for "db_slug" jobs, the seeded task row).
  *
- * STDIN:  {"agent":[{"id","task":{prompt,output_type,checks},"steps":[{"tool","args"}],"native":bool}],
+ * STDIN:  {"agent":[{"id","task":{prompt,output_type,checks} | "db_slug":"<slug>","steps":[{"tool","args"}],"native":bool}],
  *          "static":[{"id","code","output_type","checks":[…static checks…]}]}
  * STDOUT: {"agent":{"<id>":{auto_score,steps,end_reason,goals:[…]}},"static":{"<id>":[…]}}
  */
@@ -60,7 +61,16 @@ foreach ((array) ($job['agent'] ?? []) as $a) {
     $native = (bool) ($a['native'] ?? true);
     $client = new ScriptedAgentClient((array) ($a['steps'] ?? []), $native);
     $model = ['or_id' => 'script/replay', 'provider' => 'script', 'supports_tools' => $native ? 1 : 0, 'price_in' => 0, 'price_out' => 0];
-    $r = AgentSim::run((array) $a['task'], $model, $client, ['_retries' => 0, '_retry_sleep_ms' => 0, '_wall_s' => 60]);
+    $task = (array) ($a['task'] ?? []);
+    if (is_string($a['db_slug'] ?? null)) {
+        // Replay against the row the Seeder stored (checks_json as canonicalised in the database).
+        $task = DB::one('SELECT * FROM tasks WHERE slug = ?', [$a['db_slug']]) ?? [];
+        if (!$task) {
+            $out['agent'][(string) $a['id']] = ['ok' => false, 'error' => 'task not in database: ' . $a['db_slug'], 'auto_score' => 0, 'steps' => 0, 'end_reason' => null, 'protocol' => null, 'goals' => []];
+            continue;
+        }
+    }
+    $r = AgentSim::run($task, $model, $client, ['_retries' => 0, '_retry_sleep_ms' => 0, '_wall_s' => 60]);
     $out['agent'][(string) $a['id']] = [
         'ok' => $r['ok'], 'error' => $r['error'], 'auto_score' => $r['auto_score'], 'steps' => $r['steps'],
         'end_reason' => $r['end_reason'], 'protocol' => $r['protocol'], 'goals' => $r['goal_results'],
