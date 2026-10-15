@@ -1,0 +1,1100 @@
+[
+  {
+    "slug": "3d-product-turntable",
+    "track": "3d",
+    "title_en": "3D Product Configurator: Desk Lamp",
+    "title_ar": "مُهيّئ منتج ثلاثي الأبعاد: مصباح مكتب",
+    "summary_en": "A premium product page with a lamp modelled in code: physically plausible materials, three animated finishes, a working light, contact shadow and smooth orbit controls.",
+    "summary_ar": "صفحة منتج فاخرة بمصباح مُنمذج برمجيًا: خامات واقعية، وثلاث تشطيبات بانتقال سلس، وإضاءة تعمل فعلًا، وظل تلامس، وتحكم دوراني ناعم بالكاميرا.",
+    "prompt": "Build a premium 3D product configurator for the \"Halo Desk Lamp\" by a (fictional) design studio.\n\nScene\n1. Model the lamp in code from primitives and/or lathe geometry — at least 4 distinct parts (a weighted round base, an arm with at least one visible joint, a conical shade and a bulb) — standing on a soft studio floor with a contact shadow under it (shadow mapping, or a blurred blob / ambient-occlusion shadow). No external models or textures.\n2. Lighting: physically plausible shading (diffuse + specular, gamma-correct output) with a key light and soft fill/ambient light; metal finishes must read as metal.\n3. A <canvas> fills the main viewing area.\n\nConfigurator UI (beside the canvas on desktop, below it on mobile)\n4. Product name \"Halo Desk Lamp\", the price \"$289\", a one-sentence description and an \"Add to cart\" button.\n5. Three finish swatches — buttons with class=\"swatch\" named \"Matte Black\", \"Brushed Brass\" and \"Glacier White\" (visible text or aria-label) — that change the lamp's material with a smooth ~400 ms transition. The selected swatch has aria-pressed=\"true\" and its name is shown in an element with id=\"finish-name\".\n6. A button id=\"lamp-toggle\" (aria-pressed) switches the lamp on: the bulb glows and a warm light from the shade visibly lights the floor and the lamp itself.\n7. A button id=\"autorotate\" (aria-pressed) toggles a slow auto-rotation that is on by default, pauses while the user drags and resumes 3 s after the last interaction.\n\nControls\n8. Orbit by dragging (mouse and touch), zoom with the wheel and pinch, with smooth damping; pitch and zoom are clamped so the camera never goes below the floor or inside the lamp; double-click resets the view; arrow keys rotate when the canvas has focus.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- Rendering: either raw WebGL / WebGL2 with no library, or three.js loaded from a pinned version on one of these CDNs only: cdn.jsdelivr.net, unpkg.com, cdnjs.cloudflare.com or esm.sh (for example an import map pointing \"three\" to https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js). Both approaches are graded the same way. No other external resources (no web fonts, remote textures, models or HDRIs) — generate geometry and textures in code.\n- Create the WebGL context with preserveDrawingBuffer: true (three.js: new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })) so automated screenshots can read the canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, cookies, alert/confirm/prompt and form submission are unavailable. Do not depend on them.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844 (touch input, no horizontal page scrolling at 390 px) and handle window resizes and devicePixelRatio (cap it at 2).\n- Performance: it may be graded in a browser without a GPU (software WebGL), where full-resolution rendering and MSAA are slow. Build geometry once, avoid per-frame allocations, and keep the frame rate up with dynamic quality (lower the internal render resolution or detail when frames take longer than ~25 ms).",
+    "output_type": "html",
+    "difficulty": 2,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "rendering",
+        "label_en": "Rendering quality",
+        "label_ar": "جودة الإظهار",
+        "weight": 3,
+        "guide": "Believable studio render: gamma-correct lighting, specular highlights, metals that look metallic, soft contact shadow grounding the lamp, warm light pool when switched on, no z-fighting or faceting. 9-10 looks like a real e-commerce viewer; 5-6 flat Lambert shading; 0-3 broken or blank."
+      },
+      {
+        "key": "model",
+        "label_en": "Model craftsmanship",
+        "label_ar": "إتقان النموذج",
+        "weight": 2,
+        "guide": "Recognisable, well-proportioned lamp with smooth curved parts (enough segments), sensible joints and shade, correct scale relative to the floor."
+      },
+      {
+        "key": "controls",
+        "label_en": "Controls feel",
+        "label_ar": "الإحساس بالتحكم",
+        "weight": 2,
+        "guide": "Damped orbit and zoom on mouse and touch (pinch), clamped angles, double-click reset, auto-rotate that pauses during interaction and resumes; keyboard rotation."
+      },
+      {
+        "key": "configurator",
+        "label_en": "Configurator UX",
+        "label_ar": "تجربة المُهيّئ",
+        "weight": 2,
+        "guide": "Swatches with clear selected state and smooth material transitions, working light toggle, accurate finish name, polished responsive product panel."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Scene graph/parts as data, one render loop, resize and DPR handled, no per-frame allocations. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [
+            "cdn.jsdelivr.net",
+            "unpkg.com",
+            "cdnjs.cloudflare.com",
+            "esm.sh"
+          ],
+          "weight": 0.5,
+          "label_en": "Only the allowed CDNs",
+          "label_ar": "لا موارد خارجية سوى شبكات CDN المسموح بها"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 150000,
+          "weight": 0.5,
+          "label_en": "Under 150 KB",
+          "label_ar": "حجم الملف أقل من 150 كيلوبايت"
+        },
+        {
+          "id": "preserve_buffer",
+          "type": "contains",
+          "pattern": "preserveDrawingBuffer",
+          "weight": 0.5,
+          "label_en": "preserveDrawingBuffer enabled",
+          "label_ar": "تفعيل preserveDrawingBuffer"
+        },
+        {
+          "id": "uses_raf",
+          "type": "contains",
+          "pattern": "requestAnimationFrame",
+          "weight": 1,
+          "label_en": "Uses requestAnimationFrame",
+          "label_ar": "يستخدم requestAnimationFrame"
+        },
+        {
+          "id": "has_lamp_toggle",
+          "type": "selector",
+          "sel": "#lamp-toggle",
+          "weight": 1,
+          "label_en": "Light toggle #lamp-toggle in markup",
+          "label_ar": "زر الإضاءة ‎#lamp-toggle‎ موجود"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "canvas",
+          "type": "canvas",
+          "weight": 3,
+          "label_en": "Draws on a canvas",
+          "label_ar": "يرسم على عنصر canvas"
+        },
+        {
+          "id": "animates",
+          "type": "animates",
+          "weight": 2,
+          "label_en": "Auto-rotation animates the scene",
+          "label_ar": "الدوران التلقائي يحرّك المشهد"
+        },
+        {
+          "id": "swatches",
+          "type": "selector",
+          "sel": ".swatch",
+          "min": 3,
+          "weight": 1,
+          "label_en": "Three finish swatches",
+          "label_ar": "ثلاثة خيارات للتشطيب"
+        },
+        {
+          "id": "swatch_state",
+          "type": "selector",
+          "sel": ".swatch[aria-pressed=\"true\"]",
+          "weight": 1,
+          "label_en": "Selected swatch exposes aria-pressed",
+          "label_ar": "الخيار المحدد يعلن حالته عبر aria-pressed"
+        },
+        {
+          "id": "product_name",
+          "type": "text",
+          "contains": "Halo Desk Lamp",
+          "ci": true,
+          "weight": 0.5,
+          "label_en": "Shows the product name",
+          "label_ar": "يعرض اسم المنتج"
+        },
+        {
+          "id": "price",
+          "type": "text",
+          "contains": "$289",
+          "weight": 0.5,
+          "label_en": "Shows the price $289",
+          "label_ar": "يعرض السعر ‎$289‎"
+        },
+        {
+          "id": "lamp_on",
+          "type": "click",
+          "sel": "#lamp-toggle",
+          "weight": 2,
+          "label_en": "Light toggle changes the render",
+          "label_ar": "زر الإضاءة يغيّر المشهد"
+        },
+        {
+          "id": "autorotate_toggle",
+          "type": "click",
+          "sel": "#autorotate",
+          "weight": 1,
+          "label_en": "Auto-rotate toggle responds",
+          "label_ar": "زر الدوران التلقائي يستجيب"
+        },
+        {
+          "id": "fps",
+          "type": "fps",
+          "min": 20,
+          "weight": 1,
+          "label_en": "Holds at least 20 fps",
+          "label_ar": "يحافظ على 20 إطارًا في الثانية على الأقل"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "3d-terrain-flyover",
+    "track": "3d",
+    "title_en": "Procedural Terrain Fly-over",
+    "title_ar": "تحليق فوق تضاريس مولّدة إجرائيًا",
+    "summary_en": "A seeded fractal landscape with height/slope-based materials, animated water, atmospheric fog, a time-of-day sun and a collision-free automatic flight path.",
+    "summary_ar": "مشهد تضاريس كسيرية بمولّد عشوائي ثابت البذرة، بخامات حسب الارتفاع والانحدار، ومياه متحركة، وضباب جوي، وشمس تتبع وقت اليوم، ومسار طيران تلقائي لا يصطدم بالأرض.",
+    "prompt": "Build a real-time procedural terrain fly-over.\n\n1. Terrain: a height-field mesh of at least 128 × 128 vertices generated from seeded fractal noise (fBm with at least 5 octaves; ridged or domain-warped noise welcome). The same seed must always produce the same terrain. Provide an <input type=\"number\" id=\"seed\"> (default 1337) and a button id=\"regenerate\" that rebuilds the terrain from the seed.\n2. Shading: smooth per-vertex normals; colour by height and slope — sand near the water line, grass, rock on steep slopes, snow on high peaks — with soft blends rather than hard bands.\n3. Water: a water plane at sea level with animated ripples, Fresnel-style reflection of the sky colour and a sun glint.\n4. Atmosphere: a sky gradient with a visible sun and distance fog that blends the terrain into the sky colour at the horizon.\n5. Time of day: <input type=\"range\" id=\"sun\"> (0–180, 90 = noon) moves the sun; light colour, sky and fog shift with it (warm at sunrise/sunset), and a label shows the time.\n6. Camera: by default a smooth automatic flight along a looping path that never clips into the terrain (stay at least 8 units above the ground below and ahead, look slightly downward). A button id=\"mode\" (aria-pressed) switches to manual flight — WASD/arrow keys to move, drag to look, Q/E down/up — and back.\n7. HUD: altitude above sea level and the current frame rate in an element id=\"fps\".\n8. Performance: build the mesh once per seed (never per frame), use index buffers, cull what is off screen if you can, and lower the render resolution adaptively when frames get slow.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- Rendering: either raw WebGL / WebGL2 with no library, or three.js loaded from a pinned version on one of these CDNs only: cdn.jsdelivr.net, unpkg.com, cdnjs.cloudflare.com or esm.sh (for example an import map pointing \"three\" to https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js). Both approaches are graded the same way. No other external resources (no web fonts, remote textures, models or HDRIs) — generate geometry and textures in code.\n- Create the WebGL context with preserveDrawingBuffer: true (three.js: new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })) so automated screenshots can read the canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, cookies, alert/confirm/prompt and form submission are unavailable. Do not depend on them.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844 (touch input, no horizontal page scrolling at 390 px) and handle window resizes and devicePixelRatio (cap it at 2).\n- Performance: it may be graded in a browser without a GPU (software WebGL), where full-resolution rendering and MSAA are slow. Build geometry once, avoid per-frame allocations, and keep the frame rate up with dynamic quality (lower the internal render resolution or detail when frames take longer than ~25 ms).",
+    "output_type": "html",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "terrain",
+        "label_en": "Terrain quality",
+        "label_ar": "جودة التضاريس",
+        "weight": 3,
+        "guide": "Natural-looking landforms (multi-octave detail, ridges/valleys), smooth normals, height- and slope-aware materials with soft transitions and snow only on high, flatter areas. Same seed → identical terrain."
+      },
+      {
+        "key": "atmosphere",
+        "label_en": "Lighting & atmosphere",
+        "label_ar": "الإضاءة والأجواء",
+        "weight": 2,
+        "guide": "Convincing sky, fog matched to the horizon colour, sun direction consistent with shading and glints, believable warm sunrise/sunset, animated water with Fresnel."
+      },
+      {
+        "key": "camera",
+        "label_en": "Camera & controls",
+        "label_ar": "الكاميرا والتحكم",
+        "weight": 2,
+        "guide": "Smooth spline-like auto flight that never clips the ground, comfortable manual mode with keyboard + drag, seamless switching between modes."
+      },
+      {
+        "key": "performance",
+        "label_en": "Performance engineering",
+        "label_ar": "هندسة الأداء",
+        "weight": 2,
+        "guide": "Mesh built once per seed, indexed geometry, culling/LOD or adaptive resolution, no per-frame allocation; stays fluid on modest hardware."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Noise, mesh building, camera and rendering cleanly separated. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [
+            "cdn.jsdelivr.net",
+            "unpkg.com",
+            "cdnjs.cloudflare.com",
+            "esm.sh"
+          ],
+          "weight": 0.5,
+          "label_en": "Only the allowed CDNs",
+          "label_ar": "لا موارد خارجية سوى شبكات CDN المسموح بها"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 150000,
+          "weight": 0.5,
+          "label_en": "Under 150 KB",
+          "label_ar": "حجم الملف أقل من 150 كيلوبايت"
+        },
+        {
+          "id": "preserve_buffer",
+          "type": "contains",
+          "pattern": "preserveDrawingBuffer",
+          "weight": 0.5,
+          "label_en": "preserveDrawingBuffer enabled",
+          "label_ar": "تفعيل preserveDrawingBuffer"
+        },
+        {
+          "id": "uses_raf",
+          "type": "contains",
+          "pattern": "requestAnimationFrame",
+          "weight": 1,
+          "label_en": "Uses requestAnimationFrame",
+          "label_ar": "يستخدم requestAnimationFrame"
+        },
+        {
+          "id": "has_sun",
+          "type": "selector",
+          "sel": "#sun",
+          "weight": 1,
+          "label_en": "Time-of-day slider #sun in markup",
+          "label_ar": "منزلق وقت اليوم ‎#sun‎ موجود"
+        },
+        {
+          "id": "has_seed",
+          "type": "selector",
+          "sel": "#seed",
+          "weight": 1,
+          "label_en": "Seed input #seed in markup",
+          "label_ar": "حقل البذرة ‎#seed‎ موجود"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "canvas",
+          "type": "canvas",
+          "weight": 3,
+          "label_en": "Draws on a canvas",
+          "label_ar": "يرسم على عنصر canvas"
+        },
+        {
+          "id": "animates",
+          "type": "animates",
+          "weight": 2,
+          "label_en": "Camera flies on its own",
+          "label_ar": "الكاميرا تحلّق تلقائيًا"
+        },
+        {
+          "id": "regenerate",
+          "type": "click",
+          "sel": "#regenerate",
+          "weight": 1,
+          "label_en": "Regenerate button works",
+          "label_ar": "زر إعادة التوليد يعمل"
+        },
+        {
+          "id": "mode_toggle",
+          "type": "click",
+          "sel": "#mode",
+          "weight": 1,
+          "label_en": "Manual/auto mode toggle",
+          "label_ar": "التبديل بين الطيران اليدوي والتلقائي"
+        },
+        {
+          "id": "has_fps",
+          "type": "selector",
+          "sel": "#fps",
+          "weight": 0.5,
+          "label_en": "Frame-rate readout #fps",
+          "label_ar": "عدّاد الإطارات ‎#fps‎"
+        },
+        {
+          "id": "fps",
+          "type": "fps",
+          "min": 20,
+          "weight": 1,
+          "label_en": "Holds at least 20 fps",
+          "label_ar": "يحافظ على 20 إطارًا في الثانية على الأقل"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "3d-galaxy-particles",
+    "track": "3d",
+    "title_en": "GPU Spiral Galaxy with 100k Particles",
+    "title_ar": "مجرة حلزونية من 100 ألف جسيم على المعالج الرسومي",
+    "summary_en": "A spiral galaxy of at least 100,000 stars animated entirely on the GPU: persistent arms despite differential rotation, additive glow, a supernova shockwave and adaptive quality.",
+    "summary_ar": "مجرة حلزونية من 100 ألف نجم على الأقل تتحرك بالكامل على المعالج الرسومي: أذرع ثابتة رغم الدوران التفاضلي، وتوهّج تراكمي، وموجة صدمة لمستعر أعظم، وجودة تتكيف مع أداء الجهاز.",
+    "prompt": "Build an interactive spiral-galaxy visualisation made of GPU particles.\n\n1. At least 100,000 star particles rendered with a single draw call (gl.POINTS or THREE.Points) using additive blending and round, soft point sprites whose size attenuates with distance.\n2. Structure: a bright, warm central bulge and N spiral arms (N = 2–6, chosen with <input type=\"range\" id=\"arms\">, default 4) with stars concentrated along the arms; colours shift from warm yellow-white in the core to blue-white in the arms, with a sprinkle of pink star-forming regions. Add a faint background star field.\n3. Motion: differential rotation — inner stars orbit faster than outer ones — computed on the GPU in the vertex shader from a time uniform (do not rewrite a 100k-element buffer from JavaScript every frame). The arms must stay recognisable over time instead of winding up into a featureless disc (for example a density-wave approach: slightly elliptical or lobed orbits whose orientation changes with radius). An <input type=\"range\" id=\"speed\"> scales time.\n4. A button id=\"supernova\" triggers a shockwave: a bright ring expanding from the core over about 2 s that pushes and brightens the stars it passes.\n5. Camera: drag to orbit (mouse and touch), wheel/pinch zoom within limits, and a very slow automatic drift when idle.\n6. HUD: the total number of stars in an element id=\"count\" (formatted like 120,000) and the current frame rate in an element id=\"fps\".\n7. Adaptive quality: when the frame rate drops, lower the render resolution and/or draw only a random subset of the stars — but keep at least 100,000 in the buffer.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- Rendering: either raw WebGL / WebGL2 with no library, or three.js loaded from a pinned version on one of these CDNs only: cdn.jsdelivr.net, unpkg.com, cdnjs.cloudflare.com or esm.sh (for example an import map pointing \"three\" to https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js). Both approaches are graded the same way. No other external resources (no web fonts, remote textures, models or HDRIs) — generate geometry and textures in code.\n- Create the WebGL context with preserveDrawingBuffer: true (three.js: new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })) so automated screenshots can read the canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, cookies, alert/confirm/prompt and form submission are unavailable. Do not depend on them.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844 (touch input, no horizontal page scrolling at 390 px) and handle window resizes and devicePixelRatio (cap it at 2).\n- Performance: it may be graded in a browser without a GPU (software WebGL), where full-resolution rendering and MSAA are slow. Build geometry once, avoid per-frame allocations, and keep the frame rate up with dynamic quality (lower the internal render resolution or detail when frames take longer than ~25 ms).",
+    "output_type": "html",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "beauty",
+        "label_en": "Visual beauty & plausibility",
+        "label_ar": "الجمال والمعقولية الفيزيائية",
+        "weight": 3,
+        "guide": "Reads instantly as a spiral galaxy: bright bulge, distinct arms, dust-like falloff, believable colour gradient and soft glowing sprites; supernova ring looks spectacular. Blobby disc or hard square points score ≤ 4."
+      },
+      {
+        "key": "gpu",
+        "label_en": "GPU efficiency",
+        "label_ar": "كفاءة المعالج الرسومي",
+        "weight": 3,
+        "guide": "Single draw call, all per-frame motion in the vertex shader, static buffers rebuilt only when the arm count changes, adaptive resolution/particle budget; no per-frame JS loops over all particles."
+      },
+      {
+        "key": "dynamics",
+        "label_en": "Dynamics",
+        "label_ar": "الديناميكيات",
+        "weight": 2,
+        "guide": "Differential rotation clearly visible (inner faster) while arms persist; speed control; smooth orbit/zoom with sensible limits."
+      },
+      {
+        "key": "ux",
+        "label_en": "Controls & HUD",
+        "label_ar": "التحكم ولوحة المعلومات",
+        "weight": 1,
+        "guide": "Labelled sliders with values, working supernova button, accurate star count and fps readout, good mobile layout."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Shaders readable with named uniforms; generation separated from rendering. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [
+            "cdn.jsdelivr.net",
+            "unpkg.com",
+            "cdnjs.cloudflare.com",
+            "esm.sh"
+          ],
+          "weight": 0.5,
+          "label_en": "Only the allowed CDNs",
+          "label_ar": "لا موارد خارجية سوى شبكات CDN المسموح بها"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 150000,
+          "weight": 0.5,
+          "label_en": "Under 150 KB",
+          "label_ar": "حجم الملف أقل من 150 كيلوبايت"
+        },
+        {
+          "id": "preserve_buffer",
+          "type": "contains",
+          "pattern": "preserveDrawingBuffer",
+          "weight": 0.5,
+          "label_en": "preserveDrawingBuffer enabled",
+          "label_ar": "تفعيل preserveDrawingBuffer"
+        },
+        {
+          "id": "uses_raf",
+          "type": "contains",
+          "pattern": "requestAnimationFrame",
+          "weight": 1,
+          "label_en": "Uses requestAnimationFrame",
+          "label_ar": "يستخدم requestAnimationFrame"
+        },
+        {
+          "id": "uses_points",
+          "type": "contains",
+          "pattern": "gl\\.POINTS|THREE\\.Points|new Points\\(|PointsMaterial",
+          "regex": true,
+          "weight": 1,
+          "label_en": "Renders point sprites",
+          "label_ar": "يرسم الجسيمات كنقاط"
+        },
+        {
+          "id": "has_arms",
+          "type": "selector",
+          "sel": "#arms",
+          "weight": 1,
+          "label_en": "Arms slider #arms in markup",
+          "label_ar": "منزلق الأذرع ‎#arms‎ موجود"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "canvas",
+          "type": "canvas",
+          "weight": 3,
+          "label_en": "Draws on a canvas",
+          "label_ar": "يرسم على عنصر canvas"
+        },
+        {
+          "id": "animates",
+          "type": "animates",
+          "weight": 2,
+          "label_en": "Galaxy rotates",
+          "label_ar": "المجرة تدور"
+        },
+        {
+          "id": "supernova",
+          "type": "click",
+          "sel": "#supernova",
+          "weight": 2,
+          "label_en": "Supernova button triggers an effect",
+          "label_ar": "زر المستعر الأعظم يطلق التأثير"
+        },
+        {
+          "id": "has_count",
+          "type": "selector",
+          "sel": "#count",
+          "weight": 0.5,
+          "label_en": "Star count #count",
+          "label_ar": "عدد النجوم ‎#count‎"
+        },
+        {
+          "id": "has_speed",
+          "type": "selector",
+          "sel": "#speed",
+          "weight": 0.5,
+          "label_en": "Speed slider #speed",
+          "label_ar": "منزلق السرعة ‎#speed‎"
+        },
+        {
+          "id": "fps",
+          "type": "fps",
+          "min": 20,
+          "weight": 1,
+          "label_en": "Holds at least 20 fps",
+          "label_ar": "يحافظ على 20 إطارًا في الثانية على الأقل"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "3d-puzzle-cube",
+    "track": "3d",
+    "title_en": "Interactive 3×3 Puzzle Cube",
+    "title_ar": "مكعب ألغاز تفاعلي 3×3",
+    "summary_en": "A fully working 3×3×3 twisty cube: correct face-turn maths with animated, queued layer rotations, scramble, solve detection, timer and touch controls.",
+    "summary_ar": "مكعب ألغاز 3×3×3 يعمل بالكامل: رياضيات دوران صحيحة للأوجه مع تحريك الطبقات وطابور للحركات، وخلط عشوائي، واكتشاف الحل، ومؤقت، وأزرار لمس.",
+    "prompt": "Build an interactive 3×3×3 twisty puzzle cube (the classic \"magic cube\") in 3D.\n\n1. Standard colour scheme: white on top (U), yellow on the bottom (D), green front (F), blue back (B), red right (R), orange left (L). A black body with slightly rounded stickers and small gaps between the pieces.\n2. Face turns with the keys U, D, L, R, F and B — clockwise as seen when looking straight at that face — and Shift + key for counter-clockwise. Each turn animates the layer rotating 90° (about 200–300 ms, eased); turns pressed during an animation are queued and played in order. The model must stay mathematically correct: for example (R U R′ U′) repeated 6 times returns the cube to solved.\n3. On-screen buttons for all 12 turns (U, U′, D, D′, L, L′, R, R′, F, F′, B, B′) inside a container with id=\"move-pad\" — required for touch screens, each with an accessible name.\n4. A button id=\"scramble\" applies 25 random turns (never the same face twice in a row) quickly; a button id=\"reset\" restores the solved cube.\n5. An element id=\"moves\" shows the number of turns since the last scramble/reset; an element id=\"timer\" shows the solve time (m:ss.s), starting with the first turn after a scramble and stopping when the cube is solved.\n6. When a turn leaves the cube solved, show a \"Solved!\" overlay with the move count and time.\n7. Drag on the canvas to orbit the camera around the cube (mouse and touch). The default view shows the U, F and R faces.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- Rendering: either raw WebGL / WebGL2 with no library, or three.js loaded from a pinned version on one of these CDNs only: cdn.jsdelivr.net, unpkg.com, cdnjs.cloudflare.com or esm.sh (for example an import map pointing \"three\" to https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js). Both approaches are graded the same way. No other external resources (no web fonts, remote textures, models or HDRIs) — generate geometry and textures in code.\n- Create the WebGL context with preserveDrawingBuffer: true (three.js: new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })) so automated screenshots can read the canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, cookies, alert/confirm/prompt and form submission are unavailable. Do not depend on them.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844 (touch input, no horizontal page scrolling at 390 px) and handle window resizes and devicePixelRatio (cap it at 2).\n- Performance: it may be graded in a browser without a GPU (software WebGL), where full-resolution rendering and MSAA are slow. Build geometry once, avoid per-frame allocations, and keep the frame rate up with dynamic quality (lower the internal render resolution or detail when frames take longer than ~25 ms).",
+    "output_type": "html",
+    "difficulty": 4,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "logic",
+        "label_en": "Cube logic correctness",
+        "label_ar": "صحة منطق المكعب",
+        "weight": 3,
+        "guide": "Every face turn permutes and re-orients the right pieces in the right direction (clockwise from that face), primes invert, (R U R′ U′)×6 and scramble+inverse return to solved, solve detection by sticker colours, no drift from floating-point accumulation."
+      },
+      {
+        "key": "feel",
+        "label_en": "Animation & interaction feel",
+        "label_ar": "سلاسة الحركة والتفاعل",
+        "weight": 3,
+        "guide": "Eased 90° layer animations, reliable queueing under fast typing, quick scramble, smooth orbit on mouse and touch, responsive move pad."
+      },
+      {
+        "key": "rendering",
+        "label_en": "Rendering quality",
+        "label_ar": "جودة الإظهار",
+        "weight": 2,
+        "guide": "Crisp rounded stickers, correct colour scheme, black body with gaps, pleasant lighting and specular, no z-fighting."
+      },
+      {
+        "key": "ux",
+        "label_en": "Game UX",
+        "label_ar": "تجربة اللعب",
+        "weight": 1,
+        "guide": "Move counter and timer behave as specified, Solved! overlay, reset/scramble discoverable, keyboard hints."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Cube state as discrete integer positions/orientations; rendering derived from state. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [
+            "cdn.jsdelivr.net",
+            "unpkg.com",
+            "cdnjs.cloudflare.com",
+            "esm.sh"
+          ],
+          "weight": 0.5,
+          "label_en": "Only the allowed CDNs",
+          "label_ar": "لا موارد خارجية سوى شبكات CDN المسموح بها"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 150000,
+          "weight": 0.5,
+          "label_en": "Under 150 KB",
+          "label_ar": "حجم الملف أقل من 150 كيلوبايت"
+        },
+        {
+          "id": "preserve_buffer",
+          "type": "contains",
+          "pattern": "preserveDrawingBuffer",
+          "weight": 0.5,
+          "label_en": "preserveDrawingBuffer enabled",
+          "label_ar": "تفعيل preserveDrawingBuffer"
+        },
+        {
+          "id": "uses_raf",
+          "type": "contains",
+          "pattern": "requestAnimationFrame",
+          "weight": 1,
+          "label_en": "Uses requestAnimationFrame",
+          "label_ar": "يستخدم requestAnimationFrame"
+        },
+        {
+          "id": "has_scramble",
+          "type": "selector",
+          "sel": "#scramble",
+          "weight": 1,
+          "label_en": "Scramble button #scramble in markup",
+          "label_ar": "زر الخلط ‎#scramble‎ موجود"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "canvas",
+          "type": "canvas",
+          "weight": 3,
+          "label_en": "Draws on a canvas",
+          "label_ar": "يرسم على عنصر canvas"
+        },
+        {
+          "id": "key_turn",
+          "type": "keyboard",
+          "keys": [
+            "r"
+          ],
+          "weight": 2,
+          "label_en": "R key turns a face",
+          "label_ar": "مفتاح R يدير وجهًا"
+        },
+        {
+          "id": "scramble",
+          "type": "click",
+          "sel": "#scramble",
+          "weight": 3,
+          "label_en": "Scramble changes the cube",
+          "label_ar": "الخلط يغيّر المكعب"
+        },
+        {
+          "id": "has_moves",
+          "type": "selector",
+          "sel": "#moves",
+          "weight": 1,
+          "label_en": "Move counter #moves",
+          "label_ar": "عدّاد الحركات ‎#moves‎"
+        },
+        {
+          "id": "move_pad",
+          "type": "selector",
+          "sel": "#move-pad button",
+          "min": 12,
+          "weight": 2,
+          "label_en": "12 on-screen turn buttons",
+          "label_ar": "12 زرًا للدوران على الشاشة"
+        },
+        {
+          "id": "fps",
+          "type": "fps",
+          "min": 20,
+          "weight": 1,
+          "label_en": "Holds at least 20 fps",
+          "label_ar": "يحافظ على 20 إطارًا في الثانية على الأقل"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "3d-raymarched-sculpture",
+    "track": "3d",
+    "title_en": "Raymarched Kinetic Sculpture",
+    "title_ar": "منحوتة حركية بتقنية تتبّع الأشعة",
+    "summary_en": "A real-time signed-distance-field scene in a fragment shader: gyroid-carved ceramic, merging liquid-metal drops, soft shadows, ambient occlusion, tone mapping and dynamic resolution.",
+    "summary_ar": "مشهد آني بدوال المسافة الموقّعة داخل مظلِّل أجزاء: خزف منحوت بنمط «جايرويد»، وقطرات معدن سائل تندمج، وظلال ناعمة، وإطباق محيطي، وتعيين نغمي، ودقة عرض ديناميكية.",
+    "prompt": "Create a real-time raymarched scene rendered in a fragment shader with signed distance fields: a \"kinetic sculpture\" in a dim studio.\n\nScene\n- A dark rounded plinth; on it a ceramic sphere carved by a gyroid (or another triply-periodic) lattice that slowly rotates; three liquid-metal drops orbiting the sculpture at different speeds and heights that merge into each other with smooth-minimum blending when they meet; a floor with a subtle pattern.\n\nRendering requirements\n- Soft shadows with penumbrae (not hard binary shadows), ambient occlusion, specular highlights with Fresnel, clearly distinct materials (matte ceramic vs. polished metal), tone mapping (e.g. ACES) and gamma correction, gentle fog or vignette.\n- Performance: avoid marching empty space (bounding volumes, analytic floor/plane intersection) and keep the frame rate up with dynamic resolution — render the shader at a lower internal resolution when frames are slow.\n\nControls\n- Drag to orbit (mouse and touch), wheel/pinch zoom within limits.\n- A <select id=\"quality\"> with \"High\" and \"Low\" options (e.g. step count and shadow quality).\n- A button id=\"pause\" (aria-pressed) that freezes the animation, and the frame rate shown in an element with id=\"fps\".\n- The scene animates continuously unless paused.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- Rendering: either raw WebGL / WebGL2 with no library, or three.js loaded from a pinned version on one of these CDNs only: cdn.jsdelivr.net, unpkg.com, cdnjs.cloudflare.com or esm.sh (for example an import map pointing \"three\" to https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js). Both approaches are graded the same way. No other external resources (no web fonts, remote textures, models or HDRIs) — generate geometry and textures in code.\n- Create the WebGL context with preserveDrawingBuffer: true (three.js: new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })) so automated screenshots can read the canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, cookies, alert/confirm/prompt and form submission are unavailable. Do not depend on them.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844 (touch input, no horizontal page scrolling at 390 px) and handle window resizes and devicePixelRatio (cap it at 2).\n- Performance: it may be graded in a browser without a GPU (software WebGL), where full-resolution rendering and MSAA are slow. Build geometry once, avoid per-frame allocations, and keep the frame rate up with dynamic quality (lower the internal render resolution or detail when frames take longer than ~25 ms).",
+    "output_type": "html",
+    "difficulty": 4,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "scene",
+        "label_en": "SDF scene craft",
+        "label_ar": "إتقان مشهد دوال المسافة",
+        "weight": 3,
+        "guide": "Correct, artifact-free SDFs: carved gyroid sphere, rounded plinth, drops merging smoothly; no banding, holes, overstepping artefacts or self-shadow acne. Composition looks deliberate and sculptural."
+      },
+      {
+        "key": "lighting",
+        "label_en": "Lighting quality",
+        "label_ar": "جودة الإضاءة",
+        "weight": 3,
+        "guide": "Soft shadows with penumbrae, AO in crevices, Fresnel and specular that differentiate ceramic from metal, tone mapping and gamma; reads like a photographed studio piece."
+      },
+      {
+        "key": "performance",
+        "label_en": "Performance strategy",
+        "label_ar": "استراتيجية الأداء",
+        "weight": 2,
+        "guide": "Bounding volumes / analytic floor, early exits, sensible step budgets, dynamic resolution and a quality switch that really changes cost."
+      },
+      {
+        "key": "interaction",
+        "label_en": "Interaction",
+        "label_ar": "التفاعل",
+        "weight": 1,
+        "guide": "Smooth orbit and zoom with limits on mouse and touch, pause and quality controls work, fps readout."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Shader organised into small named SDF/lighting functions; JS loop minimal. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [
+            "cdn.jsdelivr.net",
+            "unpkg.com",
+            "cdnjs.cloudflare.com",
+            "esm.sh"
+          ],
+          "weight": 0.5,
+          "label_en": "Only the allowed CDNs",
+          "label_ar": "لا موارد خارجية سوى شبكات CDN المسموح بها"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 150000,
+          "weight": 0.5,
+          "label_en": "Under 150 KB",
+          "label_ar": "حجم الملف أقل من 150 كيلوبايت"
+        },
+        {
+          "id": "preserve_buffer",
+          "type": "contains",
+          "pattern": "preserveDrawingBuffer",
+          "weight": 0.5,
+          "label_en": "preserveDrawingBuffer enabled",
+          "label_ar": "تفعيل preserveDrawingBuffer"
+        },
+        {
+          "id": "uses_raf",
+          "type": "contains",
+          "pattern": "requestAnimationFrame",
+          "weight": 1,
+          "label_en": "Uses requestAnimationFrame",
+          "label_ar": "يستخدم requestAnimationFrame"
+        },
+        {
+          "id": "uses_shader",
+          "type": "contains",
+          "pattern": "gl_FragColor|out\\s+vec4|ShaderMaterial",
+          "regex": true,
+          "weight": 1,
+          "label_en": "Custom fragment shader",
+          "label_ar": "مظلِّل أجزاء مخصّص"
+        },
+        {
+          "id": "has_quality",
+          "type": "selector",
+          "sel": "#quality",
+          "weight": 1,
+          "label_en": "Quality select #quality in markup",
+          "label_ar": "قائمة الجودة ‎#quality‎ موجودة"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "canvas",
+          "type": "canvas",
+          "weight": 3,
+          "label_en": "Draws on a canvas",
+          "label_ar": "يرسم على عنصر canvas"
+        },
+        {
+          "id": "animates",
+          "type": "animates",
+          "weight": 2,
+          "label_en": "Sculpture animates",
+          "label_ar": "المنحوتة تتحرك"
+        },
+        {
+          "id": "pause",
+          "type": "click",
+          "sel": "#pause",
+          "weight": 1,
+          "label_en": "Pause button responds",
+          "label_ar": "زر الإيقاف يستجيب"
+        },
+        {
+          "id": "has_fps",
+          "type": "selector",
+          "sel": "#fps",
+          "weight": 0.5,
+          "label_en": "Frame-rate readout #fps",
+          "label_ar": "عدّاد الإطارات ‎#fps‎"
+        },
+        {
+          "id": "fps",
+          "type": "fps",
+          "min": 20,
+          "weight": 1,
+          "label_en": "Holds at least 20 fps",
+          "label_ar": "يحافظ على 20 إطارًا في الثانية على الأقل"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  }
+]

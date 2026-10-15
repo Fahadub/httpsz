@@ -273,6 +273,7 @@ function validateStructure(task, tracks, errs) {
     rkeys.add(c.key);
     if (!(c.weight > 0)) errs.push(`rubric ${c.key} weight must be > 0`);
     if (c.label_ar && !AR.test(c.label_ar)) errs.push(`rubric ${c.key} label_ar has no Arabic`);
+    if (c.guide_ar !== undefined && !AR.test(String(c.guide_ar))) errs.push(`rubric ${c.key} guide_ar has no Arabic`);
   }
   const checks = task.checks ?? {};
   const ids = new Set();

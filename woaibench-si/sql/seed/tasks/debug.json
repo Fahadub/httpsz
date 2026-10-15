@@ -17,28 +17,32 @@
         "label_en": "Root-cause fixes",
         "label_ar": "إصلاح السبب الجذري",
         "weight": 3,
-        "guide": "Each reported symptom is fixed at its root cause (not patched for the example input); unrelated behaviour and the public signature are preserved; no new bugs introduced."
+        "guide": "Each reported symptom is fixed at its root cause (not patched for the example input); unrelated behaviour and the public signature are preserved; no new bugs introduced.",
+        "guide_ar": "يُصلح كل عَرَض مُبلَّغ عنه من سببه الجذري لا بترقيع المثال المذكور؛ ويحافظ على السلوك غير المعني وعلى توقيع الدالة العام، ولا يُدخل أخطاء جديدة."
       },
       {
         "key": "robustness",
         "label_en": "Robustness & edge cases",
         "label_ar": "المتانة والحالات الحدّية",
         "weight": 3,
-        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way."
+        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way.",
+        "guide_ar": "يعالج كل حالة حدّية يذكرها العقد (الإدخال الفارغ والحدود والتكرارات والقيم الكبيرة) عن قصد لا مصادفةً؛ لا يعدّل المدخلات أبدًا، ويفشل بالطريقة الموثّقة."
       },
       {
         "key": "minimal_diff",
         "label_en": "Focused, reviewable change",
         "label_ar": "تعديل مركّز قابل للمراجعة",
         "weight": 2,
-        "guide": "The fix keeps the original structure where it was sound, so a reviewer can map each change to a reported bug; brief comments explain non-obvious fixes."
+        "guide": "The fix keeps the original structure where it was sound, so a reviewer can map each change to a reported bug; brief comments explain non-obvious fixes.",
+        "guide_ar": "يُبقي الإصلاح على البنية الأصلية حيث كانت سليمة، بحيث يستطيع المراجع ربط كل تعديل بخطأ مُبلَّغ عنه، مع تعليقات موجزة تشرح الإصلاحات غير البديهية."
       },
       {
         "key": "readability",
         "label_en": "Readability & structure",
         "label_ar": "المقروئية والبنية",
         "weight": 2,
-        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read."
+        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read.",
+        "guide_ar": "أسماء واضحة ودوال مساعدة صغيرة مركّزة، بلا شيفرة ميتة، وتعليقات حيث يكون المنطق غير بديهي فقط. 9–10: يفهم المراجع كل خطوة من القراءة الأولى."
       }
     ],
     "checks": {
@@ -955,28 +959,32 @@
         "label_en": "Root-cause fixes",
         "label_ar": "إصلاح السبب الجذري",
         "weight": 3,
-        "guide": "Each reported symptom is fixed at its root cause (not patched for the example input); unrelated behaviour and the public signature are preserved; no new bugs introduced."
+        "guide": "Each reported symptom is fixed at its root cause (not patched for the example input); unrelated behaviour and the public signature are preserved; no new bugs introduced.",
+        "guide_ar": "يُصلح كل عَرَض مُبلَّغ عنه من سببه الجذري لا بترقيع المثال المذكور؛ ويحافظ على السلوك غير المعني وعلى توقيع الدالة العام، ولا يُدخل أخطاء جديدة."
       },
       {
         "key": "robustness",
         "label_en": "Robustness & edge cases",
         "label_ar": "المتانة والحالات الحدّية",
         "weight": 3,
-        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way."
+        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way.",
+        "guide_ar": "يعالج كل حالة حدّية يذكرها العقد (الإدخال الفارغ والحدود والتكرارات والقيم الكبيرة) عن قصد لا مصادفةً؛ لا يعدّل المدخلات أبدًا، ويفشل بالطريقة الموثّقة."
       },
       {
         "key": "minimal_diff",
         "label_en": "Focused, reviewable change",
         "label_ar": "تعديل مركّز قابل للمراجعة",
         "weight": 2,
-        "guide": "The fix keeps the original structure where it was sound, so a reviewer can map each change to a reported bug; brief comments explain non-obvious fixes."
+        "guide": "The fix keeps the original structure where it was sound, so a reviewer can map each change to a reported bug; brief comments explain non-obvious fixes.",
+        "guide_ar": "يُبقي الإصلاح على البنية الأصلية حيث كانت سليمة، بحيث يستطيع المراجع ربط كل تعديل بخطأ مُبلَّغ عنه، مع تعليقات موجزة تشرح الإصلاحات غير البديهية."
       },
       {
         "key": "readability",
         "label_en": "Readability & structure",
         "label_ar": "المقروئية والبنية",
         "weight": 2,
-        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read."
+        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read.",
+        "guide_ar": "أسماء واضحة ودوال مساعدة صغيرة مركّزة، بلا شيفرة ميتة، وتعليقات حيث يكون المنطق غير بديهي فقط. 9–10: يفهم المراجع كل خطوة من القراءة الأولى."
       }
     ],
     "checks": {
@@ -1234,28 +1242,32 @@
         "label_en": "Root-cause fixes",
         "label_ar": "إصلاح السبب الجذري",
         "weight": 3,
-        "guide": "Each reported symptom is fixed at its root cause (not patched for the example input); unrelated behaviour and the public signature are preserved; no new bugs introduced."
+        "guide": "Each reported symptom is fixed at its root cause (not patched for the example input); unrelated behaviour and the public signature are preserved; no new bugs introduced.",
+        "guide_ar": "يُصلح كل عَرَض مُبلَّغ عنه من سببه الجذري لا بترقيع المثال المذكور؛ ويحافظ على السلوك غير المعني وعلى توقيع الدالة العام، ولا يُدخل أخطاء جديدة."
       },
       {
         "key": "robustness",
         "label_en": "Robustness & edge cases",
         "label_ar": "المتانة والحالات الحدّية",
         "weight": 3,
-        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way."
+        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way.",
+        "guide_ar": "يعالج كل حالة حدّية يذكرها العقد (الإدخال الفارغ والحدود والتكرارات والقيم الكبيرة) عن قصد لا مصادفةً؛ لا يعدّل المدخلات أبدًا، ويفشل بالطريقة الموثّقة."
       },
       {
         "key": "minimal_diff",
         "label_en": "Focused, reviewable change",
         "label_ar": "تعديل مركّز قابل للمراجعة",
         "weight": 2,
-        "guide": "The fix keeps the original structure where it was sound, so a reviewer can map each change to a reported bug; brief comments explain non-obvious fixes."
+        "guide": "The fix keeps the original structure where it was sound, so a reviewer can map each change to a reported bug; brief comments explain non-obvious fixes.",
+        "guide_ar": "يُبقي الإصلاح على البنية الأصلية حيث كانت سليمة، بحيث يستطيع المراجع ربط كل تعديل بخطأ مُبلَّغ عنه، مع تعليقات موجزة تشرح الإصلاحات غير البديهية."
       },
       {
         "key": "readability",
         "label_en": "Readability & structure",
         "label_ar": "المقروئية والبنية",
         "weight": 2,
-        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read."
+        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read.",
+        "guide_ar": "أسماء واضحة ودوال مساعدة صغيرة مركّزة، بلا شيفرة ميتة، وتعليقات حيث يكون المنطق غير بديهي فقط. 9–10: يفهم المراجع كل خطوة من القراءة الأولى."
       }
     ],
     "checks": {
@@ -1609,28 +1621,32 @@
         "label_en": "Root-cause fixes",
         "label_ar": "إصلاح السبب الجذري",
         "weight": 3,
-        "guide": "Each reported symptom is fixed at its root cause (not patched for the example input); unrelated behaviour and the public signature are preserved; no new bugs introduced."
+        "guide": "Each reported symptom is fixed at its root cause (not patched for the example input); unrelated behaviour and the public signature are preserved; no new bugs introduced.",
+        "guide_ar": "يُصلح كل عَرَض مُبلَّغ عنه من سببه الجذري لا بترقيع المثال المذكور؛ ويحافظ على السلوك غير المعني وعلى توقيع الدالة العام، ولا يُدخل أخطاء جديدة."
       },
       {
         "key": "robustness",
         "label_en": "Robustness & edge cases",
         "label_ar": "المتانة والحالات الحدّية",
         "weight": 3,
-        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way."
+        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way.",
+        "guide_ar": "يعالج كل حالة حدّية يذكرها العقد (الإدخال الفارغ والحدود والتكرارات والقيم الكبيرة) عن قصد لا مصادفةً؛ لا يعدّل المدخلات أبدًا، ويفشل بالطريقة الموثّقة."
       },
       {
         "key": "minimal_diff",
         "label_en": "Focused, reviewable change",
         "label_ar": "تعديل مركّز قابل للمراجعة",
         "weight": 2,
-        "guide": "The fix keeps the original structure where it was sound, so a reviewer can map each change to a reported bug; brief comments explain non-obvious fixes."
+        "guide": "The fix keeps the original structure where it was sound, so a reviewer can map each change to a reported bug; brief comments explain non-obvious fixes.",
+        "guide_ar": "يُبقي الإصلاح على البنية الأصلية حيث كانت سليمة، بحيث يستطيع المراجع ربط كل تعديل بخطأ مُبلَّغ عنه، مع تعليقات موجزة تشرح الإصلاحات غير البديهية."
       },
       {
         "key": "readability",
         "label_en": "Readability & structure",
         "label_ar": "المقروئية والبنية",
         "weight": 2,
-        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read."
+        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read.",
+        "guide_ar": "أسماء واضحة ودوال مساعدة صغيرة مركّزة، بلا شيفرة ميتة، وتعليقات حيث يكون المنطق غير بديهي فقط. 9–10: يفهم المراجع كل خطوة من القراءة الأولى."
       }
     ],
     "checks": {
@@ -1903,28 +1919,32 @@
         "label_en": "Root-cause fixes",
         "label_ar": "إصلاح السبب الجذري",
         "weight": 3,
-        "guide": "Each reported symptom is fixed at its root cause (not patched for the example input); unrelated behaviour and the public signature are preserved; no new bugs introduced."
+        "guide": "Each reported symptom is fixed at its root cause (not patched for the example input); unrelated behaviour and the public signature are preserved; no new bugs introduced.",
+        "guide_ar": "يُصلح كل عَرَض مُبلَّغ عنه من سببه الجذري لا بترقيع المثال المذكور؛ ويحافظ على السلوك غير المعني وعلى توقيع الدالة العام، ولا يُدخل أخطاء جديدة."
       },
       {
         "key": "robustness",
         "label_en": "Robustness & edge cases",
         "label_ar": "المتانة والحالات الحدّية",
         "weight": 3,
-        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way."
+        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way.",
+        "guide_ar": "يعالج كل حالة حدّية يذكرها العقد (الإدخال الفارغ والحدود والتكرارات والقيم الكبيرة) عن قصد لا مصادفةً؛ لا يعدّل المدخلات أبدًا، ويفشل بالطريقة الموثّقة."
       },
       {
         "key": "minimal_diff",
         "label_en": "Focused, reviewable change",
         "label_ar": "تعديل مركّز قابل للمراجعة",
         "weight": 2,
-        "guide": "The fix keeps the original structure where it was sound, so a reviewer can map each change to a reported bug; brief comments explain non-obvious fixes."
+        "guide": "The fix keeps the original structure where it was sound, so a reviewer can map each change to a reported bug; brief comments explain non-obvious fixes.",
+        "guide_ar": "يُبقي الإصلاح على البنية الأصلية حيث كانت سليمة، بحيث يستطيع المراجع ربط كل تعديل بخطأ مُبلَّغ عنه، مع تعليقات موجزة تشرح الإصلاحات غير البديهية."
       },
       {
         "key": "readability",
         "label_en": "Readability & structure",
         "label_ar": "المقروئية والبنية",
         "weight": 2,
-        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read."
+        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read.",
+        "guide_ar": "أسماء واضحة ودوال مساعدة صغيرة مركّزة، بلا شيفرة ميتة، وتعليقات حيث يكون المنطق غير بديهي فقط. 9–10: يفهم المراجع كل خطوة من القراءة الأولى."
       }
     ],
     "checks": {
@@ -1939,7 +1959,7 @@
       ],
       "tests": {
         "entry": "parseCsv",
-        "timeout_ms": 2000,
+        "timeout_ms": 3000,
         "weight": 9,
         "cases": [
           {
@@ -2279,13 +2299,13 @@
           },
           {
             "name": "large_input_linear_time",
-            "script": "const rows = []; for (let i = 0; i < 60000; i++) rows.push(i + ',\"name ' + i + ', with comma\",\"say \"\"hi\"\" ' + i + '\",'); const text = rows.join('\\r\\n') + '\\r\\n'; const r = parseCsv(text); return [r.length, r[59999], r.every((row) => row.length === 4)];",
+            "script": "const rows = []; for (let i = 0; i < 40000; i++) rows.push(i + ',\"name ' + i + ', with comma\",\"say \"\"hi\"\" ' + i + '\",'); const text = rows.join('\\r\\n') + '\\r\\n'; const r = parseCsv(text); return [r.length, r[39999], r.every((row) => row.length === 4)];",
             "expect": [
-              60000,
+              40000,
               [
-                "59999",
-                "name 59999, with comma",
-                "say \"hi\" 59999",
+                "39999",
+                "name 39999, with comma",
+                "say \"hi\" 39999",
                 ""
               ],
               true

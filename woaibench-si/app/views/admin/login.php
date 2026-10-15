@@ -26,7 +26,7 @@ defined('WB') || exit;
     <button class="btn btn-primary btn-block btn-lg" type="submit"><?= ui_icon('lock', 18) ?><span><?= _e('admin.login.submit') ?></span></button>
   </form>
   <p class="admin-login-foot t-xs t-muted">
-    <a href="<?= e(url('/')) ?>"><?= ui_icon(is_rtl() ? 'arrow-right' : 'arrow-left', 12) ?> <?= _e('admin.login.back_site') ?></a>
+    <a href="<?= e(url('/')) ?>"><?= ui_icon('arrow-left', 12) ?> <?= _e('admin.login.back_site') ?></a>
     <span class="admin-login-lang"><a href="<?= e(lang_url(lang() === 'ar' ? 'en' : 'ar')) ?>"><?= lang() === 'ar' ? 'English' : 'العربية' ?></a></span>
   </p>
 </section>

@@ -17,28 +17,32 @@
         "label_en": "Security reasoning",
         "label_ar": "التفكير الأمني",
         "weight": 4,
-        "guide": "Defends by construction (allow-lists, canonicalise-then-check, single decoding, own-property access) rather than by block-lists of known payloads; no eval/Function/innerHTML; fails closed."
+        "guide": "Defends by construction (allow-lists, canonicalise-then-check, single decoding, own-property access) rather than by block-lists of known payloads; no eval/Function/innerHTML; fails closed.",
+        "guide_ar": "يدافع بالتصميم (قوائم سماح، وتوحيد الصيغة قبل التحقق، وفك ترميز مرة واحدة، والاقتصار على الخصائص الذاتية) لا بقوائم حظر لحمولات معروفة؛ بلا eval أو Function أو innerHTML، ويرفض عند الشك."
       },
       {
         "key": "robustness",
         "label_en": "Robustness & edge cases",
         "label_ar": "المتانة والحالات الحدّية",
         "weight": 3,
-        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way."
+        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way.",
+        "guide_ar": "يعالج كل حالة حدّية يذكرها العقد (الإدخال الفارغ والحدود والتكرارات والقيم الكبيرة) عن قصد لا مصادفةً؛ لا يعدّل المدخلات أبدًا، ويفشل بالطريقة الموثّقة."
       },
       {
         "key": "readability",
         "label_en": "Readability & structure",
         "label_ar": "المقروئية والبنية",
         "weight": 2,
-        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read."
+        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read.",
+        "guide_ar": "أسماء واضحة ودوال مساعدة صغيرة مركّزة، بلا شيفرة ميتة، وتعليقات حيث يكون المنطق غير بديهي فقط. 9–10: يفهم المراجع كل خطوة من القراءة الأولى."
       },
       {
         "key": "idiomatic",
         "label_en": "Idiomatic modern JavaScript",
         "label_ar": "جافاسكربت حديثة واصطلاحية",
         "weight": 1,
-        "guide": "Uses const/let, strict equality, appropriate built-ins and typed arrays where useful; avoids global state, implicit coercion and needless cleverness."
+        "guide": "Uses const/let, strict equality, appropriate built-ins and typed arrays where useful; avoids global state, implicit coercion and needless cleverness.",
+        "guide_ar": "يستخدم const/let والمساواة الصارمة والدوال المضمّنة المناسبة والمصفوفات المنمّطة عند الحاجة، ويتجنب الحالة العامة والتحويل الضمني للأنواع والتذاكي غير الضروري."
       }
     ],
     "checks": {
@@ -145,7 +149,7 @@
           },
           {
             "name": "html_xss_payloads",
-            "script": "const wellFormed = (s) => s.replace(/[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/g, '\\uFFFD');\nconst decodeHtml = (s) => { let out = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === '<' || c === '>') return null; if (c !== '&') { out += c; continue; } const m = /^&(amp|lt|gt|quot|#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6});/.exec(s.slice(i, i + 12)); if (!m) return null; const r = m[1]; if (r === 'amp') out += '&'; else if (r === 'lt') out += '<'; else if (r === 'gt') out += '>'; else if (r === 'quot') out += '\"'; else { const cp = r[1] === 'x' || r[1] === 'X' ? parseInt(r.slice(2), 16) : parseInt(r.slice(1), 10); if (cp === 0 || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF) || (cp >= 0x80 && cp <= 0x9F)) return null; out += String.fromCodePoint(cp); } i += m[0].length - 1; } return out; };\nconst decodeJs = (s, q) => { let out = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === q || c === '\\n' || c === '\\r') return null; if (c !== '\\\\') { out += c; continue; } const n = s[++i]; if (n === undefined) return null; if (n === 'x') { const h = s.slice(i + 1, i + 3); if (!/^[0-9a-fA-F]{2}$/.test(h)) return null; out += String.fromCharCode(parseInt(h, 16)); i += 2; } else if (n === 'u') { if (s[i + 1] === '{') { const e = s.indexOf('}', i); const h = e < 0 ? '' : s.slice(i + 2, e); if (!/^[0-9a-fA-F]{1,6}$/.test(h) || parseInt(h, 16) > 0x10FFFF) return null; out += String.fromCodePoint(parseInt(h, 16)); i = e; } else { const h = s.slice(i + 1, i + 5); if (!/^[0-9a-fA-F]{4}$/.test(h)) return null; out += String.fromCharCode(parseInt(h, 16)); i += 4; } } else if (n === '0' && !/[0-9]/.test(s[i + 1] || '')) out += '\\0'; else if (/[1-9]/.test(n)) return null; else out += ({ n: '\\n', r: '\\r', t: '\\t', b: '\\b', f: '\\f', v: '\\v' })[n] ?? n; } return out; };\nconst check = (ctx, input, out) => { if (typeof out !== 'string') return 'not a string'; const want = wellFormed(String(input ?? '')); if (ctx === 'html' || ctx === 'attr') { if (ctx === 'attr' && /[\"'`]/.test(out)) return 'raw quote'; const d = decodeHtml(out); if (d === null) return 'raw < > or bad reference'; return d === want ? 'ok' : 'decodes to ' + JSON.stringify(d).slice(0, 60); } if (ctx === 'js') { if (!/^[\\x20-\\x7E]*$/.test(out)) return 'non-printable or non-ASCII output'; if (/[\"'`<>&]/.test(out)) return 'raw dangerous character'; const a = decodeJs(out, '\"'), b = decodeJs(out, \"'\"); if (a === null || b === null) return 'not a valid strict-mode string literal body'; return a === want && b === want ? 'ok' : 'decodes to ' + JSON.stringify(a).slice(0, 60); } return 'unknown ctx'; };\nconst sweep = (ctx, inputs) => inputs.map((x, i) => { let out; try { out = encodeFor(ctx, x); } catch (e) { return i + ': threw ' + (e && e.name); } const r = check(ctx, x, out); return r === 'ok' ? null : i + ': ' + r; }).filter(Boolean);\nreturn sweep(\"html\", [\"<script>alert(1)</script>\",\"\\\"><img src=x onerror=alert(1)>\",\"' onmouseover='alert(1)\",\"`onfocus=alert(1) autofocus`\",\"<svg/onload=alert(1)>\",\"&lt;b&gt; already escaped\",\"&amp;&amp;&#x3C;\",\"Tom & Jerry <3 > 2\",\"<!-- comment -->\",\"]]><![CDATA[\",\"a\\u0000b\",\"مرحبا <b>بالعالم</b>\",\"😀 & 🎉\",\"\",\" \",\"&\",\"&#\",\"&#x;\",\"<<>>&&\\\"\\\"''``\"]);",
+            "script": "const wellFormed = (s) => s.replace(/[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/g, '\\uFFFD');\nconst decodeHtml = (s) => { let out = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === '<' || c === '>') return null; if (c !== '&') { out += c; continue; } const m = /^&(amp|lt|gt|quot|#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6});/.exec(s.slice(i, i + 12)); if (!m) return null; const r = m[1]; if (r === 'amp') out += '&'; else if (r === 'lt') out += '<'; else if (r === 'gt') out += '>'; else if (r === 'quot') out += '\"'; else { const cp = r[1] === 'x' || r[1] === 'X' ? parseInt(r.slice(2), 16) : parseInt(r.slice(1), 10); if (cp === 0 || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF) || (cp >= 0x80 && cp <= 0x9F)) return null; out += String.fromCodePoint(cp); } i += m[0].length - 1; } return out; };\nconst decodeJs = (s, q) => { let out = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === q || c === '\\n' || c === '\\r') return null; if (c !== '\\\\') { out += c; continue; } const n = s[++i]; if (n === undefined) return null; if (n === 'x') { const h = s.slice(i + 1, i + 3); if (!/^[0-9a-fA-F]{2}$/.test(h)) return null; out += String.fromCharCode(parseInt(h, 16)); i += 2; } else if (n === 'u') { if (s[i + 1] === '{') { const e = s.indexOf('}', i); const h = e < 0 ? '' : s.slice(i + 2, e); if (!/^[0-9a-fA-F]{1,6}$/.test(h) || parseInt(h, 16) > 0x10FFFF) return null; out += String.fromCodePoint(parseInt(h, 16)); i = e; } else { const h = s.slice(i + 1, i + 5); if (!/^[0-9a-fA-F]{4}$/.test(h)) return null; out += String.fromCharCode(parseInt(h, 16)); i += 4; } } else if (n === '0' && !/[0-9]/.test(s[i + 1] || '')) out += '\\0'; else if (/[1-9]/.test(n)) return null; else out += ({ n: '\\n', r: '\\r', t: '\\t', b: '\\b', f: '\\f', v: '\\v' })[n] ?? n; } return out; };\nconst check = (ctx, input, out) => { if (typeof out !== 'string') return 'not a string'; const want = wellFormed(String(input ?? '')); if (ctx === 'html' || ctx === 'attr') { if (ctx === 'attr' && /[\"'`]/.test(out)) return 'raw quote'; const d = decodeHtml(out); if (d === null) return 'raw < > or bad reference'; return d === want ? 'ok' : 'decodes to ' + JSON.stringify(d).slice(0, 60); } if (ctx === 'js') { if (!/^[\\x20-\\x7E]*$/.test(out)) return 'non-printable or non-ASCII output'; if (/[\"'`<>&]/.test(out)) return 'raw dangerous character'; const a = decodeJs(out, '\"'), b = decodeJs(out, \"'\"); if (a === null || b === null) return 'not a valid strict-mode string literal body'; return a === want && b === want ? 'ok' : 'decodes to ' + JSON.stringify(a).slice(0, 60); } return 'unknown ctx'; };\nconst sweep = (ctx, inputs) => inputs.map((x, i) => { let out; try { out = encodeFor(ctx, x); } catch (e) { return i + ': threw ' + (e && e.name); } const r = check(ctx, x, out); return r === 'ok' ? null : i + ': ' + r; }).filter(Boolean);\nreturn sweep(\"html\", [\"<script>alert(1)</script>\",\"\\\"><img src=x onerror=alert(1)>\",\"' onmouseover='alert(1)\",\"`onfocus=alert(1) autofocus`\",\"<svg/onload=alert(1)>\",\"&lt;b&gt; already escaped\",\"&amp;&amp;&#x3C;\",\"Tom & Jerry <3 > 2\",\"<!-- comment -->\",\"]]><![CDATA[\",\"a\\tb\\nc\",\"مرحبا <b>بالعالم</b>\",\"😀 & 🎉\",\"\",\" \",\"&\",\"&#\",\"&#x;\",\"<<>>&&\\\"\\\"''``\"]);",
             "expect": []
           },
           {
@@ -160,7 +164,7 @@
           },
           {
             "name": "attr_breakout_payloads",
-            "script": "const wellFormed = (s) => s.replace(/[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/g, '\\uFFFD');\nconst decodeHtml = (s) => { let out = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === '<' || c === '>') return null; if (c !== '&') { out += c; continue; } const m = /^&(amp|lt|gt|quot|#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6});/.exec(s.slice(i, i + 12)); if (!m) return null; const r = m[1]; if (r === 'amp') out += '&'; else if (r === 'lt') out += '<'; else if (r === 'gt') out += '>'; else if (r === 'quot') out += '\"'; else { const cp = r[1] === 'x' || r[1] === 'X' ? parseInt(r.slice(2), 16) : parseInt(r.slice(1), 10); if (cp === 0 || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF) || (cp >= 0x80 && cp <= 0x9F)) return null; out += String.fromCodePoint(cp); } i += m[0].length - 1; } return out; };\nconst decodeJs = (s, q) => { let out = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === q || c === '\\n' || c === '\\r') return null; if (c !== '\\\\') { out += c; continue; } const n = s[++i]; if (n === undefined) return null; if (n === 'x') { const h = s.slice(i + 1, i + 3); if (!/^[0-9a-fA-F]{2}$/.test(h)) return null; out += String.fromCharCode(parseInt(h, 16)); i += 2; } else if (n === 'u') { if (s[i + 1] === '{') { const e = s.indexOf('}', i); const h = e < 0 ? '' : s.slice(i + 2, e); if (!/^[0-9a-fA-F]{1,6}$/.test(h) || parseInt(h, 16) > 0x10FFFF) return null; out += String.fromCodePoint(parseInt(h, 16)); i = e; } else { const h = s.slice(i + 1, i + 5); if (!/^[0-9a-fA-F]{4}$/.test(h)) return null; out += String.fromCharCode(parseInt(h, 16)); i += 4; } } else if (n === '0' && !/[0-9]/.test(s[i + 1] || '')) out += '\\0'; else if (/[1-9]/.test(n)) return null; else out += ({ n: '\\n', r: '\\r', t: '\\t', b: '\\b', f: '\\f', v: '\\v' })[n] ?? n; } return out; };\nconst check = (ctx, input, out) => { if (typeof out !== 'string') return 'not a string'; const want = wellFormed(String(input ?? '')); if (ctx === 'html' || ctx === 'attr') { if (ctx === 'attr' && /[\"'`]/.test(out)) return 'raw quote'; const d = decodeHtml(out); if (d === null) return 'raw < > or bad reference'; return d === want ? 'ok' : 'decodes to ' + JSON.stringify(d).slice(0, 60); } if (ctx === 'js') { if (!/^[\\x20-\\x7E]*$/.test(out)) return 'non-printable or non-ASCII output'; if (/[\"'`<>&]/.test(out)) return 'raw dangerous character'; const a = decodeJs(out, '\"'), b = decodeJs(out, \"'\"); if (a === null || b === null) return 'not a valid strict-mode string literal body'; return a === want && b === want ? 'ok' : 'decodes to ' + JSON.stringify(a).slice(0, 60); } return 'unknown ctx'; };\nconst sweep = (ctx, inputs) => inputs.map((x, i) => { let out; try { out = encodeFor(ctx, x); } catch (e) { return i + ': threw ' + (e && e.name); } const r = check(ctx, x, out); return r === 'ok' ? null : i + ': ' + r; }).filter(Boolean);\nreturn sweep(\"attr\", [\"<script>alert(1)</script>\",\"\\\"><img src=x onerror=alert(1)>\",\"' onmouseover='alert(1)\",\"`onfocus=alert(1) autofocus`\",\"<svg/onload=alert(1)>\",\"&lt;b&gt; already escaped\",\"&amp;&amp;&#x3C;\",\"Tom & Jerry <3 > 2\",\"<!-- comment -->\",\"]]><![CDATA[\",\"a\\u0000b\",\"مرحبا <b>بالعالم</b>\",\"😀 & 🎉\",\"\",\" \",\"&\",\"&#\",\"&#x;\",\"<<>>&&\\\"\\\"''``\"]);",
+            "script": "const wellFormed = (s) => s.replace(/[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/g, '\\uFFFD');\nconst decodeHtml = (s) => { let out = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === '<' || c === '>') return null; if (c !== '&') { out += c; continue; } const m = /^&(amp|lt|gt|quot|#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6});/.exec(s.slice(i, i + 12)); if (!m) return null; const r = m[1]; if (r === 'amp') out += '&'; else if (r === 'lt') out += '<'; else if (r === 'gt') out += '>'; else if (r === 'quot') out += '\"'; else { const cp = r[1] === 'x' || r[1] === 'X' ? parseInt(r.slice(2), 16) : parseInt(r.slice(1), 10); if (cp === 0 || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF) || (cp >= 0x80 && cp <= 0x9F)) return null; out += String.fromCodePoint(cp); } i += m[0].length - 1; } return out; };\nconst decodeJs = (s, q) => { let out = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === q || c === '\\n' || c === '\\r') return null; if (c !== '\\\\') { out += c; continue; } const n = s[++i]; if (n === undefined) return null; if (n === 'x') { const h = s.slice(i + 1, i + 3); if (!/^[0-9a-fA-F]{2}$/.test(h)) return null; out += String.fromCharCode(parseInt(h, 16)); i += 2; } else if (n === 'u') { if (s[i + 1] === '{') { const e = s.indexOf('}', i); const h = e < 0 ? '' : s.slice(i + 2, e); if (!/^[0-9a-fA-F]{1,6}$/.test(h) || parseInt(h, 16) > 0x10FFFF) return null; out += String.fromCodePoint(parseInt(h, 16)); i = e; } else { const h = s.slice(i + 1, i + 5); if (!/^[0-9a-fA-F]{4}$/.test(h)) return null; out += String.fromCharCode(parseInt(h, 16)); i += 4; } } else if (n === '0' && !/[0-9]/.test(s[i + 1] || '')) out += '\\0'; else if (/[1-9]/.test(n)) return null; else out += ({ n: '\\n', r: '\\r', t: '\\t', b: '\\b', f: '\\f', v: '\\v' })[n] ?? n; } return out; };\nconst check = (ctx, input, out) => { if (typeof out !== 'string') return 'not a string'; const want = wellFormed(String(input ?? '')); if (ctx === 'html' || ctx === 'attr') { if (ctx === 'attr' && /[\"'`]/.test(out)) return 'raw quote'; const d = decodeHtml(out); if (d === null) return 'raw < > or bad reference'; return d === want ? 'ok' : 'decodes to ' + JSON.stringify(d).slice(0, 60); } if (ctx === 'js') { if (!/^[\\x20-\\x7E]*$/.test(out)) return 'non-printable or non-ASCII output'; if (/[\"'`<>&]/.test(out)) return 'raw dangerous character'; const a = decodeJs(out, '\"'), b = decodeJs(out, \"'\"); if (a === null || b === null) return 'not a valid strict-mode string literal body'; return a === want && b === want ? 'ok' : 'decodes to ' + JSON.stringify(a).slice(0, 60); } return 'unknown ctx'; };\nconst sweep = (ctx, inputs) => inputs.map((x, i) => { let out; try { out = encodeFor(ctx, x); } catch (e) { return i + ': threw ' + (e && e.name); } const r = check(ctx, x, out); return r === 'ok' ? null : i + ': ' + r; }).filter(Boolean);\nreturn sweep(\"attr\", [\"<script>alert(1)</script>\",\"\\\"><img src=x onerror=alert(1)>\",\"' onmouseover='alert(1)\",\"`onfocus=alert(1) autofocus`\",\"<svg/onload=alert(1)>\",\"&lt;b&gt; already escaped\",\"&amp;&amp;&#x3C;\",\"Tom & Jerry <3 > 2\",\"<!-- comment -->\",\"]]><![CDATA[\",\"a\\tb\\nc\",\"مرحبا <b>بالعالم</b>\",\"😀 & 🎉\",\"\",\" \",\"&\",\"&#\",\"&#x;\",\"<<>>&&\\\"\\\"''``\"]);",
             "expect": []
           },
           {
@@ -228,7 +232,7 @@
           },
           {
             "name": "random_strings_all_contexts",
-            "script": "const wellFormed = (s) => s.replace(/[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/g, '\\uFFFD');\nconst decodeHtml = (s) => { let out = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === '<' || c === '>') return null; if (c !== '&') { out += c; continue; } const m = /^&(amp|lt|gt|quot|#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6});/.exec(s.slice(i, i + 12)); if (!m) return null; const r = m[1]; if (r === 'amp') out += '&'; else if (r === 'lt') out += '<'; else if (r === 'gt') out += '>'; else if (r === 'quot') out += '\"'; else { const cp = r[1] === 'x' || r[1] === 'X' ? parseInt(r.slice(2), 16) : parseInt(r.slice(1), 10); if (cp === 0 || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF) || (cp >= 0x80 && cp <= 0x9F)) return null; out += String.fromCodePoint(cp); } i += m[0].length - 1; } return out; };\nconst decodeJs = (s, q) => { let out = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === q || c === '\\n' || c === '\\r') return null; if (c !== '\\\\') { out += c; continue; } const n = s[++i]; if (n === undefined) return null; if (n === 'x') { const h = s.slice(i + 1, i + 3); if (!/^[0-9a-fA-F]{2}$/.test(h)) return null; out += String.fromCharCode(parseInt(h, 16)); i += 2; } else if (n === 'u') { if (s[i + 1] === '{') { const e = s.indexOf('}', i); const h = e < 0 ? '' : s.slice(i + 2, e); if (!/^[0-9a-fA-F]{1,6}$/.test(h) || parseInt(h, 16) > 0x10FFFF) return null; out += String.fromCodePoint(parseInt(h, 16)); i = e; } else { const h = s.slice(i + 1, i + 5); if (!/^[0-9a-fA-F]{4}$/.test(h)) return null; out += String.fromCharCode(parseInt(h, 16)); i += 4; } } else if (n === '0' && !/[0-9]/.test(s[i + 1] || '')) out += '\\0'; else if (/[1-9]/.test(n)) return null; else out += ({ n: '\\n', r: '\\r', t: '\\t', b: '\\b', f: '\\f', v: '\\v' })[n] ?? n; } return out; };\nconst check = (ctx, input, out) => { if (typeof out !== 'string') return 'not a string'; const want = wellFormed(String(input ?? '')); if (ctx === 'html' || ctx === 'attr') { if (ctx === 'attr' && /[\"'`]/.test(out)) return 'raw quote'; const d = decodeHtml(out); if (d === null) return 'raw < > or bad reference'; return d === want ? 'ok' : 'decodes to ' + JSON.stringify(d).slice(0, 60); } if (ctx === 'js') { if (!/^[\\x20-\\x7E]*$/.test(out)) return 'non-printable or non-ASCII output'; if (/[\"'`<>&]/.test(out)) return 'raw dangerous character'; const a = decodeJs(out, '\"'), b = decodeJs(out, \"'\"); if (a === null || b === null) return 'not a valid strict-mode string literal body'; return a === want && b === want ? 'ok' : 'decodes to ' + JSON.stringify(a).slice(0, 60); } return 'unknown ctx'; };\nconst sweep = (ctx, inputs) => inputs.map((x, i) => { let out; try { out = encodeFor(ctx, x); } catch (e) { return i + ': threw ' + (e && e.name); } const r = check(ctx, x, out); return r === 'ok' ? null : i + ': ' + r; }).filter(Boolean);\nlet __s = 71; const rnd = () => (__s = (Math.imul(__s, 1664525) + 1013904223) >>> 0) / 4294967296; const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1)); const pool = ['<', '>', '&', '\"', \"'\", '`', '\\\\', '/', '=', ' ', '\\n', '\\u2028', 'a', 'Z', '9', 'é', '東', '😀', '\\uD800', '\\uDC00', '%', '#', ';', '\\u0000']; const bad = []; for (let k = 0; k < 400; k++) { let s = ''; const n = ri(0, 24); for (let i = 0; i < n; i++) s += pool[ri(0, pool.length - 1)]; for (const ctx of ['html', 'attr', 'js']) { const r = check(ctx, s, encodeFor(ctx, s)); if (r !== 'ok') bad.push(ctx + ' ' + JSON.stringify(s) + ' ' + r); } const u = encodeFor('url', s); if (!/^(?:[A-Za-z0-9\\-._~]|%[0-9A-F]{2})*$/.test(u) || decodeURIComponent(u) !== wellFormed(s)) bad.push('url ' + JSON.stringify(s)); } return bad.slice(0, 5);",
+            "script": "const wellFormed = (s) => s.replace(/[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/g, '\\uFFFD');\nconst decodeHtml = (s) => { let out = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === '<' || c === '>') return null; if (c !== '&') { out += c; continue; } const m = /^&(amp|lt|gt|quot|#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6});/.exec(s.slice(i, i + 12)); if (!m) return null; const r = m[1]; if (r === 'amp') out += '&'; else if (r === 'lt') out += '<'; else if (r === 'gt') out += '>'; else if (r === 'quot') out += '\"'; else { const cp = r[1] === 'x' || r[1] === 'X' ? parseInt(r.slice(2), 16) : parseInt(r.slice(1), 10); if (cp === 0 || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF) || (cp >= 0x80 && cp <= 0x9F)) return null; out += String.fromCodePoint(cp); } i += m[0].length - 1; } return out; };\nconst decodeJs = (s, q) => { let out = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === q || c === '\\n' || c === '\\r') return null; if (c !== '\\\\') { out += c; continue; } const n = s[++i]; if (n === undefined) return null; if (n === 'x') { const h = s.slice(i + 1, i + 3); if (!/^[0-9a-fA-F]{2}$/.test(h)) return null; out += String.fromCharCode(parseInt(h, 16)); i += 2; } else if (n === 'u') { if (s[i + 1] === '{') { const e = s.indexOf('}', i); const h = e < 0 ? '' : s.slice(i + 2, e); if (!/^[0-9a-fA-F]{1,6}$/.test(h) || parseInt(h, 16) > 0x10FFFF) return null; out += String.fromCodePoint(parseInt(h, 16)); i = e; } else { const h = s.slice(i + 1, i + 5); if (!/^[0-9a-fA-F]{4}$/.test(h)) return null; out += String.fromCharCode(parseInt(h, 16)); i += 4; } } else if (n === '0' && !/[0-9]/.test(s[i + 1] || '')) out += '\\0'; else if (/[1-9]/.test(n)) return null; else out += ({ n: '\\n', r: '\\r', t: '\\t', b: '\\b', f: '\\f', v: '\\v' })[n] ?? n; } return out; };\nconst check = (ctx, input, out) => { if (typeof out !== 'string') return 'not a string'; const want = wellFormed(String(input ?? '')); if (ctx === 'html' || ctx === 'attr') { if (ctx === 'attr' && /[\"'`]/.test(out)) return 'raw quote'; const d = decodeHtml(out); if (d === null) return 'raw < > or bad reference'; return d === want ? 'ok' : 'decodes to ' + JSON.stringify(d).slice(0, 60); } if (ctx === 'js') { if (!/^[\\x20-\\x7E]*$/.test(out)) return 'non-printable or non-ASCII output'; if (/[\"'`<>&]/.test(out)) return 'raw dangerous character'; const a = decodeJs(out, '\"'), b = decodeJs(out, \"'\"); if (a === null || b === null) return 'not a valid strict-mode string literal body'; return a === want && b === want ? 'ok' : 'decodes to ' + JSON.stringify(a).slice(0, 60); } return 'unknown ctx'; };\nconst sweep = (ctx, inputs) => inputs.map((x, i) => { let out; try { out = encodeFor(ctx, x); } catch (e) { return i + ': threw ' + (e && e.name); } const r = check(ctx, x, out); return r === 'ok' ? null : i + ': ' + r; }).filter(Boolean);\nlet __s = 71; const rnd = () => (__s = (Math.imul(__s, 1664525) + 1013904223) >>> 0) / 4294967296; const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1)); const pool = ['<', '>', '&', '\"', \"'\", '`', '\\\\', '/', '=', ' ', '\\n', '\\u2028', 'a', 'Z', '9', 'é', '東', '😀', '\\uD800', '\\uDC00', '%', '#', ';', '\\t']; const bad = []; for (let k = 0; k < 400; k++) { let s = ''; const n = ri(0, 24); for (let i = 0; i < n; i++) s += pool[ri(0, pool.length - 1)]; for (const ctx of ['html', 'attr', 'js']) { const r = check(ctx, s, encodeFor(ctx, s)); if (r !== 'ok') bad.push(ctx + ' ' + JSON.stringify(s) + ' ' + r); } const u = encodeFor('url', s); if (!/^(?:[A-Za-z0-9\\-._~]|%[0-9A-F]{2})*$/.test(u) || decodeURIComponent(u) !== wellFormed(s)) bad.push('url ' + JSON.stringify(s)); } return bad.slice(0, 5);",
             "expect": []
           },
           {
@@ -264,28 +268,32 @@
         "label_en": "Security reasoning",
         "label_ar": "التفكير الأمني",
         "weight": 4,
-        "guide": "Defends by construction (allow-lists, canonicalise-then-check, single decoding, own-property access) rather than by block-lists of known payloads; no eval/Function/innerHTML; fails closed."
+        "guide": "Defends by construction (allow-lists, canonicalise-then-check, single decoding, own-property access) rather than by block-lists of known payloads; no eval/Function/innerHTML; fails closed.",
+        "guide_ar": "يدافع بالتصميم (قوائم سماح، وتوحيد الصيغة قبل التحقق، وفك ترميز مرة واحدة، والاقتصار على الخصائص الذاتية) لا بقوائم حظر لحمولات معروفة؛ بلا eval أو Function أو innerHTML، ويرفض عند الشك."
       },
       {
         "key": "robustness",
         "label_en": "Robustness & edge cases",
         "label_ar": "المتانة والحالات الحدّية",
         "weight": 3,
-        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way."
+        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way.",
+        "guide_ar": "يعالج كل حالة حدّية يذكرها العقد (الإدخال الفارغ والحدود والتكرارات والقيم الكبيرة) عن قصد لا مصادفةً؛ لا يعدّل المدخلات أبدًا، ويفشل بالطريقة الموثّقة."
       },
       {
         "key": "readability",
         "label_en": "Readability & structure",
         "label_ar": "المقروئية والبنية",
         "weight": 2,
-        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read."
+        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read.",
+        "guide_ar": "أسماء واضحة ودوال مساعدة صغيرة مركّزة، بلا شيفرة ميتة، وتعليقات حيث يكون المنطق غير بديهي فقط. 9–10: يفهم المراجع كل خطوة من القراءة الأولى."
       },
       {
         "key": "idiomatic",
         "label_en": "Idiomatic modern JavaScript",
         "label_ar": "جافاسكربت حديثة واصطلاحية",
         "weight": 1,
-        "guide": "Uses const/let, strict equality, appropriate built-ins and typed arrays where useful; avoids global state, implicit coercion and needless cleverness."
+        "guide": "Uses const/let, strict equality, appropriate built-ins and typed arrays where useful; avoids global state, implicit coercion and needless cleverness.",
+        "guide_ar": "يستخدم const/let والمساواة الصارمة والدوال المضمّنة المناسبة والمصفوفات المنمّطة عند الحاجة، ويتجنب الحالة العامة والتحويل الضمني للأنواع والتذاكي غير الضروري."
       }
     ],
     "checks": {
@@ -695,28 +703,32 @@
         "label_en": "Security reasoning",
         "label_ar": "التفكير الأمني",
         "weight": 4,
-        "guide": "Defends by construction (allow-lists, canonicalise-then-check, single decoding, own-property access) rather than by block-lists of known payloads; no eval/Function/innerHTML; fails closed."
+        "guide": "Defends by construction (allow-lists, canonicalise-then-check, single decoding, own-property access) rather than by block-lists of known payloads; no eval/Function/innerHTML; fails closed.",
+        "guide_ar": "يدافع بالتصميم (قوائم سماح، وتوحيد الصيغة قبل التحقق، وفك ترميز مرة واحدة، والاقتصار على الخصائص الذاتية) لا بقوائم حظر لحمولات معروفة؛ بلا eval أو Function أو innerHTML، ويرفض عند الشك."
       },
       {
         "key": "robustness",
         "label_en": "Robustness & edge cases",
         "label_ar": "المتانة والحالات الحدّية",
         "weight": 3,
-        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way."
+        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way.",
+        "guide_ar": "يعالج كل حالة حدّية يذكرها العقد (الإدخال الفارغ والحدود والتكرارات والقيم الكبيرة) عن قصد لا مصادفةً؛ لا يعدّل المدخلات أبدًا، ويفشل بالطريقة الموثّقة."
       },
       {
         "key": "readability",
         "label_en": "Readability & structure",
         "label_ar": "المقروئية والبنية",
         "weight": 2,
-        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read."
+        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read.",
+        "guide_ar": "أسماء واضحة ودوال مساعدة صغيرة مركّزة، بلا شيفرة ميتة، وتعليقات حيث يكون المنطق غير بديهي فقط. 9–10: يفهم المراجع كل خطوة من القراءة الأولى."
       },
       {
         "key": "idiomatic",
         "label_en": "Idiomatic modern JavaScript",
         "label_ar": "جافاسكربت حديثة واصطلاحية",
         "weight": 1,
-        "guide": "Uses const/let, strict equality, appropriate built-ins and typed arrays where useful; avoids global state, implicit coercion and needless cleverness."
+        "guide": "Uses const/let, strict equality, appropriate built-ins and typed arrays where useful; avoids global state, implicit coercion and needless cleverness.",
+        "guide_ar": "يستخدم const/let والمساواة الصارمة والدوال المضمّنة المناسبة والمصفوفات المنمّطة عند الحاجة، ويتجنب الحالة العامة والتحويل الضمني للأنواع والتذاكي غير الضروري."
       }
     ],
     "checks": {
@@ -1009,28 +1021,32 @@
         "label_en": "Security reasoning",
         "label_ar": "التفكير الأمني",
         "weight": 4,
-        "guide": "Defends by construction (allow-lists, canonicalise-then-check, single decoding, own-property access) rather than by block-lists of known payloads; no eval/Function/innerHTML; fails closed."
+        "guide": "Defends by construction (allow-lists, canonicalise-then-check, single decoding, own-property access) rather than by block-lists of known payloads; no eval/Function/innerHTML; fails closed.",
+        "guide_ar": "يدافع بالتصميم (قوائم سماح، وتوحيد الصيغة قبل التحقق، وفك ترميز مرة واحدة، والاقتصار على الخصائص الذاتية) لا بقوائم حظر لحمولات معروفة؛ بلا eval أو Function أو innerHTML، ويرفض عند الشك."
       },
       {
         "key": "robustness",
         "label_en": "Robustness & edge cases",
         "label_ar": "المتانة والحالات الحدّية",
         "weight": 3,
-        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way."
+        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way.",
+        "guide_ar": "يعالج كل حالة حدّية يذكرها العقد (الإدخال الفارغ والحدود والتكرارات والقيم الكبيرة) عن قصد لا مصادفةً؛ لا يعدّل المدخلات أبدًا، ويفشل بالطريقة الموثّقة."
       },
       {
         "key": "readability",
         "label_en": "Readability & structure",
         "label_ar": "المقروئية والبنية",
         "weight": 2,
-        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read."
+        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read.",
+        "guide_ar": "أسماء واضحة ودوال مساعدة صغيرة مركّزة، بلا شيفرة ميتة، وتعليقات حيث يكون المنطق غير بديهي فقط. 9–10: يفهم المراجع كل خطوة من القراءة الأولى."
       },
       {
         "key": "idiomatic",
         "label_en": "Idiomatic modern JavaScript",
         "label_ar": "جافاسكربت حديثة واصطلاحية",
         "weight": 1,
-        "guide": "Uses const/let, strict equality, appropriate built-ins and typed arrays where useful; avoids global state, implicit coercion and needless cleverness."
+        "guide": "Uses const/let, strict equality, appropriate built-ins and typed arrays where useful; avoids global state, implicit coercion and needless cleverness.",
+        "guide_ar": "يستخدم const/let والمساواة الصارمة والدوال المضمّنة المناسبة والمصفوفات المنمّطة عند الحاجة، ويتجنب الحالة العامة والتحويل الضمني للأنواع والتذاكي غير الضروري."
       }
     ],
     "checks": {
@@ -1532,28 +1548,32 @@
         "label_en": "Security reasoning",
         "label_ar": "التفكير الأمني",
         "weight": 4,
-        "guide": "Defends by construction (allow-lists, canonicalise-then-check, single decoding, own-property access) rather than by block-lists of known payloads; no eval/Function/innerHTML; fails closed."
+        "guide": "Defends by construction (allow-lists, canonicalise-then-check, single decoding, own-property access) rather than by block-lists of known payloads; no eval/Function/innerHTML; fails closed.",
+        "guide_ar": "يدافع بالتصميم (قوائم سماح، وتوحيد الصيغة قبل التحقق، وفك ترميز مرة واحدة، والاقتصار على الخصائص الذاتية) لا بقوائم حظر لحمولات معروفة؛ بلا eval أو Function أو innerHTML، ويرفض عند الشك."
       },
       {
         "key": "robustness",
         "label_en": "Robustness & edge cases",
         "label_ar": "المتانة والحالات الحدّية",
         "weight": 3,
-        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way."
+        "guide": "Handles every edge case named in the contract (empty input, boundaries, duplicates, large values) deliberately rather than by accident; never mutates inputs; fails in the documented way.",
+        "guide_ar": "يعالج كل حالة حدّية يذكرها العقد (الإدخال الفارغ والحدود والتكرارات والقيم الكبيرة) عن قصد لا مصادفةً؛ لا يعدّل المدخلات أبدًا، ويفشل بالطريقة الموثّقة."
       },
       {
         "key": "readability",
         "label_en": "Readability & structure",
         "label_ar": "المقروئية والبنية",
         "weight": 2,
-        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read."
+        "guide": "Clear names, small focused helpers, no dead code, comments only where the logic is non-obvious. 9–10: a reviewer understands every step at first read.",
+        "guide_ar": "أسماء واضحة ودوال مساعدة صغيرة مركّزة، بلا شيفرة ميتة، وتعليقات حيث يكون المنطق غير بديهي فقط. 9–10: يفهم المراجع كل خطوة من القراءة الأولى."
       },
       {
         "key": "idiomatic",
         "label_en": "Idiomatic modern JavaScript",
         "label_ar": "جافاسكربت حديثة واصطلاحية",
         "weight": 1,
-        "guide": "Uses const/let, strict equality, appropriate built-ins and typed arrays where useful; avoids global state, implicit coercion and needless cleverness."
+        "guide": "Uses const/let, strict equality, appropriate built-ins and typed arrays where useful; avoids global state, implicit coercion and needless cleverness.",
+        "guide_ar": "يستخدم const/let والمساواة الصارمة والدوال المضمّنة المناسبة والمصفوفات المنمّطة عند الحاجة، ويتجنب الحالة العامة والتحويل الضمني للأنواع والتذاكي غير الضروري."
       }
     ],
     "checks": {

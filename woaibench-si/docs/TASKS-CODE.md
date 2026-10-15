@@ -79,6 +79,11 @@ readability; secure — security reasoning (weight 4), robustness, readability, 
 machine, while the naive solution (also kept as a mutant) needs orders of magnitude more
 (e.g. 10¹⁰ steps). Timeouts: 4–5 s for heavy algo suites, 2–3 s elsewhere.
 
+**Real-browser check.** Besides the Node validator, every reference and mutant was run through the
+production `assets/js/harness.js` in Chromium (Blob Worker mode, one fresh browser context per
+solution): all 15 references pass 100 % (slowest case ≈ 0.6 s), every mutant fails at least one case.
+The redirect suite passing there also confirms Chromium's URL parser agrees with Node's on every case.
+
 ### algo (5)
 
 | slug | diff | cases | timeout | what it measures | mutants (all killed) |
@@ -103,7 +108,7 @@ test; common incomplete fixes are mutants too.
 
 | slug | diff | cases | injected bugs | extra mutants |
 |---|---|---|---|---|
-| `debug-invoice-totals` | 3 | 29 | in-place sort of the caller's array · `localeCompare` instead of code-unit order · binary floating-point rounding (half-cent products, negative halves) · float `gross` | `Number.EPSILON` hack, `toFixed` rounding, half-up negatives |
+| `debug-invoice-totals` | 3 | 28 | in-place sort of the caller's array · `localeCompare` instead of code-unit order · binary floating-point rounding (half-cent products, negative halves) · float `gross` | `Number.EPSILON` hack, `toFixed` rounding, half-up negatives |
 | `debug-preview-truncate` | 2 | 27 | UTF-16 units instead of code points · off-by-one (no room for "…") · word-boundary rule (latent: only visible once the off-by-one is fixed) · `trim()` eats indentation | — |
 | `debug-renewal-dates` | 3 | 24 | 0-based month slip · month-end overflow · day drift after a clamp · no validation (`months: 0` loops forever) | — |
 | `debug-async-pool` | 3 | 19 | `<=` limit · completion-order results · empty input never settles · keeps launching after failure / crashes on plain values / accepts `limit: 0` | Promise.all chunking (slots not refilled) |

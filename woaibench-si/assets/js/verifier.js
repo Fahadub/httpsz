@@ -28,7 +28,7 @@
 
   /* ------------------------------------------------------------ strings */
   var FALLBACK = {
-    'verifier.js.idle': 'Idle', 'verifier.js.waiting': 'Waiting for runs…', 'verifier.js.claimed': 'Claimed',
+    'verifier.js.idle': 'Idle', 'verifier.js.waiting': 'Waiting for runs…', 'verifier.js.claimed': 'Claimed', 'verifier.js.queued': 'Queued',
     'verifier.js.loading': 'Loading', 'verifier.js.checking': 'Checking', 'verifier.js.capturing': 'Screenshot',
     'verifier.js.submitting': 'Submitting', 'verifier.js.done': 'Done', 'verifier.js.released': 'Released',
     'verifier.js.hung': 'Unresponsive', 'verifier.js.run': 'Run', 'verifier.js.tests': 'Tests',
@@ -194,6 +194,12 @@
     this.logLines = [];
     this.st = { processed: 0, released: 0, hung: 0, checks_passed: 0, checks_total: 0, tests_passed: 0, tests_total: 0, total_ms: 0, active: 0, avg_ms: 0, pass_rate: null };
     this.hiddenLogged = false;
+    // Sandboxed frames of one site share a renderer process, so only one live frame runs at a time:
+    // timing checks stay accurate and a frozen page is unambiguously the culprit. Lanes still overlap
+    // claiming, screenshots upload and submitting.
+    this.frameQueue = [];
+    this.frameBusy = false;
+    this.coolUntil = 0;
     this.build();
   }
   Station.prototype.build = function () {
@@ -223,6 +229,29 @@
       });
       this.io.observe(c);
     }
+  };
+  Station.prototype.acquireFrame = function () {
+    var self = this;
+    return new Promise(function (resolve) { self.frameQueue.push(resolve); self.pumpFrames(); });
+  };
+  Station.prototype.pumpFrames = function () {
+    if (this.frameBusy || !this.frameQueue.length) { return; }
+    var wait = this.coolUntil - Date.now();
+    if (wait > 0) {
+      if (!this.coolTimer) {
+        var self = this;
+        this.coolTimer = setTimeout(function () { self.coolTimer = null; self.pumpFrames(); }, wait);
+      }
+      return;
+    }
+    this.frameBusy = true;
+    this.frameQueue.shift()();
+  };
+  /** Free the frame slot; after a frozen page wait so the browser can recycle the sandbox process. */
+  Station.prototype.releaseFrame = function (cooldownMs) {
+    if (cooldownMs) { this.coolUntil = Math.max(this.coolUntil, Date.now() + cooldownMs); }
+    this.frameBusy = false;
+    this.pumpFrames();
   };
   Station.prototype.log = function (level, msg) {
     var entry = { time: new Date(), level: level, msg: msg };
@@ -477,7 +506,17 @@
       var vp = vps[i];
       var light = i > 0;
       var idx = i++;
-      return self.runViewport(run, vp, light, idx, vps.length).then(function (r) {
+      self.setPhase(t('queued') + ' · ' + vp.name, 'muted', 0.04 + idx * (0.9 / vps.length));
+      return st.acquireFrame().then(function () {
+        return self.runViewport(run, vp, light, idx, vps.length);
+      }).then(function (r) {
+        var frozen = r.status === 'infra' || !!(r.result && r.result.metrics && r.result.metrics.hung);
+        st.releaseFrame(frozen ? 4000 : 0);
+        return r;
+      }, function (e) {
+        st.releaseFrame(4000);
+        throw e;
+      }).then(function (r) {
         if (r.status === 'infra') { return r; }
         out[vp.name] = r.result;
         if (r.shot) { shots[vp.name] = r.shot; }

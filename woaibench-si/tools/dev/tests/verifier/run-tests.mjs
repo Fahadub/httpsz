@@ -254,10 +254,10 @@ async function stationRun(browser) {
   const S = setup(true);
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: 'dark' });
   const page = await ctx.newPage();
-  const pageErrors = [];
-  page.on('pageerror', (e) => pageErrors.push(e.message));
   await login(page, S, 'en');
   await page.goto(BASE + '/admin/verify?lang=en');
+  // Errors of the admin page itself (Playwright's pageerror also reports the sandboxed frames).
+  await page.evaluate(() => { window.__adminErrors = []; window.addEventListener('error', (e) => window.__adminErrors.push(e.message)); window.addEventListener('unhandledrejection', (e) => window.__adminErrors.push(String(e.reason))); });
   ok('station page renders', (await page.$('[data-verifier-station]')) !== null);
   if (SHOTS) await within(page.screenshot({ path: path.join(SHOTS, 'station-idle-en.png'), fullPage: true }), 15_000);
   await page.selectOption('[data-vs-concurrency]', '2');
@@ -296,7 +296,8 @@ async function stationRun(browser) {
   }
   await page.click('[data-vs-stop]');
   await sleep(500);
-  ok('station: no page errors on the admin page', pageErrors.length === 0, pageErrors.join(' | '));
+  const adminErrors = await page.evaluate(() => window.__adminErrors);
+  ok('station: no errors on the admin page itself', adminErrors.length === 0, adminErrors.join(' | '));
   await ctx.close();
 }
 

@@ -602,3 +602,6 @@ form.is-busy button[type="submit"] .icon { animation: admin-spin 1s linear infin
 @media (prefers-reduced-motion: reduce) {
   .admin-heartbeat.is-live .admin-heartbeat-dot, .admin-console.is-running .admin-console-orb::after, .admin-log li.is-new { animation: none; }
 }
+
+/* Mobile drawer: lift the shell's stacking context so the sidebar sits above the page overlay. */
+body.nav-open .admin-shell { z-index: auto; }

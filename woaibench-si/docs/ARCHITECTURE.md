@@ -483,3 +483,13 @@ hero/og) · requests · changelog · API tokens (create/revoke verifier tokens) 
   `/robots.txt`, `/healthz`, `/site.webmanifest` (see bootstrap).
 * Arena settings: `arena_last_recompute`, `arena_votes_at_recompute`; `Arena::maybeRecompute()` is
   called by the Worker on each step and after votes.
+* Writing config from the admin: pass `Config::write()` the **raw file array** merged with changes
+  (`WB\Admin\Admin::rawConfig()/writeConfig()`), never `Config::all()` — it contains env overrides
+  (e.g. `WB_DB_NAME`) that must not be persisted.
+* Brand Studio settings: `brand_logo`, `brand_wordmark`, `brand_hero`, `brand_og` (relative upload paths,
+  '' when unset).
+* Stored run payload shapes: `runs.static_json` = list of check results; `runs.browser_json` =
+  `{checks, tests, errors, metrics, viewports?}`; `runs.agent_json` = the AgentSim result
+  (`transcript, final_answer, goal_results, steps, end_reason, protocol, …`).
+* RTL: values mixing digits and Latin units (`46.6 s`, `$3/M`) must be bidi-isolated
+  (`<span dir="ltr">` / `unicode-bidi: isolate`).

@@ -15,7 +15,8 @@ function e(mixed $value): string
 /** JSON for embedding inside <script> tags (safe against </script> and HTML injection). */
 function js_json(mixed $value): string
 {
-    return json_encode($value, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR) ?: 'null';
+    $json = json_encode($value, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR);
+    return $json === false ? 'null' : $json;
 }
 
 /** Decode JSON text to array; returns $default on null/invalid input. */
@@ -31,7 +32,9 @@ function json_arr(?string $json, array $default = []): array
 /** Encode to JSON for storage. */
 function to_json(mixed $value): string
 {
-    return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: 'null';
+    // Note: json_encode(0) === "0", which is falsy — compare with false explicitly.
+    $json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PRESERVE_ZERO_FRACTION);
+    return $json === false ? 'null' : $json;
 }
 
 /** Current UTC timestamp in MySQL DATETIME format. */
@@ -230,7 +233,8 @@ function abort(int $code = 404, ?string $message = null): never
     if (!is_file(WB_APP . '/views/' . $tpl . '.php')) {
         $tpl = 'errors/generic';
     }
-    View::render($tpl, ['code' => $code, 'message' => $message], 'layout');
+    $titleKey = 'error.title_' . (in_array($code, [403, 404, 419, 429, 500], true) ? $code : 'generic');
+    View::render($tpl, ['code' => $code, 'message' => $message, 'title' => __($titleKey)], 'layout');
     exit;
 }
 

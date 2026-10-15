@@ -109,6 +109,7 @@ $headVars = [
           <li><?= ui_icon('eye', 16) ?><span><?= _e('verifier.station.tip_visible') ?></span></li>
           <li><?= ui_icon('lock', 16) ?><span><?= _e('verifier.station.tip_sandbox') ?></span></li>
           <li><?= ui_icon('gauge', 16) ?><span><?= _e('verifier.station.tip_concurrency') ?></span></li>
+          <li><?= ui_icon('shield', 16) ?><span><?= _e('verifier.station.tip_browser') ?></span></li>
           <li><?= ui_icon('refresh', 16) ?><span><?= _e('verifier.station.tip_release') ?></span></li>
         </ul>
       </section>

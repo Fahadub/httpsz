@@ -864,6 +864,90 @@ const EXTRAS = {
     out.push(res('HUD wave label', /wave 6 \/ 6/i.test(await txt(page, '#wave'))));
     return out;
   },
+  // ─── 3d ───
+  '3d-product-turntable': async (page, { sleep, txt, pixelStats }) => {
+    const out = [];
+    const canvasShot = () => page.locator('canvas').first().screenshot();
+    await page.click('#autorotate'); await sleep(300);
+    out.push(res('auto-rotate can be switched off', (await page.getAttribute('#autorotate', 'aria-pressed')) === 'false'));
+    const a = await canvasShot(); await sleep(600); const b = await canvasShot();
+    out.push(res('scene is still when auto-rotate is off', (await pixelStats(a, b)).diff < 0.002));
+    await page.click('.swatch >> nth=1'); await sleep(700);
+    const c = await canvasShot();
+    out.push(res('brass swatch: name, state and render change', (await txt(page, '#finish-name')) === 'Brushed Brass' && (await page.getAttribute('.swatch >> nth=1', 'aria-pressed')) === 'true' && (await pixelStats(b, c)).diff > 0.01));
+    await page.click('#lamp-toggle'); await sleep(900);
+    const d = await canvasShot();
+    out.push(res('light on changes the render', (await pixelStats(c, d)).diff > 0.01 && (await page.getAttribute('#lamp-toggle', 'aria-pressed')) === 'true'));
+    const box = await page.locator('canvas').first().boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 160, box.y + box.height / 2, { steps: 8 }); await page.mouse.up(); await sleep(300);
+    out.push(res('drag orbits the camera', (await pixelStats(d, await canvasShot())).diff > 0.01));
+    return out;
+  },
+  '3d-terrain-flyover': async (page, { sleep, pixelStats }) => {
+    const out = [];
+    const shot = () => page.locator('canvas').first().screenshot();
+    await page.click('#mode'); await sleep(300);
+    out.push(res('manual mode toggles aria-pressed', (await page.getAttribute('#mode', 'aria-pressed')) === 'true'));
+    const a = await shot(); await sleep(500); const b = await shot();
+    const still = (await pixelStats(a, b)).diff;
+    await page.keyboard.down('w'); await sleep(700); await page.keyboard.up('w');
+    const c = await shot();
+    out.push(res('manual camera holds still, W flies forward', still < 0.05 && (await pixelStats(b, c)).diff > 0.05, `still ${still.toFixed(3)}`));
+    await page.fill('#seed', '42'); await page.click('#regenerate'); await sleep(400);
+    const d = await shot();
+    out.push(res('a new seed changes the terrain', (await pixelStats(c, d)).diff > 0.05));
+    await page.fill('#seed', '1337'); await page.click('#regenerate'); await sleep(400);
+    out.push(res('same seed reproduces the same terrain', (await pixelStats(c, await shot())).diff < 0.02));
+    await page.locator('#sun').fill('5'); await sleep(400);
+    out.push(res('sun slider recolours the scene', (await pixelStats(c, await shot())).diff > 0.05));
+    return out;
+  },
+  '3d-galaxy-particles': async (page, { sleep, txt, pixelStats }) => {
+    const out = [];
+    out.push(res('#count shows ≥ 100,000', parseInt((await txt(page, '#count')).replace(/\D/g, ''), 10) >= 100000, await txt(page, '#count')));
+    await page.locator('#speed').fill('0'); await sleep(300);
+    const shot = () => page.locator('canvas').first().screenshot();
+    const a = await shot();
+    await page.click('#supernova'); await sleep(700);
+    const b = await shot();
+    out.push(res('supernova visibly changes the frame', (await pixelStats(a, b)).diff > 0.01));
+    await page.locator('#arms').fill('2'); await sleep(400);
+    out.push(res('arm count rebuilds the galaxy', (await pixelStats(b, await shot())).diff > 0.01));
+    return out;
+  },
+  '3d-puzzle-cube': async (page, { sleep, txt }) => {
+    const out = [];
+    const waitIdle = async () => { for (let i = 0; i < 100; i++) { if (!(await page.evaluate(() => window.__wbDebug.busy()))) return; await sleep(50); } };
+    await page.keyboard.press('r'); await waitIdle();
+    out.push(res('one turn unsolves the cube', !(await page.evaluate(() => window.__wbDebug.solved())) && (await txt(page, '#moves')) === '1'));
+    await page.keyboard.press('Shift+R'); await waitIdle(); await sleep(150);
+    out.push(res('R then R′ → solved overlay', /solved!/i.test(await visibleText(page))));
+    await page.click('#ov-close'); await page.click('#reset'); await sleep(100);
+    for (let i = 0; i < 6; i++) for (const k of ['r', 'u', 'Shift+R', 'Shift+U']) { await page.keyboard.press(k); await sleep(30); }
+    await waitIdle(); await sleep(200);
+    out.push(res('(R U R′ U′)×6 returns to solved', /solved!/i.test(await visibleText(page)) && (await txt(page, '#moves')) === '24', await txt(page, '#moves')));
+    await page.click('#ov-close');
+    await page.click('#scramble'); await waitIdle(); await sleep(100);
+    out.push(res('scramble mixes the cube and resets counters', !(await page.evaluate(() => window.__wbDebug.solved())) && (await txt(page, '#moves')) === '0'));
+    await page.click('#move-pad button >> nth=0'); await waitIdle(); await sleep(250);
+    out.push(res('move pad turn starts the timer', (await txt(page, '#moves')) === '1' && (await txt(page, '#timer')) !== '0:00.0'));
+    await page.click('#reset'); await sleep(100);
+    out.push(res('reset restores solved state', await page.evaluate(() => window.__wbDebug.solved())));
+    return out;
+  },
+  '3d-raymarched-sculpture': async (page, { sleep, pixelStats }) => {
+    const out = [];
+    const shot = () => page.locator('canvas').first().screenshot();
+    await page.click('#pause'); await sleep(300);
+    const a = await shot(); await sleep(700); const b = await shot();
+    out.push(res('pause freezes the image', (await pixelStats(a, b)).diff < 0.002 && (await page.getAttribute('#pause', 'aria-pressed')) === 'true'));
+    await page.click('#pause'); await sleep(700);
+    out.push(res('resume animates again', (await pixelStats(b, await shot())).diff > 0.002));
+    await page.selectOption('#quality', 'low'); await sleep(500);
+    out.push(res('quality switch keeps rendering', (await pixelStats(await shot(), b)).diff > 0.0));
+    return out;
+  },
 };
 /* EXTRAS-END */
 
