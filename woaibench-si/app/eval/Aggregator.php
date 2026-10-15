@@ -16,6 +16,14 @@ use Settings;
 final class Aggregator
 {
     public const SEED = 1337;
+    private const Z975 = 1.959964;
+    /** Student t 0.975 quantiles for 1–30 degrees of freedom (larger df: Cornish–Fisher expansion). */
+    private const T975 = [
+        1 => 12.706, 2 => 4.303, 3 => 3.182, 4 => 2.776, 5 => 2.571, 6 => 2.447, 7 => 2.365, 8 => 2.306, 9 => 2.262,
+        10 => 2.228, 11 => 2.201, 12 => 2.179, 13 => 2.160, 14 => 2.145, 15 => 2.131, 16 => 2.120, 17 => 2.110,
+        18 => 2.101, 19 => 2.093, 20 => 2.086, 21 => 2.080, 22 => 2.074, 23 => 2.069, 24 => 2.064, 25 => 2.060,
+        26 => 2.056, 27 => 2.052, 28 => 2.048, 29 => 2.045, 30 => 2.042,
+    ];
     private const COLS = [
         'model_id', 'season', 'scope', 'score', 'ci_low', 'ci_high', 'n_tasks', 'n_runs', 'auto_avg', 'judge_avg',
         'consistency', 'avg_cost', 'avg_latency_ms', 'avg_tokens', 'coverage', 'provisional', 'rank_pos', 'stat_rank',
@@ -66,6 +74,7 @@ final class Aggregator
             ];
         }
         $results = self::compute($data, $active, $iters, $minCov);
+        self::addFailed($results, $season);
         self::write($season, $results, $trackSlug);
         Settings::set('aggregate_last', now());
         return [
@@ -86,6 +95,10 @@ final class Aggregator
      *   ['final','auto'?,'judge'?,'cost'?,'latency'?,'tokens'?];
      * $activeByTrack[trackId] = number of active tasks.
      * Returns [modelId => ['overall' => stats, 'tracks' => [trackId => stats]]] incl. rank_pos and stat_rank.
+     *
+     * Provisional (not ranked): overall — coverage < min_coverage, or any active track missing or covered below
+     * min_coverage (the overall score is an equal-weight mean of tracks, so a skipped track would silently change
+     * what it measures); a track — the model's overall coverage or that track's coverage is below min_coverage.
      */
     public static function compute(array $data, array $activeByTrack, int $iters, float $minCoverage): array
     {
@@ -130,13 +143,20 @@ final class Aggregator
             $overallScore = array_sum(array_column($trackStats, 'score')) / max(1, count($trackStats));
             $coverage = $totalActive > 0 ? min(1.0, $nTasks / $totalActive) : 0.0;
             $overall = self::stats($overallScore, array_values($tracks), $allRuns, $nTasks, $sds, $coverage);
-            $overall['provisional'] = $coverage < $minCoverage;
+            $thin = $coverage < $minCoverage;
+            $thinTrack = false;
+            foreach ($activeByTrack as $tid => $n) {
+                if ($n > 0 && (!isset($trackStats[$tid]) || $trackStats[$tid]['coverage'] < $minCoverage)) {
+                    $thinTrack = true;
+                }
+            }
+            $overall['provisional'] = $thin || $thinTrack;
 
             [$boot, $bootTracks] = $iters > 0 ? self::bootstrap($values, $iters) : [[], []];
             [$overall['ci_low'], $overall['ci_high']] = self::ci($boot, $overall['score']);
             foreach ($trackStats as $tid => &$ts) {
                 [$ts['ci_low'], $ts['ci_high']] = self::ci($bootTracks[$tid] ?? [], $ts['score']);
-                $ts['provisional'] = $overall['provisional'];
+                $ts['provisional'] = $thin || $ts['coverage'] < $minCoverage;
             }
             unset($ts);
             $out[$modelId] = ['overall' => $overall, 'tracks' => $trackStats];
@@ -151,19 +171,31 @@ final class Aggregator
      * $tracks[trackId] = list of attempt lists. Returns [overall samples, [trackId => samples]].
      * Deterministic (mt_srand(SEED)); attempt resampling of ≤ 4 attempts uses an exact lookup table of all
      * equally likely resample means (one random draw instead of n).
+     *
+     * Small-sample correction (a track has ~5 tasks): resampling n values shrinks the variance of their mean by
+     * (n−1)/n, and a percentile interval ignores that the spread itself is estimated from n values. So every
+     * resampled track mean is moved away from the track's point estimate by sqrt(n/(n−1)) (variance-unbiased),
+     * track samples additionally by t(n−1)/z, and overall samples by t(df)/z with the Welch–Satterthwaite df of
+     * the tracks' variances (≈ Σ(n−1)). Coverage is checked by tools/dev/tests/ci_coverage_sim.php.
      */
     public static function bootstrap(array $tracks, int $iters): array
     {
         mt_srand(self::SEED);
         $prep = [];
+        $point = [];
+        $scale = [];
+        $kTrack = [];
+        $welch = [0.0, 0.0];
         foreach ($tracks as $tid => $tasks) {
             $list = [];
+            $means = [];
             foreach ($tasks as $vals) {
                 $vals = array_values(array_map('floatval', $vals));
                 $n = count($vals);
                 if ($n === 0) {
                     continue;
                 }
+                $means[] = array_sum($vals) / $n;
                 if ($n === 1 || max($vals) === min($vals)) {
                     $list[] = [0, $vals[0], 0];
                 } elseif ($n <= 4) {
@@ -173,8 +205,22 @@ final class Aggregator
                     $list[] = [2, $vals, $n - 1];
                 }
             }
-            if ($list) {
-                $prep[$tid] = $list;
+            if (!$list) {
+                continue;
+            }
+            $prep[$tid] = $list;
+            $nt = count($means);
+            $point[$tid] = array_sum($means) / $nt;
+            $scale[$tid] = $nt >= 2 ? sqrt($nt / ($nt - 1)) : 1.0;
+            $kTrack[$tid] = $scale[$tid] * ($nt >= 2 ? self::tQuantile($nt - 1) / self::Z975 : 1.0);
+            if ($nt >= 2) {
+                $ss = 0.0;
+                foreach ($means as $m) {
+                    $ss += ($m - $point[$tid]) ** 2;
+                }
+                $v = $ss / ($nt - 1) / $nt; // variance of the track mean
+                $welch[0] += $v;
+                $welch[1] += $v * $v / ($nt - 1);
             }
         }
         $overall = [];
@@ -183,6 +229,8 @@ final class Aggregator
         if ($nTracks === 0) {
             return [[], []];
         }
+        $pOverall = array_sum($point) / $nTracks;
+        $kOverall = $welch[1] > 0 ? self::tQuantile($welch[0] ** 2 / $welch[1]) / self::Z975 : 1.0;
         $sizes = array_map('count', $prep);
         for ($b = 0; $b < $iters; $b++) {
             $sumT = 0.0;
@@ -206,13 +254,28 @@ final class Aggregator
                         $s += $a / ($m + 1);
                     }
                 }
-                $tm = $s / $nt;
-                $per[$tid][] = $tm;
-                $sumT += $tm;
+                $dev = $s / $nt - $point[$tid];
+                $per[$tid][] = $point[$tid] + $kTrack[$tid] * $dev;
+                $sumT += $point[$tid] + $scale[$tid] * $dev;
             }
-            $overall[] = $sumT / $nTracks;
+            $overall[] = $pOverall + $kOverall * ($sumT / $nTracks - $pOverall);
         }
         return [$overall, $per];
+    }
+
+    /** Student t 0.975 quantile for $df degrees of freedom (table to 30, then the Cornish–Fisher expansion). */
+    public static function tQuantile(float $df): float
+    {
+        if ($df < 1) {
+            return self::T975[1];
+        }
+        if ($df <= 30) {
+            $lo = (int) floor($df);
+            $hi = (int) ceil($df);
+            return self::T975[$lo] + (self::T975[$hi] - self::T975[$lo]) * ($df - $lo);
+        }
+        $z = self::Z975;
+        return $z + ($z ** 3 + $z) / (4 * $df) + (5 * $z ** 5 + 16 * $z ** 3 + 3 * $z) / (96 * $df ** 2);
     }
 
     /** rank_pos (competition ranking by score among non-provisional) and stat_rank, overall and per track. */
@@ -279,9 +342,15 @@ final class Aggregator
                 }
             }
         }
-        DB::tx(static function () use ($season, $rows, $hist): void {
+        $cols = self::COLS;
+        if (Pipeline::hasColumn('model_scores', 'n_failed')) {
+            $cols[] = 'n_failed';
+        } else {
+            $rows = array_map(static fn(array $r): array => array_slice($r, 0, count(self::COLS)), $rows);
+        }
+        DB::tx(static function () use ($season, $rows, $hist, $cols): void {
             DB::exec('DELETE FROM model_scores WHERE season = ?', [$season]);
-            self::insertMany('model_scores', self::COLS, $rows);
+            self::insertMany('model_scores', $cols, $rows);
             DB::exec('DELETE FROM score_history WHERE season = ? AND recorded_on = ?', [$season, gmdate('Y-m-d')]);
             self::insertMany('score_history', ['model_id', 'season', 'score', 'ci_low', 'ci_high', 'rank_pos', 'recorded_on'], $hist);
         });
@@ -296,6 +365,7 @@ final class Aggregator
             $s['avg_latency_ms'] !== null ? (int) round($s['avg_latency_ms']) : null,
             $s['avg_tokens'] !== null ? (int) round($s['avg_tokens']) : null,
             round($s['coverage'], 2), $s['provisional'] ? 1 : 0, $s['rank_pos'] ?? null, $s['stat_rank'] ?? null,
+            (int) ($s['n_failed'] ?? 0),
         ];
     }
 
@@ -365,14 +435,53 @@ final class Aggregator
         ];
     }
 
-    /** 2.5 / 97.5 percentile CI that always contains the point estimate. */
+    /** 2.5 / 97.5 percentile CI that always contains the point estimate, within the 0–100 score range. */
     private static function ci(array $samples, float $point): array
     {
         if (!$samples) {
             return [null, null];
         }
         sort($samples);
-        return [min($point, self::pct($samples, 2.5)), max($point, self::pct($samples, 97.5))];
+        return [max(0.0, min($point, self::pct($samples, 2.5))), min(100.0, max($point, self::pct($samples, 97.5)))];
+    }
+
+    /**
+     * n_failed per model (overall and per track): runs of included campaigns of the season on active tasks /
+     * tracks / models that are excluded from the score — failed after their tries, or scored without a usable
+     * score (e.g. unverified with nothing else to grade).
+     */
+    private static function addFailed(array &$results, string $season): void
+    {
+        foreach ($results as &$r) {
+            $r['overall']['n_failed'] = 0;
+            foreach ($r['tracks'] as &$t) {
+                $t['n_failed'] = 0;
+            }
+            unset($t);
+        }
+        unset($r);
+        $rows = DB::all(
+            "SELECT r.model_id, t.track_id, COUNT(*) AS n
+               FROM runs r
+               JOIN campaigns c ON c.id = r.campaign_id
+               JOIN tasks t ON t.id = r.task_id
+               JOIN tracks tr ON tr.id = t.track_id
+               JOIN models m ON m.id = r.model_id
+              WHERE (r.status = 'failed' OR (r.status = 'scored' AND r.final_score IS NULL))
+                AND c.include_in_scores = 1 AND c.season = ? AND t.is_active = 1 AND tr.is_active = 1 AND m.is_active = 1
+              GROUP BY r.model_id, t.track_id",
+            [$season]
+        );
+        foreach ($rows as $row) {
+            $mid = (int) $row['model_id'];
+            if (!isset($results[$mid])) {
+                continue;
+            }
+            $results[$mid]['overall']['n_failed'] += (int) $row['n'];
+            if (isset($results[$mid]['tracks'][(int) $row['track_id']])) {
+                $results[$mid]['tracks'][(int) $row['track_id']]['n_failed'] = (int) $row['n'];
+            }
+        }
     }
 
     private static function pct(array $sorted, float $p): float

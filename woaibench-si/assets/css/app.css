@@ -235,7 +235,8 @@ html { scrollbar-color: var(--border-strong) transparent; scrollbar-width: thin;
 [dir="rtl"] .icon-arrow-left,
 [dir="rtl"] .icon-arrow-up-right,
 [dir="rtl"] .icon-chevron-right,
-[dir="rtl"] .icon-chevron-left { transform: scaleX(-1); }
+[dir="rtl"] .icon-chevron-left,
+[dir="rtl"] .icon-send { transform: scaleX(-1); }
 .bm-a { stop-color: var(--logo-a); }
 .bm-b { stop-color: var(--logo-b); }
 .bm-c { stop-color: var(--logo-c); }
@@ -358,6 +359,8 @@ html { scrollbar-color: var(--border-strong) transparent; scrollbar-width: thin;
 .eyebrow::before { content: ""; width: 22px; height: 1px; background: currentColor; opacity: .7; }
 .t-center > .eyebrow::after, .eyebrow.eyebrow-center::after { content: ""; width: 22px; height: 1px; background: currentColor; opacity: .7; }
 :lang(ar) .eyebrow { font-family: var(--font-body); letter-spacing: 0; text-transform: none; font-size: 13.5px; font-weight: 600; }
+/* Arabic never gets tracking (it breaks the cursive joins and disables ligatures in some engines). */
+:lang(ar) :is(.btn, .card-title, .why-card h3, .stat-value, .t-h3) { letter-spacing: 0; }
 .section-title { font-size: calc(clamp(32px, 4vw, 56px) * var(--display-scale)); line-height: 1.08; }
 .section-sub { color: var(--text-muted); font-size: clamp(16px, 1.25vw, 18px); line-height: 1.65; max-width: 62ch; margin: 0; }
 :lang(ar) .section-sub { line-height: 1.85; }
@@ -467,6 +470,8 @@ html { scrollbar-color: var(--border-strong) transparent; scrollbar-width: thin;
 }
 .lang-switch:hover { color: var(--text); border-color: var(--border-strong); }
 .lang-switch span { font-family: var(--font-body); }
+/* English pages: the one Arabic word ('العربية') uses a system face instead of downloading IBM Plex Sans Arabic. */
+html:lang(en) .lang-switch span:lang(ar) { font-family: system-ui, -apple-system, "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif; }
 .theme-toggle .icon-sun { display: none; }
 [data-theme="light"] .theme-toggle .icon-sun { display: inline-block; }
 [data-theme="light"] .theme-toggle .icon-moon { display: none; }
@@ -862,6 +867,17 @@ legend { padding: 0; }
   overscroll-behavior-x: contain;
 }
 .table-wrap.table-scroll { max-height: min(78vh, 920px); overflow: auto; }
+/* Horizontal scrollers (table-wrap, tabs, chip rows): app.js sets .can-scroll-start / .can-scroll-end and the
+   edge that hides more content fades out, so clipped columns and tabs are visibly scrollable. */
+.can-scroll-start, .can-scroll-end {
+  -webkit-mask-image: linear-gradient(to right, var(--fade-l, #000), #000 36px, #000 calc(100% - 36px), var(--fade-r, #000));
+  mask-image: linear-gradient(to right, var(--fade-l, #000), #000 36px, #000 calc(100% - 36px), var(--fade-r, #000));
+}
+.can-scroll-end { --fade-r: transparent; }
+.can-scroll-start { --fade-l: transparent; }
+[dir="rtl"] .can-scroll-end { --fade-l: transparent; --fade-r: #000; }
+[dir="rtl"] .can-scroll-start { --fade-r: transparent; --fade-l: #000; }
+.can-scroll-start.can-scroll-end { --fade-l: transparent; --fade-r: transparent; }
 .table-wrap.is-flush { border: 0; border-radius: 0; background: transparent; }
 .table {
   width: 100%;
@@ -959,6 +975,7 @@ legend { padding: 0; }
 .badge-green { background: var(--green-soft); color: var(--green); }
 .badge-red { background: var(--red-soft); color: var(--red); }
 .badge-blue { background: var(--blue-soft); color: var(--blue); }
+[data-theme="light"] .badge-blue { color: color-mix(in srgb, var(--blue) 85%, #000); }
 .badge-violet { background: var(--violet-soft); color: var(--violet); }
 .badge-amber { background: var(--amber-soft); color: var(--amber); }
 .badge-muted { background: var(--surface-3); color: var(--text-muted); }
@@ -1200,6 +1217,7 @@ a.track-badge-link:hover .track-badge { border-color: var(--track); }
   border: 1px solid color-mix(in srgb, var(--av) 50%, transparent);
   color: var(--text);
   color: color-mix(in srgb, var(--av) 55%, var(--text));
+  font-family: var(--font-body);
   font-size: calc(var(--size) * .42);
   font-weight: 650;
   line-height: 1;
@@ -1450,7 +1468,9 @@ body > main#main { overflow-x: clip; }
   transform: translate(-50%, 4px);
   transition: opacity 160ms var(--ease), transform 160ms var(--ease);
 }
-[data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); transition-delay: 120ms; }
+[data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); animation: wb-fade 160ms var(--ease) 120ms both; }
+/* Hidden tooltips take no layout space, so they never widen a table or chip scroller (phantom scroll area). */
+[data-tip]:not(:hover):not(:focus-visible)::after { display: none; }
 [data-tip-pos="bottom"]::after { bottom: auto; top: calc(100% + 8px); }
 .kbd, kbd {
   display: inline-block;
@@ -1731,7 +1751,7 @@ body > main#main { overflow-x: clip; }
 .hero-sub { max-width: 58ch; margin: 0; }
 .hero-ctas { gap: 12px; }
 .hero-proof { display: grid; grid-template-columns: repeat(4, auto); justify-content: start; gap: 6px 28px; margin-top: 6px; padding-top: 22px; border-top: 1px solid var(--border); list-style: none; }
-.hero-proof li { display: flex; flex-direction: column; gap: 2px; }
+.hero-proof li { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .hero-proof b { font-family: var(--font-display); font-weight: 400; font-size: 30px; line-height: 1; color: var(--text); }
 .hero-proof span { font-size: 12.5px; color: var(--text-faint); line-height: 1.4; }
 .hero-visual { position: relative; min-width: 0; }
@@ -1739,6 +1759,7 @@ body > main#main { overflow-x: clip; }
 .podium-card { position: relative; z-index: 1; margin-top: clamp(120px, 15vw, 220px); padding: 22px 22px 0; border-radius: var(--radius-xl); }
 .podium-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .podium-head .eyebrow { font-size: 11px; }
+:lang(ar) .podium-head .eyebrow { font-size: 12.5px; }
 .podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 10px; }
 .podium-col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; text-align: center; }
 .podium-col .avatar { margin-bottom: 6px; }
@@ -1838,6 +1859,7 @@ a.podium-name:hover { color: var(--gold); }
 .track-leader strong { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .track-leader .icon { color: var(--gold); flex: none; }
 .track-count { font-family: var(--font-mono); font-size: 11.5px; white-space: nowrap; }
+:lang(ar) .track-count { font-size: 12.5px; }
 .arena-teaser { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: clamp(28px, 4vw, 64px); align-items: center; padding: clamp(24px, 4vw, 56px); border-radius: var(--radius-xl); overflow: hidden; background: radial-gradient(520px 300px at 85% 40%, var(--gold-soft), transparent 70%), linear-gradient(180deg, var(--surface), var(--bg-elev)); }
 [dir="rtl"] .arena-teaser { background: radial-gradient(520px 300px at 15% 40%, var(--gold-soft), transparent 70%), linear-gradient(180deg, var(--surface), var(--bg-elev)); }
 .arena-copy { display: flex; flex-direction: column; gap: 18px; }
@@ -1853,6 +1875,8 @@ a.podium-name:hover { color: var(--gold); }
 .duel-b .duel-block { background: linear-gradient(135deg, color-mix(in srgb, var(--gold) 34%, transparent), color-mix(in srgb, var(--red) 18%, transparent)); }
 .duel-vs { position: absolute; top: 50%; left: 50%; z-index: 2; transform: translate(-50%, -60%); display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--gold-grad); color: var(--on-gold); font-family: var(--font-display); font-style: italic; font-size: 20px; box-shadow: var(--shadow), 0 0 0 6px var(--bg-elev); }
 .duel-votes { grid-column: 1 / -1; display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+/* The vote pills in the home illustration are decorative (aria-hidden), not controls. */
+.duel-votes .chip { cursor: default; pointer-events: none; }
 .arena-top { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
 .arena-top-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
 .arena-top-row:last-child { border-bottom: 0; }
@@ -2003,6 +2027,17 @@ a.podium-name:hover { color: var(--gold); }
   .btn-primary, .page.active, .rank-1, .rank-2, .rank-3 { forced-color-adjust: none; border: 1px solid CanvasText; }
   .scorebar-fill { background: Highlight !important; }
   .heat { border: 1px solid CanvasText; }
+}
+
+/* Touch screens: interactive targets of about 40 px (WCAG 2.5.8 asks 24 px; platform guidance 44 px). */
+@media (pointer: coarse) {
+  .btn-sm { --btn-h: 40px; }
+  .chip { height: 40px; }
+  .device-toggle button { min-width: 40px; min-height: 40px; }
+  .switch { min-height: 36px; }
+  .lang-switch { height: 40px; }
+  a.track-badge-link { padding-block: 7px; }
+  .render-actions .btn-icon { width: 40px; height: 40px; }
 }
 
 @media print {

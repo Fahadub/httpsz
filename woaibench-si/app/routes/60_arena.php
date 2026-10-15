@@ -15,10 +15,22 @@ function arena_pair_limit(): int
     return max(120, 4 * (int) setting('arena_votes_per_hour', 60));
 }
 
+/**
+ * Rate limits for one client. The voter hash (IP + User-Agent) owns pairs and gets the advertised per-voter limit;
+ * the address alone gets 3× that (room for a shared NAT), so rotating the User-Agent no longer multiplies it.
+ * $kind: 'pair' | 'vote'.
+ */
+function arena_allow(string $kind, string $voter): bool
+{
+    $limit = $kind === 'vote' ? max(1, (int) setting('arena_votes_per_hour', 60)) : arena_pair_limit();
+    return rate_limit('arena:' . $kind . ':' . $voter, $limit, 3600)
+        && rate_limit('arena:' . $kind . '-ip:' . ip_hash('arena'), 3 * $limit, 3600);
+}
+
 /** Crawlers get the page without a pre-created pair (no rows for bots; JS loads one for humans). */
 function arena_is_bot(): bool
 {
-    return (bool) preg_match('/bot\b|crawl|spider|slurp|facebookexternalhit|embedly|preview/i', (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+    return is_crawler();
 }
 
 Router::get('/arena', static function (): void {
@@ -30,7 +42,7 @@ Router::get('/arena', static function (): void {
         $state = 'no_data';
     } elseif (!arena_is_bot()) {
         $voter = Arena::voterHash();
-        if (rate_limit('arena:pair:' . $voter, arena_pair_limit(), 3600)) {
+        if (arena_allow('pair', $voter)) {
             $pair = Arena::createPair($voter);
             $state = $pair ? 'ready' : 'no_data';
         } else {
@@ -56,7 +68,7 @@ Router::get('/arena/next', static function (): void {
         json_out(['ok' => false, 'error' => 'disabled', 'message' => __('arena.disabled_text')], 503);
     }
     $voter = Arena::voterHash();
-    if (!rate_limit('arena:pair:' . $voter, arena_pair_limit(), 3600)) {
+    if (!arena_allow('pair', $voter)) {
         json_out(['ok' => false, 'error' => 'rate_limited', 'message' => __('arena.err_rate_limited')], 429, ['Retry-After' => '900']);
     }
     $pair = Arena::createPair($voter);
@@ -72,8 +84,7 @@ Router::post('/arena/vote', static function (): void {
         json_out(['ok' => false, 'error' => 'disabled', 'message' => __('arena.disabled_text')], 503);
     }
     $voter = Arena::voterHash();
-    $limit = max(1, (int) setting('arena_votes_per_hour', 60));
-    if (!rate_limit('arena:vote:' . $voter, $limit, 3600)) {
+    if (!arena_allow('vote', $voter)) {
         json_out(['ok' => false, 'error' => 'rate_limited', 'message' => __('arena.err_rate_limited')], 429, ['Retry-After' => '3600']);
     }
     $body = json_body();
@@ -84,23 +95,7 @@ Router::post('/arena/vote', static function (): void {
         json_out(['ok' => false, 'error' => $res['error'], 'message' => __('arena.err_' . $res['error'])], (int) $res['status']);
     }
     // Answer first, then (maybe) refit the ratings so the voter never waits for the bootstrap.
-    $json = json_encode($res, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
-    http_response_code(200);
-    header('Content-Type: application/json; charset=utf-8');
-    header('Cache-Control: no-store');
-    header('Content-Length: ' . strlen((string) $json));
-    echo $json;
-    if (session_status() === PHP_SESSION_ACTIVE) {
-        session_write_close();
-    }
-    ignore_user_abort(true);
-    if (function_exists('fastcgi_finish_request')) {
-        fastcgi_finish_request();
-    } elseif (function_exists('litespeed_finish_request')) {
-        litespeed_finish_request();
-    } else {
-        flush();
-    }
+    wb_respond_early($res);
     try {
         Arena::maybeRecompute();
     } catch (Throwable $e) {

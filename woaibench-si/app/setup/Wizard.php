@@ -31,6 +31,9 @@ final class Wizard
 
         $reason = self::lockReason();
         if ($reason !== null) {
+            if ($reason !== 'broken') {
+                Installer::removeSetupToken();
+            }
             if ($step === 'done' && !empty($_SESSION['wbi']['done'])) {
                 self::render('done', ['r' => $_SESSION['wbi']['done']], 'done');
                 return;
@@ -41,6 +44,7 @@ final class Wizard
             self::render('locked', ['reason' => $reason], 'locked');
             return;
         }
+        Installer::ensureSetupToken();
         if (is_post()) {
             self::handlePost();
             return;
@@ -73,6 +77,10 @@ final class Wizard
         if ($step === 'done') {
             $step = 1;
         }
+        if ($step >= 2 && empty($S['token_ok'])) {
+            self::flash('error', __('setup.err_token_required'));
+            self::go(1);
+        }
         if ($step >= 2 && !$reqOk) {
             self::flash('error', __('setup.err_requirements'));
             self::go(1);
@@ -84,7 +92,10 @@ final class Wizard
             self::go(3);
         }
         match ($step) {
-            1 => self::render('step-1', ['checks' => $checks, 'pass' => $reqOk], 1),
+            1 => self::render('step-1', [
+                'checks' => $checks, 'pass' => $reqOk, 'token_ok' => !empty($S['token_ok']),
+                'token_file' => Installer::setupToken() !== '' ? 'storage/cache/setup-token.txt' : null,
+            ], 1),
             2 => self::render('step-2', self::dbVars(), 2),
             3 => self::render('step-3', self::siteVars(), 3),
             default => self::render('step-4', self::reviewVars(), 4),
@@ -155,6 +166,16 @@ final class Wizard
             self::flash('error', __('setup.err_csrf'));
             self::go(self::requestedStep());
         }
+        if ($action === 'token') {
+            self::postToken();
+        }
+        if (empty($_SESSION['wbi']['token_ok']) && $action !== 'restart') {
+            if ($action === 'test_key') {
+                json_out(['ok' => false, 'message' => __('setup.err_token_required')], 403);
+            }
+            self::flash('error', __('setup.err_token_required'));
+            self::go(1);
+        }
         match ($action) {
             'db' => self::postDb(),
             'site' => self::postSite(),
@@ -163,6 +184,22 @@ final class Wizard
             'restart' => self::postRestart(),
             default => self::go(1),
         };
+    }
+
+    /** Step 1: prove access to the hosting files by pasting storage/cache/setup-token.txt. */
+    private static function postToken(): never
+    {
+        if (!self::throttle('token', 10, 600)) {
+            self::flash('error', __('setup.err_throttled'));
+            self::go(1);
+        }
+        if (!Installer::setupTokenValid((string) ($_POST['setup_token'] ?? ''))) {
+            self::flash('error', __('setup.err_token'));
+            self::go(1);
+        }
+        session_regenerate_id(true);
+        $_SESSION['wbi']['token_ok'] = true;
+        self::go(Installer::requirementsPass(Installer::requirements()) ? 2 : 1);
     }
 
     private static function postDb(): never
@@ -353,7 +390,7 @@ final class Wizard
 
     private static function postRestart(): never
     {
-        $_SESSION['wbi'] = ['lang' => $_SESSION['wbi']['lang'] ?? 'ar'];
+        $_SESSION['wbi'] = ['lang' => $_SESSION['wbi']['lang'] ?? 'ar', 'token_ok' => !empty($_SESSION['wbi']['token_ok'])];
         self::go(1);
     }
 
@@ -466,8 +503,11 @@ final class Wizard
         if ($fh === false) {
             return true; // fail open: storage is checked in step 1, and the installer locks itself soon
         }
+        $lock = function_exists('flock'); // may be disabled on shared hosts (undefined → fatal in PHP 8)
         try {
-            flock($fh, LOCK_EX);
+            if ($lock) {
+                flock($fh, LOCK_EX);
+            }
             $data = json_decode((string) stream_get_contents($fh), true);
             $data = is_array($data) ? $data : [];
             $id = $bucket . ':' . hash('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? '') . '|wb-installer');
@@ -487,7 +527,9 @@ final class Wizard
             fwrite($fh, (string) json_encode($data));
             return $allowed;
         } finally {
-            flock($fh, LOCK_UN);
+            if ($lock) {
+                flock($fh, LOCK_UN);
+            }
             fclose($fh);
         }
     }

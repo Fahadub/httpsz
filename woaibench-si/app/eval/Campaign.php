@@ -205,17 +205,21 @@ final class Campaign
     }
 
     /**
-     * Recompute campaigns.spent_cost from stored generation + judging costs (exact, no rounding drift).
+     * Recompute campaigns.spent_cost: the sum of runs.spent_usd, which accumulates every paid call of a run (failed
+     * and discarded generation attempts and judge calls included, Worker::addSpent). Before that column exists
+     * (upgrade not migrated yet) it falls back to the stored generation + judgment costs.
      * The sums are read with a plain (non-locking) SELECT first: a subquery inside the UPDATE would take
      * shared locks on every run of the campaign and block / deadlock the workers that are updating them.
      */
     public static function refreshSpent(int $id): void
     {
-        $sum = (float) DB::val(
-            'SELECT (SELECT COALESCE(SUM(r.cost_usd), 0) FROM runs r WHERE r.campaign_id = ?)
-                  + (SELECT COALESCE(SUM(j.cost_usd), 0) FROM judgments j JOIN runs r2 ON r2.id = j.run_id WHERE r2.campaign_id = ?)',
-            [$id, $id]
-        );
+        $sum = (float) (Pipeline::hasColumn('runs', 'spent_usd')
+            ? DB::val('SELECT COALESCE(SUM(spent_usd), 0) FROM runs WHERE campaign_id = ?', [$id])
+            : DB::val(
+                'SELECT (SELECT COALESCE(SUM(r.cost_usd), 0) FROM runs r WHERE r.campaign_id = ?)
+                      + (SELECT COALESCE(SUM(j.cost_usd), 0) FROM judgments j JOIN runs r2 ON r2.id = j.run_id WHERE r2.campaign_id = ?)',
+                [$id, $id]
+            ));
         Lease::retrying(static fn(): int => DB::exec('UPDATE campaigns SET spent_cost = ? WHERE id = ?', [round($sum, 4), $id]));
     }
 
@@ -224,13 +228,69 @@ final class Campaign
         return DB::exec("UPDATE campaigns SET status = 'paused' WHERE id = ? AND status = 'running'", [$id]) === 1;
     }
 
+    /** Resume a paused (or draft) campaign. Resuming also clears a provider halt: the admin has dealt with it. */
     public static function resume(int $id): bool
     {
-        return DB::exec(
+        $ok = DB::exec(
             "UPDATE campaigns SET status = 'running', finished_at = NULL, started_at = COALESCE(started_at, ?)
               WHERE id = ? AND status IN ('paused', 'draft')",
             [now(), $id]
         ) === 1;
+        if ($ok && self::providerHalt() !== null) {
+            self::clearHalt(false);
+        }
+        return $ok;
+    }
+
+    /**
+     * The provider halt notice (setting 'provider_halt'), or null when none is active:
+     * {code: 401|402|403, message, at: 'Y-m-d H:i:s', campaign_id, campaign_ids: [every campaign it paused]}.
+     * Read straight from the database: another worker process may have set it a moment ago.
+     */
+    public static function providerHalt(): ?array
+    {
+        $v = DB::val("SELECT v FROM settings WHERE k = 'provider_halt'");
+        $d = is_string($v) ? json_decode($v, true) : null;
+        return is_array($d) && !empty($d['code']) ? $d : null;
+    }
+
+    /**
+     * Record a provider halt (no credit / invalid or blocked key, see OpenRouter::haltOf) for a unit of
+     * campaign $campaignId and pause that campaign. The worker claims no generation or judging unit while a halt
+     * is set; Campaign::resume() or clearHalt() lifts it.
+     */
+    public static function halt(array $halt, int $campaignId): void
+    {
+        $cur = self::providerHalt();
+        $ids = array_values(array_unique(array_map('intval', (array) ($cur['campaign_ids'] ?? []))));
+        if ($campaignId > 0 && !in_array($campaignId, $ids, true)) {
+            $ids[] = $campaignId;
+        }
+        if ($campaignId > 0) {
+            Lease::retrying(static fn(): bool => self::pause($campaignId));
+        }
+        \Settings::set('provider_halt', [
+            'code' => (int) ($halt['code'] ?? 0) ?: 402,
+            'message' => Pipeline::clip(trim((string) ($halt['message'] ?? '')), 300),
+            'at' => (string) ($cur['at'] ?? now()),
+            'campaign_id' => $campaignId,
+            'campaign_ids' => $ids,
+        ]);
+        log_error('Provider halt: campaign paused', ['code' => $halt['code'] ?? null, 'campaign' => $campaignId]);
+    }
+
+    /** Lift the provider halt; with $resume, also resume every campaign it paused. Returns campaigns resumed. */
+    public static function clearHalt(bool $resume = true): int
+    {
+        $cur = self::providerHalt();
+        \Settings::set('provider_halt', '');
+        $n = 0;
+        foreach ($resume ? array_map('intval', (array) ($cur['campaign_ids'] ?? [$cur['campaign_id'] ?? 0])) : [] as $id) {
+            if ($id > 0 && self::resume($id)) {
+                $n++;
+            }
+        }
+        return $n;
     }
 
     /** Cancel: every unfinished run becomes skipped (in-flight results are discarded by the lease guard). */

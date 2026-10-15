@@ -44,10 +44,13 @@ final class ModelsController
         $sql = 'SELECT m.*, (SELECT COUNT(*) FROM runs r WHERE r.model_id = m.id) AS run_count FROM models m'
             . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
             . ' ORDER BY m.is_judge DESC, m.judge_order, m.is_active DESC, m.provider, m.name';
+        $models = DB::all($sql, $params);
         Admin::render('models', [
             'title' => \__('admin.nav.models'),
             'nav_active' => 'models',
-            'models' => DB::all($sql, $params),
+            'models' => $models,
+            // active model id => eligible judges, for models whose panel has no tie-break reserve (vendor self-exclusion)
+            'judge_gaps' => Admin::judgeGaps(array_filter($models, static fn(array $m): bool => (int) $m['is_active'] === 1)),
             'vendors' => DB::col('SELECT DISTINCT provider FROM models ORDER BY provider'),
             'filters' => $f,
         ]);

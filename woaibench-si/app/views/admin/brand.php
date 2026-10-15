@@ -50,7 +50,7 @@ foreach ($presets as $k => $p) {
 <section class="stack">
   <div class="cluster admin-gallery-head">
     <h2 class="t-h3"><?= _e('admin.brand.gallery') ?></h2>
-    <nav class="tabs admin-tabs">
+    <nav class="tabs admin-tabs" aria-label="<?= _e('admin.brand.gallery') ?>">
       <a class="tab<?= $filter === '' ? ' active' : '' ?>" href="<?= e(url('/admin/brand')) ?>"><?= _e('common.all') ?></a>
       <?php foreach ($kinds as $k): ?><a class="tab<?= $filter === $k ? ' active' : '' ?>" href="<?= e(url('/admin/brand', ['kind' => $k])) ?>"><?= _e('admin.brand.kind.' . $k) ?></a><?php endforeach; ?>
     </nav>

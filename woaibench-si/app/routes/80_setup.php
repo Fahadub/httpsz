@@ -26,7 +26,7 @@ Router::get('/admin/api/setup-status', static function (): void {
 Router::post('/admin/api/migrate', static function (): void {
     $admin = require_admin();
     csrf_check();
-    @set_time_limit(300);
+    wb_time_limit(300);
     $r = Migrator::run();
     log_error('Admin ran database migration', ['admin' => $admin['email'], 'ok' => $r['ok'], 'applied' => $r['migrations']]);
     if (!$r['ok']) {
@@ -39,7 +39,7 @@ Router::post('/admin/api/migrate', static function (): void {
 Router::post('/admin/api/seed-sync', static function (): void {
     $admin = require_admin();
     csrf_check();
-    @set_time_limit(300);
+    wb_time_limit(300);
     $body = json_body();
     $update = filter_var($body['update_existing'] ?? input('update_existing', false), FILTER_VALIDATE_BOOLEAN);
     try {

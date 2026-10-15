@@ -21,8 +21,9 @@ final class Worker
 
     /**
      * Run for about $budgetSeconds. Optional $client / $generate (callable(run, task, model, client): array)
-     * replace the OpenRouter client and Generator::run (tests, dry runs).
-     * Returns ['did' => [...], 'counts' => [status => n], 'idle' => bool, 'spent' => float, 'ms' => int].
+     * replace the OpenRouter client and Generator::run (tests, dry runs). While a provider halt is active
+     * (Campaign::providerHalt(): no credit / bad key) no generation or judging unit is claimed.
+     * Returns ['did' => [...], 'counts' => [status => n], 'idle' => bool, 'halted' => bool, 'spent' => float, 'ms' => int].
      */
     public static function step(float $budgetSeconds = 25.0, ?ChatClient $client = null, ?callable $generate = null): array
     {
@@ -34,11 +35,15 @@ final class Worker
         $did = [];
         $spent = 0.0;
         $idle = false;
+        $halted = Campaign::providerHalt() !== null;
         while (true) {
             $progress = false;
             foreach (['generate', 'judge', 'finalize', 'timeouts'] as $phase) {
                 if (microtime(true) >= $deadline) {
                     break 2;
+                }
+                if ($halted && ($phase === 'generate' || $phase === 'judge')) {
+                    continue; // every paid call would fail the same way until the admin fixes the account
                 }
                 try {
                     $items = match ($phase) {
@@ -60,6 +65,7 @@ final class Worker
                     $spent += (float) ($item['cost'] ?? 0);
                     $did[] = $item;
                     $progress = true;
+                    $halted = $halted || !empty($item['halted']);
                 }
             }
             if (!$progress) {
@@ -81,6 +87,7 @@ final class Worker
             'did' => $did,
             'counts' => self::counts(),
             'idle' => $idle,
+            'halted' => $halted,
             'spent' => round($spent, 6),
             'ms' => (int) round((microtime(true) - $t0) * 1000),
         ];
@@ -107,9 +114,10 @@ final class Worker
         if (!is_dir($dir)) {
             @mkdir($dir, 0775, true);
         }
-        $fh = @fopen($dir . '/worker.lock', 'c');
+        // flock() can be disabled on shared hosts (a disabled function is undefined in PHP 8 and calling it is fatal).
+        $fh = function_exists('flock') ? @fopen($dir . '/worker.lock', 'c') : false;
         if ($fh === false) {
-            return [true, $fn()]; // cannot lock (read-only storage): leases still keep work safe
+            return [true, $fn()]; // cannot lock (read-only storage, no flock): leases still keep work safe
         }
         try {
             if (!flock($fh, LOCK_EX | LOCK_NB)) {
@@ -130,9 +138,10 @@ final class Worker
     {
         $timeout = (int) clamp((float) setting('gen_timeout_s'), 30, 900);
         $cands = DB::all(
-            "SELECT r.id, t.output_type FROM runs r
+            "SELECT r.id, t.output_type, t.checks_json, c.gen_params, m.gen_params AS model_gen_params FROM runs r
                JOIN campaigns c ON c.id = r.campaign_id
                JOIN tasks t ON t.id = r.task_id
+               LEFT JOIN models m ON m.id = r.model_id
               WHERE c.status = 'running' AND r.status IN ('queued', 'generating')
                 AND (r.locked_until IS NULL OR r.locked_until < NOW()) AND r.tries < ?
               ORDER BY r.attempt, r.id LIMIT 8",
@@ -141,9 +150,7 @@ final class Worker
         $token = null;
         $runId = 0;
         foreach ($cands as $c) {
-            // The lease must outlive the whole attempt: one call, or a multi-step agent episode with retries.
-            $lease = $c['output_type'] === 'agent' ? 3 * $timeout + 180 : $timeout + 120;
-            $token = Lease::claim('runs', (int) $c['id'], ['queued', 'generating'], 'generating', $lease, 'tries', Pipeline::MAX_TRIES);
+            $token = Lease::claim('runs', (int) $c['id'], ['queued', 'generating'], 'generating', self::generationLease($c, $timeout), 'tries', Pipeline::MAX_TRIES);
             if ($token !== null) {
                 $runId = (int) $c['id'];
                 break;
@@ -173,16 +180,18 @@ final class Worker
         $status = !empty($gen['ok'])
             ? Pipeline::afterGeneration($run, $token, $gen, $task, $model)
             : Pipeline::generationFailed($run, $token, $gen);
+        self::addSpent($runId, $cost); // failed and discarded attempts were paid for too
         Campaign::refreshSpent((int) $run['campaign_id']);
         if ($status === null) {
             log_error('Generation result discarded: lease lost', ['run' => $runId]);
         }
+        $halted = empty($gen['ok']) && is_array($gen['halt'] ?? null);
         return [[
             'kind' => 'generate', 'run_id' => $runId, 'model' => (string) $model['name'], 'task' => (string) $task['slug'],
             'attempt' => (int) $run['attempt'], 'ok' => !empty($gen['ok']) && $status !== null, 'status' => $status,
             'ms' => (int) round((microtime(true) - $t) * 1000), 'cost' => round($cost, 6),
             'error' => !empty($gen['ok']) ? null : Pipeline::clip((string) ($gen['error'] ?? ''), 300),
-        ]];
+        ] + ($halted ? ['halted' => true] : [])];
     }
 
     /** Claim one pending judgment and run the judge. */
@@ -231,6 +240,7 @@ final class Worker
             'cost_usd' => round((float) $j['cost_usd'] + $cost, 6),
             'latency_ms' => (int) ($res['latency_ms'] ?? 0),
         ];
+        $halt = empty($res['ok']) && is_array($res['halt'] ?? null) ? $res['halt'] : null;
         if (!empty($res['ok'])) {
             $status = 'done';
             $n = Lease::write('judgments', $jid, $metrics + [
@@ -238,15 +248,25 @@ final class Worker
                 'criteria_json' => to_json($res['criteria'] ?? []), 'rationale' => (string) ($res['rationale'] ?? ''),
                 'used_vision' => !empty($res['used_vision']) ? 1 : 0, 'error' => null,
             ], ['token' => $token]);
+        } elseif ($halt !== null) {
+            // Provider halt (no credit / bad key): the judgment waits, the try is given back, the campaign pauses.
+            $status = 'pending';
+            $n = Lease::write('judgments', $jid, $metrics + [
+                'status' => 'pending', 'tries' => max(0, (int) $j['tries'] - 1), 'error' => Pipeline::clip((string) ($res['error'] ?? ''), 1000),
+            ], ['token' => $token]);
+            if ($n === 1) {
+                Campaign::halt($halt, (int) $run['campaign_id']);
+            }
         } elseif (!empty($res['retryable']) && (int) $j['tries'] < Pipeline::MAX_TRIES) {
             $status = 'pending';
             $n = Lease::write('judgments', $jid, $metrics + ['status' => 'pending', 'error' => Pipeline::clip((string) ($res['error'] ?? ''), 1000)], [
-                'token' => $token, 'lease' => Pipeline::backoff((int) $j['tries']), 'new_token' => null,
+                'token' => $token, 'lease' => Pipeline::holdOff((int) $j['tries'], $res['retry_after'] ?? null), 'new_token' => null,
             ]);
         } else {
             $status = 'failed';
             $n = Lease::write('judgments', $jid, $metrics + ['status' => 'failed', 'error' => Pipeline::clip((string) ($res['error'] ?? 'Judge failed'), 1000)], ['token' => $token]);
         }
+        self::addSpent((int) $run['id'], $cost);
         Campaign::refreshSpent((int) $run['campaign_id']);
         $runStatus = null;
         if ($n === 1 && $status !== 'pending') {
@@ -258,7 +278,7 @@ final class Worker
             'score' => !empty($res['ok']) ? round((float) $res['score'], 2) : null, 'status' => $status, 'run_status' => $runStatus,
             'ms' => (int) round((microtime(true) - $t) * 1000), 'cost' => round($cost, 6),
             'error' => !empty($res['ok']) ? null : Pipeline::clip((string) ($res['error'] ?? ''), 300),
-        ]];
+        ] + ($halt !== null ? ['halted' => true] : [])];
     }
 
     /** Crash recovery and leftovers: scoring runs, judging runs with no open judgments, dead leases. */
@@ -277,9 +297,10 @@ final class Worker
                 $did[] = ['kind' => 'generate_expired', 'run_id' => (int) $id, 'ok' => false];
             }
         }
-        // Verifications abandoned on the last allowed try → proceed unverified.
+        // Verifications abandoned on the last allowed try → wait for an admin re-verification (verify_mode required),
+        // else proceed unverified.
         foreach (DB::col("SELECT id FROM runs WHERE status = 'verifying' AND locked_until < NOW() AND verify_tries >= ? LIMIT " . self::SWEEP_LIMIT, [Pipeline::MAX_TRIES]) as $id) {
-            $s = Pipeline::skipVerification((int) $id, 'unverified_failed', 'verifier did not report back');
+            $s = Pipeline::verificationFailed((int) $id, 'verifier did not report back');
             if ($s !== null) {
                 $did[] = ['kind' => 'verify_given_up', 'run_id' => (int) $id, 'ok' => true, 'status' => $s];
             }
@@ -429,6 +450,11 @@ final class Worker
         }
     }
 
+    /**
+     * A step checks its budget only between units, so the last unit may start just before the deadline and run
+     * for a whole generation lease (agent: up to 3 calls) or judge evaluation (up to 3 sequential calls): the PHP
+     * time limit covers the longer of the two.
+     */
     private static function prepareRuntime(float $budget): void
     {
         $disabled = array_map('trim', explode(',', (string) ini_get('disable_functions')));
@@ -436,7 +462,37 @@ final class Worker
             ignore_user_abort(true);
         }
         if (!WB_CLI && function_exists('set_time_limit') && !in_array('set_time_limit', $disabled, true)) {
-            @set_time_limit((int) ceil($budget) + 3 * (int) setting('gen_timeout_s') + 180);
+            $gen = (int) clamp((float) setting('gen_timeout_s'), 30, 900);
+            $judge = (int) clamp((float) setting('judge_timeout_s', 180), 30, 600);
+            @set_time_limit((int) ceil($budget) + max(3 * $gen + 180, 3 * $judge + 60));
+        }
+    }
+
+    /**
+     * Generation lease: one call (gen_timeout_s + 120 s), or a whole agent episode — up to 3 × gen_timeout_s + 180 s
+     * and never shorter than the episode's wall time (checks.agent.wall_s or the _wall_s run option, ≤ 600 s) plus
+     * the last call's overrun (30 s) and retry / protocol-replay margin. A lease that expired mid-episode would let
+     * a parallel worker start a second paid episode.
+     */
+    private static function generationLease(array $c, int $timeout): int
+    {
+        if (($c['output_type'] ?? '') !== 'agent') {
+            return $timeout + 120;
+        }
+        $params = Generator::params(['gen_params' => $c['gen_params'] ?? null], ['gen_params' => $c['model_gen_params'] ?? null]);
+        $agent = json_arr($c['checks_json'] ?? null)['agent'] ?? [];
+        $wall = clamp((float) ($params['_wall_s'] ?? (is_array($agent) ? ($agent['wall_s'] ?? 150) : 150)), 0.0, 600.0);
+        return max(3 * $timeout + 180, (int) ceil($wall) + 105);
+    }
+
+    /**
+     * runs.spent_usd only grows: every paid call of a run (successful, failed or discarded generation attempts and
+     * judge calls) adds to it, so campaign spend stays exact across retries, regenerations and re-judging.
+     */
+    private static function addSpent(int $runId, float $cost): void
+    {
+        if ($cost > 0 && Pipeline::hasColumn('runs', 'spent_usd')) {
+            Lease::retrying(static fn(): int => DB::exec('UPDATE runs SET spent_usd = spent_usd + ? WHERE id = ?', [round($cost, 6), $runId]));
         }
     }
 }

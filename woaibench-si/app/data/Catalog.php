@@ -39,15 +39,20 @@ final class Catalog
         if (self::$tracks !== null) {
             return self::$tracks;
         }
+        // Counts come from a derived table: "SELECT tr.* … GROUP BY tr.id" is rejected by MariaDB under
+        // ONLY_FULL_GROUP_BY (it does not detect that tr.* depends on the primary key).
         $rows = DB::all(
             "SELECT tr.*,
-                    COALESCE(SUM(t.is_active = 1), 0) AS task_count,
-                    COALESCE(SUM(t.is_active = 1 AND t.visibility = 'public'), 0) AS public_count,
-                    COALESCE(SUM(t.is_active = 1 AND t.visibility = 'holdout'), 0) AS holdout_count
+                    COALESCE(x.task_count, 0) AS task_count,
+                    COALESCE(x.public_count, 0) AS public_count,
+                    COALESCE(x.holdout_count, 0) AS holdout_count
                FROM tracks tr
-               LEFT JOIN tasks t ON t.track_id = tr.id
+               LEFT JOIN (SELECT track_id,
+                                 SUM(is_active = 1) AS task_count,
+                                 SUM(is_active = 1 AND visibility = 'public') AS public_count,
+                                 SUM(is_active = 1 AND visibility = 'holdout') AS holdout_count
+                            FROM tasks GROUP BY track_id) x ON x.track_id = tr.id
               WHERE tr.is_active = 1
-              GROUP BY tr.id
               ORDER BY tr.sort, tr.id"
         );
         $out = [];

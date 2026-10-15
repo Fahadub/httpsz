@@ -569,7 +569,10 @@ $r = run_row((int) $r['id']);
 T::ok($r['status'] === 'scored' && (int) $r['verified'] === 1 && $r['verified_by'] === 'playwright', 'html run verified, judged and scored');
 T::near($r['auto_score'], 100.0, 'html auto = 100 (all checks pass)');
 T::near($r['final_score'], 0.35 * 100 + 0.65 * 70, 'html final = 0.35·100 + 0.65·70');
-T::ok(is_file(WB_UPLOADS . '/' . $r['screenshot']) && $r['screenshot'] === 'shots/run_' . $r['id'] . '_desktop.png' && $r['screenshot_mobile'] === 'shots/run_' . $r['id'] . '_mobile.png', 'screenshots stored as uploads/shots/run_<id>_<viewport>.png');
+T::ok(is_file(WB_UPLOADS . '/' . $r['screenshot']) && is_file(WB_UPLOADS . '/' . $r['screenshot_mobile'])
+    && preg_match('#^shots/run_' . $r['id'] . '_desktop_[0-9a-f]{32}\.png$#', (string) $r['screenshot']) === 1
+    && preg_match('#^shots/run_' . $r['id'] . '_mobile_[0-9a-f]{32}\.png$#', (string) $r['screenshot_mobile']) === 1,
+    'screenshots stored as uploads/shots/run_<id>_<viewport>_<32 hex>.png (unguessable)', [$r['screenshot'], $r['screenshot_mobile']]);
 $rj = run_of($cid, $ids['js'], $ids['m_aster']);
 T::near($rj['auto_score'], 100 * (1 + 6 * 0.75) / 7, 'js auto from verified tests 3/4');
 $c = Campaign::progress($cid);
@@ -640,7 +643,18 @@ DB::exec("UPDATE runs SET status = 'verifying', verify_tries = 3, code = 'functi
 drive($jc, stub_generator($genLog));
 T::eq(run_row((int) $crash['id'])['status'], 'failed', 'generation lease expired after the 3rd try → failed (worker crash safety)');
 $v = run_row((int) $v['id']);
-T::ok($v['status'] === 'scored' && in_array('unverified_failed', note_codes($v), true), 'verification abandoned 3 times → proceeds unverified', [$v['status'], note_codes($v)]);
+T::ok($v['status'] === 'awaiting_verify' && (int) $v['verify_tries'] === 3 && in_array('needs_verification', note_codes($v), true) && $v['final_score'] === null,
+    'verify_mode required: verification abandoned 3 times → not scored, waits for an admin re-verification', [$v['status'], note_codes($v)]);
+T::ok(in_array((int) $v['id'], Pipeline::needsVerificationIds(), true), 'listed by needsVerificationIds()');
+drive($jc, stub_generator($genLog));
+T::eq(run_row((int) $v['id'])['status'], 'awaiting_verify', 'no silent fallback to static-only scoring on later steps');
+T::ok(Pipeline::reverify((int) $v['id']) && (int) run_row((int) $v['id'])['verify_tries'] === 0 && !in_array((int) $v['id'], Pipeline::needsVerificationIds(), true), 'admin re-verify gives the run fresh verification tries');
+Settings::set('verify_mode', 'optional');
+DB::exec("UPDATE runs SET status = 'verifying', verify_tries = 3, locked_until = NOW() - INTERVAL 1 SECOND, lock_token = ? WHERE id = ?", [random_token(), $v['id']]);
+drive($jc, stub_generator($genLog));
+$v = run_row((int) $v['id']);
+T::ok($v['status'] === 'scored' && in_array('unverified_failed', note_codes($v), true), 'verify_mode optional: verification abandoned 3 times → proceeds unverified', [$v['status'], note_codes($v)]);
+Settings::set('verify_mode', 'required');
 
 // Notes fallback without the notes column.
 Pipeline::hasNotesColumn(false);
@@ -731,7 +745,39 @@ T::near($agg[2]['overall']['score'], 75.0, 'B: overall 75');
 T::ok($agg[3]['overall']['provisional'] && abs($agg[3]['overall']['coverage'] - 1 / 3) < 1e-9, 'C: coverage 1/3 < 0.8 → provisional');
 T::ok($agg[2]['overall']['rank_pos'] === 1 && $agg[1]['overall']['rank_pos'] === 2 && $agg[3]['overall']['rank_pos'] === null, 'rank_pos among non-provisional (B, A), provisional unranked');
 T::ok($agg[2]['overall']['ci_low'] === 75.0 && $agg[2]['overall']['ci_high'] === 75.0, 'B: zero-variance data → degenerate CI');
-T::ok($agg[1]['overall']['ci_high'] < 75.0 && $agg[1]['overall']['stat_rank'] === 2 && $agg[2]['overall']['stat_rank'] === 1, 'stat_rank: B.ci_low > A.ci_high → A statistically 2nd', [$agg[1]['overall']['ci_low'], $agg[1]['overall']['ci_high']]);
+T::ok($agg[1]['overall']['ci_high'] > 75.0 && $agg[1]['overall']['stat_rank'] === 1 && $agg[2]['overall']['stat_rank'] === 1,
+    'small-sample CIs (2 + 1 tasks) are honestly wide: A and B are statistically tied', [$agg[1]['overall']['ci_low'], $agg[1]['overall']['ci_high']]);
+$sep = [];
+foreach ([1 => 60, 2 => 80] as $mid => $base) {
+    for ($t = 0; $t < 3; $t++) {
+        for ($k = 0; $k < 6; $k++) {
+            $sep[$mid][20 + $t][200 + 10 * $t + $k] = [$base + ($k % 3) * 2 - 2, $base + ($k % 2) * 3 - 1, $base + 1];
+        }
+    }
+}
+$aggS = Aggregator::compute($sep, [20 => 6, 21 => 6, 22 => 6], 1000, 0.8);
+T::ok($aggS[2]['overall']['ci_low'] > $aggS[1]['overall']['ci_high'] && $aggS[1]['overall']['stat_rank'] === 2 && $aggS[2]['overall']['stat_rank'] === 1,
+    'stat_rank: B.ci_low > A.ci_high → A statistically 2nd', [$aggS[1]['overall']['ci_high'], $aggS[2]['overall']['ci_low']]);
+T::ok($aggS[1]['tracks'][20]['ci_high'] - $aggS[1]['tracks'][20]['ci_low'] > $aggS[1]['overall']['ci_high'] - $aggS[1]['overall']['ci_low'], 'a track CI (6 tasks, t with 5 df) is wider than the overall CI (18 tasks)');
+// Provisional: overall coverage ≥ min_coverage is not enough when a track is thin or missing (engine-2, engine-7).
+$thin = [1 => [10 => [], 11 => []], 2 => [10 => [], 11 => []]];
+for ($k = 0; $k < 5; $k++) {
+    $thin[1][10][300 + $k] = [70];
+    $thin[2][10][300 + $k] = [70];
+    $thin[2][11][310 + $k] = [40];
+    if ($k < 3) {
+        $thin[1][11][310 + $k] = [90];
+    }
+}
+$aggT = Aggregator::compute($thin, [10 => 5, 11 => 5], 200, 0.8);
+T::ok(abs($aggT[1]['overall']['coverage'] - 0.8) < 1e-9 && $aggT[1]['overall']['provisional'] && $aggT[1]['overall']['rank_pos'] === null,
+    'coverage 0.8 overall but one track at 3/5 → provisional overall (not ranked above complete models)');
+T::ok(!$aggT[1]['tracks'][10]['provisional'] && $aggT[1]['tracks'][10]['rank_pos'] === 1 && $aggT[1]['tracks'][11]['provisional'] && $aggT[1]['tracks'][11]['rank_pos'] === null,
+    'track rows: ranked in the complete track, provisional in the thin one (1 task of 5 can never take #1)');
+T::ok($aggT[2]['tracks'][10]['rank_pos'] === 1 && $aggT[2]['tracks'][11]['rank_pos'] === 1, 'equal track scores share the competition rank');
+$miss = [1 => [10 => [400 => [80], 401 => [80], 402 => [80], 403 => [80], 404 => [80]], 11 => [410 => [80], 411 => [80], 412 => [80], 413 => [80], 414 => [80]]]];
+$aggM = Aggregator::compute($miss, [10 => 5, 11 => 5, 12 => 2], 200, 0.8);
+T::ok(abs($aggM[1]['overall']['coverage'] - 10 / 12) < 1e-9 && $aggM[1]['overall']['provisional'], 'a whole active track missing → provisional even at coverage 0.83');
 T::near($agg[1]['overall']['consistency'], 100 - (stddev([80, 90]) + 0) / 2, 'consistency = 100 − mean stddev over tasks with ≥ 2 attempts');
 T::ok($agg[1]['overall']['n_tasks'] === 3 && $agg[1]['overall']['n_runs'] === 6, 'n_tasks / n_runs');
 foreach ($agg as $mid => $a) {
@@ -769,7 +815,8 @@ $row = static fn(int $m, string $scope = 'overall') => DB::one("SELECT * FROM mo
 T::near($row($mA)['score'], 68.75, 'A overall 68.75 in model_scores');
 T::near($row($mB)['score'], 75.0, 'B overall 75.00');
 T::ok((int) $row($mC)['provisional'] === 1 && $row($mC)['rank_pos'] === null && (float) $row($mC)['coverage'] === 0.33, 'C provisional, unranked, coverage 0.33');
-T::ok((int) $row($mB)['rank_pos'] === 1 && (int) $row($mA)['rank_pos'] === 2 && (int) $row($mA)['stat_rank'] === 2, 'ranks persisted');
+T::ok((int) $row($mB)['rank_pos'] === 1 && (int) $row($mA)['rank_pos'] === 2 && (int) $row($mA)['stat_rank'] === 1, 'ranks persisted (A and B statistically tied on so few tasks)');
+T::ok((int) $row($mB)['n_failed'] === 1 && (int) $row($mA)['n_failed'] === 0 && (int) $row($mB, 'track:ui')['n_failed'] === 1, 'n_failed: excluded (failed) runs counted per model and track, inactive tasks ignored', [$row($mB)['n_failed'] ?? null, $row($mA)['n_failed'] ?? null, $row($mB, 'track:ui')['n_failed'] ?? null]);
 T::ok($row($mA, 'track:ui') !== null && $row($mA, 'track:ui')['ci_low'] !== null && $row($mA, 'track:algo') !== null, 'track rows with CI written');
 T::near($row($mA)['judge_avg'], 58.75, 'judge_avg uses the same equal-weight hierarchy');
 T::ok((float) $row($mA)['avg_cost'] === 0.01 && (int) $row($mA)['avg_tokens'] === 1000 && (int) $row($mA)['avg_latency_ms'] === 1000, 'per-task cost / tokens / latency averages');
@@ -944,7 +991,7 @@ $jpg = (static function (): string {
 })();
 $okJpg = VerifierApi::saveShot(424242, 'mobile', $jpg);
 $flat = VerifierApi::saveShot(424243, 'desktop', png_data_url(1280, 800, false, true));
-T::ok(str_contains($flat['error'] ?? '', 'blank') && !is_file(WB_UPLOADS . '/shots/run_424243_desktop.png'), 'single-colour capture rejected (would mislead vision judges)');
+T::ok(str_contains($flat['error'] ?? '', 'blank') && !glob(WB_UPLOADS . '/shots/run_424243_*'), 'single-colour capture rejected (would mislead vision judges)');
 $small = VerifierApi::saveShot(424243, 'desktop', (static function (): string {
     $im = imagecreatetruecolor(1280, 800);
     imagefilledrectangle($im, 0, 0, 1280, 800, imagecolorallocate($im, 255, 255, 255));
@@ -954,10 +1001,15 @@ $small = VerifierApi::saveShot(424243, 'desktop', (static function (): string {
     return 'data:image/png;base64,' . base64_encode((string) ob_get_clean());
 })());
 T::ok(isset($small['path']), 'mostly-white page with a little text is not mistaken for a blank capture', $small);
-@unlink(WB_UPLOADS . '/shots/run_424243_desktop.png');
-T::ok(isset($svgRes['error']) && ($okJpg['path'] ?? '') === 'shots/run_424242_mobile.png' && str_starts_with((string) file_get_contents(WB_UPLOADS . '/shots/run_424242_mobile.png'), "\x89PNG"), 'SVG refused; JPEG re-encoded to PNG through GD');
+@unlink(WB_UPLOADS . '/' . ($small['path'] ?? 'x'));
+T::ok(isset($svgRes['error']) && preg_match('#^shots/run_424242_mobile_[0-9a-f]{32}\.png$#', (string) ($okJpg['path'] ?? '')) === 1
+    && str_starts_with((string) file_get_contents(WB_UPLOADS . '/' . $okJpg['path']), "\x89PNG"), 'SVG refused; JPEG re-encoded to PNG through GD');
 T::ok(isset(VerifierApi::saveShot(1, 'desktop', png_data_url(9000, 20))['error']) && isset(VerifierApi::saveShot(1, '../x', png_data_url(20, 20))['error']), 'absurd dimensions and unknown viewport refused');
-@unlink(WB_UPLOADS . '/shots/run_424242_mobile.png');
+// A second capture of the same run/viewport gets a fresh name; pruneShots keeps only what the run references.
+$okJpg2 = VerifierApi::saveShot(424242, 'mobile', $jpg);
+T::ok(($okJpg2['path'] ?? '') !== ($okJpg['path'] ?? '') && is_file(WB_UPLOADS . '/' . $okJpg2['path']), 'every capture gets a new unique name (immutable caching stays correct)');
+T::eq(VerifierApi::pruneShots(424242), 2, 'pruneShots removes the files of a run that no longer references them');
+T::ok(!glob(WB_UPLOADS . '/shots/run_424242_*'), 'no file of the pruned run is left');
 // release: back to the queue, then proceed unverified on the 3rd try.
 $rel = VerifierApi::release(['run_id' => $job2['id'], 'lock_token' => $job2['lock_token'], 'error' => 'browser crashed']);
 T::ok($rel['ok'] && $rel['next_status'] === 'awaiting_verify' && run_row($job2['id'])['status'] === 'awaiting_verify', 'release → awaiting_verify');
@@ -969,8 +1021,25 @@ for ($i = 2; $i <= 3; $i++) {
     $rel = VerifierApi::release(['run_id' => $jx['id'], 'lock_token' => $jx['lock_token'], 'error' => 'browser crashed ' . $i]);
 }
 $rr = run_row($job2['id']);
-T::ok($rel['ok'] && $rel['next_status'] === 'judging' && (int) $rr['verified'] === 0 && in_array('unverified_failed', note_codes($rr), true), '3rd release → proceeds unverified with a note', [$rel, note_codes($rr)]);
+T::ok($rel['ok'] && $rel['next_status'] === 'awaiting_verify' && $rr['status'] === 'awaiting_verify' && (int) $rr['verified'] === 0 && in_array('needs_verification', note_codes($rr), true),
+    '3rd release (infrastructure) in verify_mode required → not scored, needs_verification', [$rel, note_codes($rr)]);
 T::eq(VerifierApi::release(['run_id' => $job2['id'], 'lock_token' => $jx['lock_token']])['error'] ?? null, 'lease_lost', 'release with a used token refused');
+T::eq(VerifierApi::next('station'), null, 'a run without verification tries left is not handed out again');
+T::ok(Pipeline::reverify($job2['id']), 'admin re-verify');
+for ($i = 1; $i <= 3; $i++) {
+    DB::exec('UPDATE runs SET locked_until = NULL WHERE id = ?', [$job2['id']]);
+    $jx = VerifierApi::next('playwright');
+    // The page crashes the browser on every try: only the last try counts it as the output's failure.
+    $rel = VerifierApi::release(['run_id' => $jx['id'], 'lock_token' => $jx['lock_token'], 'agent' => 'playwright', 'cause' => 'output', 'error' => 'page crashed the browser renderer']);
+    if ($i < 3) {
+        T::eq($rel['next_status'] ?? null, 'awaiting_verify', "cause=output on try {$i}/3 → retried in a fresh context");
+    }
+}
+$rr = run_row($job2['id']);
+$bj = json_arr($rr['browser_json']);
+T::ok($rel['ok'] && $rel['next_status'] === 'judging' && (int) $rr['verified'] === 1 && in_array('verify_output_failed', note_codes($rr), true)
+    && !empty($bj['metrics']['crashed']) && $bj['tests'] === [], 'cause=output on the last try → verified as the output\'s failure (tests count as failed)', [$rel, note_codes($rr), $bj['metrics'] ?? null]);
+T::near(Scorer::autoScore(Pipeline::loadTask((int) $rr['task_id']), $rr)['parts'][array_key_last(Scorer::autoScore(Pipeline::loadTask((int) $rr['task_id']), $rr)['parts'])]['score'], 0.0, 'crashed output: unit tests score 0 (not excluded)');
 Settings::set('verify_mode', 'off');
 T::eq(VerifierApi::next('station'), null, 'verify_mode off → verifier gets nothing');
 Settings::set('verify_mode', 'required');
@@ -1008,7 +1077,11 @@ if (!empty($opts['http'])) {
     [$code, $s] = $http('POST', '/api/verifier/submit', ['run_id' => $j['run']['id'], 'lock_token' => $j['run']['lock_token'],
         'results' => ['checks' => [['id' => 'loads', 'pass' => true], ['id' => 'nonblank', 'pass' => true], ['id' => 'no_errors', 'pass' => true]]],
         'screenshots' => ['desktop' => png_data_url(1280, 800)]], ['Authorization' => 'Bearer ' . $token]);
-    T::ok($code === 200 && ($s['next_status'] ?? '') === 'judging' && is_file(WB_UPLOADS . '/shots/run_' . $j['run']['id'] . '_desktop.png'), 'submit over HTTP stores results + screenshot', $s);
+    $shotH = (string) DB::val('SELECT screenshot FROM runs WHERE id = ?', [(int) ($j['run']['id'] ?? 0)]);
+    T::ok($code === 200 && ($s['next_status'] ?? '') === 'judging' && preg_match('#^shots/run_' . (int) $j['run']['id'] . '_desktop_[0-9a-f]{32}\.png$#', $shotH) === 1
+        && is_file(WB_UPLOADS . '/' . $shotH), 'submit over HTTP stores results + screenshot', $s);
+    [$code] = $http('GET', '/uploads/shots/run_' . (int) $j['run']['id'] . '_desktop.png', null);
+    T::eq($code, 404, 'the old guessable screenshot URL does not exist');
     [$code, $s] = $http('POST', '/api/verifier/submit', ['run_id' => $j['run']['id'], 'lock_token' => $j['run']['lock_token']], ['Authorization' => 'Bearer ' . $token]);
     T::eq($code, 409, 'replayed submit → 409');
     [$code] = $http('POST', '/admin/api/step', []);
@@ -1128,6 +1201,163 @@ if (class_exists('WB\\Arena\\Arena')) {
     DB::exec('DELETE FROM arena_votes');
     DB::exec('DELETE FROM arena_ratings');
 }
+
+/* ================================================================== 13. review fixes (provider halts, unverified runs, ranking) */
+T::section('Review fixes: provider halts, spend, unverified runs, ranking, redaction');
+// OpenRouter classification: account problems are halts, not model failures.
+$n402 = WB\Eval\OpenRouter::normalize(402, ['error' => ['code' => 402, 'message' => 'Insufficient credits']], '', null, 5);
+$n401 = WB\Eval\OpenRouter::normalize(401, ['error' => ['code' => 401, 'message' => 'No auth credentials found']], '', null, 5);
+$n403k = WB\Eval\OpenRouter::normalize(403, ['error' => ['code' => 403, 'message' => 'Key limit exceeded (total limit)']], '', null, 5);
+$n403m = WB\Eval\OpenRouter::normalize(403, ['error' => ['code' => 403, 'message' => 'Your input was flagged by moderation']], '', null, 5);
+$n200 = WB\Eval\OpenRouter::normalize(200, ['error' => ['code' => 402, 'message' => 'Insufficient credits']], '', null, 5);
+T::ok(($n402['halt']['code'] ?? 0) === 402 && !$n402['retryable'] && ($n401['halt']['code'] ?? 0) === 401 && ($n403k['halt']['code'] ?? 0) === 403
+    && $n403m['halt'] === null && ($n200['halt']['code'] ?? 0) === 402, 'OpenRouter: 401 / 402 / 403 key limit are provider halts; moderation 403 is not', [$n402['halt'], $n403m['halt']]);
+T::eq((new WB\Eval\OpenRouter('', 'http://127.0.0.1:9'))->chat(['model' => 'x'])['halt']['code'] ?? null, 401, 'missing API key → provider halt (401)');
+T::eq(WB\Eval\OpenRouter::retryAfter(['retry-after' => '120']), 120, 'Retry-After seconds parsed');
+$halt402 = static fn(): array => ['ok' => false, 'status' => 402, 'retryable' => false, 'error' => '[402] Insufficient credits', 'halt' => ['code' => 402, 'message' => 'Insufficient credits']];
+$gR = WB\Eval\Generator::run(['id' => 1, 'gen_params' => null], Pipeline::loadTask(1) ?? ['output_type' => 'html', 'prompt' => 'x', 'checks_json' => '{}'], ['or_id' => 'a/b', 'name' => 'B', 'gen_params' => null], new StubClient(static fn(): array => $halt402()));
+T::ok(!$gR['ok'] && ($gR['halt']['code'] ?? 0) === 402, 'Generator passes the halt on');
+$agentTask = ['output_type' => 'agent', 'prompt' => 'Do it', 'checks_json' => to_json(['agent' => ['max_steps' => 5, 'tools' => ['list_dir', 'finish'], 'env' => ['files' => ['/a.txt' => 'x']], 'goal_checks' => []]])];
+$turn = 0;
+$aR = WB\Eval\AgentSim::run($agentTask, ['or_id' => 'a/b', 'supports_tools' => 1], new StubClient(static function () use (&$turn, $halt402): array {
+    return ++$turn === 1 ? ['tool_calls' => [['id' => 'c1', 'type' => 'function', 'function' => ['name' => 'list_dir', 'arguments' => '{"path":"/"}']]], 'content' => ''] : $halt402();
+}), ['_retries' => 0]);
+T::ok(!$aR['ok'] && ($aR['halt']['code'] ?? 0) === 402 && $aR['usage']['cost'] > 0, 'agent episode: a 402 mid-episode is a halt (cost of earlier turns kept)', [$aR['halt'], $aR['usage']]);
+
+reset_db();
+$ids = seed();
+$genLog = [];
+$cidH = Campaign::create('Halt', [$ids['m_aster']], [$ids['html'], $ids['js']], 1);
+$out = Worker::step(30.0, judge_client([]), stub_generator($genLog, ['ui-landing' => static fn(): array => $halt402() + ['cost_usd' => 0.2]]));
+$rh = run_of($cidH, $ids['html'], $ids['m_aster']);
+$halt = Campaign::providerHalt();
+T::ok($rh['status'] === 'queued' && (int) $rh['tries'] === 0 && str_contains((string) $rh['error'], '402'), 'generation 402 → run back to queued, the try is given back', [$rh['status'], $rh['tries']]);
+T::ok(($halt['code'] ?? 0) === 402 && ($halt['campaign_id'] ?? 0) === $cidH && preg_match('/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/', (string) ($halt['at'] ?? '')) === 1
+    && DB::val('SELECT status FROM campaigns WHERE id = ?', [$cidH]) === 'paused', 'provider_halt stored {code, message, at, campaign_id} and the campaign paused', $halt);
+T::ok($out['halted'] === true && count(array_filter($out['did'], static fn($d) => $d['kind'] === 'generate')) === 1, 'the step stops claiming generation units after the halt and reports halted', array_column($out['did'], 'kind'));
+T::near((float) DB::val('SELECT spent_cost FROM campaigns WHERE id = ?', [$cidH]), 0.2, 'money spent on the failed attempt is counted in campaign spend', 0.0001);
+DB::exec("UPDATE campaigns SET status = 'running' WHERE id = ?", [$cidH]); // a second, still running campaign is blocked too
+$out = Worker::step(5.0, judge_client([]), stub_generator($genLog));
+T::ok($out['halted'] === true && !array_filter($out['did'], static fn($d) => $d['kind'] === 'generate' || $d['kind'] === 'judge'), 'while the halt is set no generation or judging unit is claimed');
+DB::exec("UPDATE campaigns SET status = 'paused' WHERE id = ?", [$cidH]);
+T::ok(Campaign::resume($cidH) && Campaign::providerHalt() === null, 'resuming the campaign clears the provider halt');
+drive(judge_client([]), stub_generator($genLog));
+T::eq(run_of($cidH, $ids['html'], $ids['m_aster'])['status'], 'awaiting_verify', 'after the resume the run is generated normally');
+T::near((float) DB::val('SELECT spent_usd FROM runs WHERE id = ?', [$rh['id']]), 0.2012, 'runs.spent_usd keeps the failed attempt (0.2) plus the successful one (0.0012)', 0.00001);
+// Judging-stage halt: the judgment waits (try given back), the run is not scored with fewer judges.
+$cidJ = Campaign::create('HaltJudge', [$ids['m_aster']], [$ids['text']], 1);
+$calls = 0;
+$jc402 = new StubClient(static function (array $p) use (&$calls, $halt402): array {
+    return ++$calls === 2 ? $halt402() : ['content' => judge_reply(payload_keys($p), 7)];
+});
+drive($jc402, stub_generator($genLog));
+$rj = run_of($cidJ, $ids['text'], $ids['m_aster']);
+$pend = DB::all("SELECT status, tries FROM judgments WHERE run_id = ? AND status = 'pending'", [$rj['id']]);
+T::ok($rj['status'] === 'judging' && count($pend) >= 1 && (int) $pend[0]['tries'] === 0 && Campaign::providerHalt() !== null && $rj['final_score'] === null,
+    'judge 402 → judgment back to pending (try given back), run not scored with a partial panel', [$rj['status'], $pend]);
+T::eq(Campaign::clearHalt(), 1, 'clearHalt() lifts the halt and resumes the paused campaign');
+drive(judge_client([]), stub_generator($genLog));
+$rj = run_row((int) $rj['id']);
+T::ok($rj['status'] === 'scored' && !in_array('judges_partial', note_codes($rj), true), 'judging completes with the full panel after the halt', [$rj['status'], note_codes($rj)]);
+// Retry-After is honoured for the hold-off.
+$cidR = Campaign::create('429', [$ids['m_borealis']], [$ids['text']], 1);
+Worker::step(30.0, judge_client([]), stub_generator($genLog, ['write-1' => static fn(): array => ['ok' => false, 'retryable' => true, 'error' => '[429] rate limited', 'retry_after' => 500]]));
+$r429 = run_of($cidR, $ids['text'], $ids['m_borealis']);
+T::ok($r429['status'] === 'queued' && (int) DB::val('SELECT TIMESTAMPDIFF(SECOND, NOW(), locked_until) FROM runs WHERE id = ?', [$r429['id']]) >= 490, '429 with Retry-After: 500 → held back 500 s, not 30 s');
+// Judges_partial when a judge failed for good and no replacement is left.
+DB::exec("UPDATE models SET is_judge = 0 WHERE id IN (?, ?)", [$ids['j_dune'], $ids['j_fjord']]);
+$cidP = Campaign::create('Partial', [$ids['m_aster']], [$ids['text']], 1);
+drive(judge_client([], ['cobalt/cobalt-judge' => 400]), stub_generator($genLog));
+$rp = run_of($cidP, $ids['text'], $ids['m_aster']);
+T::ok($rp['status'] === 'scored' && in_array('judges_partial', note_codes($rp), true), 'scored by fewer judges than judge_count → judges_partial note', note_codes($rp));
+DB::exec("UPDATE models SET is_judge = 1 WHERE id IN (?, ?)", [$ids['j_dune'], $ids['j_fjord']]);
+
+// Agent lease covers the episode's wall time (engine-12).
+Settings::set('gen_timeout_s', 60);
+$lease = new ReflectionMethod(Worker::class, 'generationLease');
+$lease->setAccessible(true);
+T::eq($lease->invoke(null, ['output_type' => 'agent', 'checks_json' => to_json(['agent' => ['wall_s' => 600]]), 'gen_params' => null, 'model_gen_params' => null], 60), 705, 'agent lease ≥ wall_s 600 + overrun margin even with gen_timeout_s 60');
+T::eq($lease->invoke(null, ['output_type' => 'agent', 'checks_json' => '{}', 'gen_params' => '{"_wall_s":30}', 'model_gen_params' => null], 60), 360, 'short agent episodes keep 3 × timeout + 180');
+T::eq($lease->invoke(null, ['output_type' => 'html', 'checks_json' => '{}'], 60), 180, 'single-call lease unchanged');
+Settings::set('gen_timeout_s', 240);
+
+// Unverified runs never score on static checks alone (engine-4).
+$jsNoRubric = ['output_type' => 'js', 'rubric_json' => null, 'auto_weight' => null, 'track_auto_weight' => 0.85,
+    'checks_json' => to_json(['static' => [['id' => 'p', 'type' => 'js_parses', 'weight' => 1]], 'tests' => ['entry' => 'f', 'cases' => array_map(static fn($i) => ['name' => 'c' . $i, 'args' => [], 'expect' => 1], range(1, 10))]])];
+$unv = Scorer::compute($jsNoRubric, ['verified' => 0, 'code' => 'function f(){}', 'static_json' => to_json([['id' => 'p', 'type' => 'js_parses', 'pass' => true, 'weight' => 1]])], []);
+T::ok($unv['final'] === null && $unv['unscorable'] === true, 'unverified js task without judges → no score (was 100 for any code that parses)', $unv);
+$ver = Scorer::compute($jsNoRubric, ['verified' => 1, 'code' => 'function f(){}', 'browser_json' => to_json(['tests' => []]), 'static_json' => to_json([['id' => 'p', 'type' => 'js_parses', 'pass' => true, 'weight' => 1]])], []);
+T::near($ver['final'], 100 / 7, 'the same code verified with every test failing → 14.29');
+$aw1 = Scorer::compute(['output_type' => 'html', 'rubric_json' => to_json($RUBRIC3), 'auto_weight' => 1.0, 'checks_json' => to_json(['static' => [['id' => 'v', 'type' => 'viewport']], 'browser' => [['id' => 'loads', 'type' => 'loads']]])],
+    ['verified' => 0, 'code' => '<p>x</p>', 'static_json' => to_json([['id' => 'v', 'type' => 'viewport', 'pass' => true]])], []);
+T::ok($aw1['final'] === null, 'unverified html task with auto_weight 1 → no score');
+
+// Duplicate test names: positional matching (engine-14).
+$dup = [['name' => 'edge'], ['name' => 'edge'], ['name' => 'edge']];
+T::near(Scorer::testsPassFraction($dup, [['name' => 'edge', 'pass' => true], ['name' => 'edge', 'pass' => false], ['name' => 'edge', 'pass' => false]]), 1 / 3, 'duplicate case names → matched by position (1/3, not 3/3)', 0.001);
+T::near(Scorer::testsPassFraction([['name' => 'a'], ['name' => 'b']], [['name' => 'b', 'pass' => true], ['name' => 'a', 'pass' => false]]), 0.5, 'unique names still matched by name');
+
+// Blind judging: vendor and brand names are redacted too (engine-16).
+DB::exec("UPDATE models SET name = 'Claude Sonnet 4.5', or_id = 'anthropic/claude-sonnet-4.5', slug = 'claude-sonnet-4-5', provider = 'anthropic', provider_name = 'Anthropic' WHERE id = ?", [$ids['m_aster']]);
+$redact = new ReflectionMethod(Judge::class, 'redact');
+$redact->setAccessible(true);
+$red = $redact->invoke(null, "<!-- Built by Claude (Anthropic), claude-sonnet-4.5 -->\n<link href=\"https://fonts.googleapis.com/css\">\nimport x from '@anthropic-ai/sdk'; const meta = {};\n<p>Made with Claude Sonnet 4.5. Thanks, Anthropic.</p>", ['model_id' => $ids['m_aster']]);
+T::ok(!preg_match('/claude|(?<![@\w])anthropic(?!-ai)/i', $red) && str_contains($red, '@anthropic-ai/sdk') && str_contains($red, 'fonts.googleapis.com') && str_contains($red, 'const meta'),
+    'redaction: vendor and brand words in prose removed, identifiers / URLs / package names untouched', $red);
+
+// Per-task tables use the aggregator's filter (engine-17); track leaderboards use track ranks (engine-7).
+reset_db();
+$ids = seed();
+$campC = DB::insert('campaigns', ['name' => 'counted', 'season' => 'T1', 'model_ids' => '[]', 'task_ids' => '[]', 'status' => 'done']);
+foreach ([$ids['html'], $ids['js']] as $t) {
+    DB::insert('runs', ['campaign_id' => $campC, 'model_id' => $ids['m_aster'], 'task_id' => $t, 'attempt' => 1, 'status' => 'scored', 'final_score' => 70]);
+}
+DB::insert('runs', ['campaign_id' => $campC, 'model_id' => $ids['m_aster'], 'task_id' => $ids['html'], 'attempt' => 2, 'status' => 'scored', 'final_score' => null]);
+DB::exec('UPDATE tracks SET is_active = 0 WHERE id = ?', [$ids['tracks']['algo']]);
+$ts = WB\Data\Models::taskStats($ids['m_aster'], 'T1');
+T::ok(count($ts) === 1 && $ts[0]['slug'] === 'ui-landing' && (int) $ts[0]['attempts'] === 1 && WB\Data\Tasks::results($ids['js'], 'T1') === [],
+    'per-task tables skip inactive tracks and unscorable runs, like the aggregate', array_column($ts, 'slug'));
+DB::exec('UPDATE tracks SET is_active = 1');
+$rowsR = [
+    ['id' => 1, 'provisional' => false, 'score' => 80.0, 'ci_low' => 70.0, 'ci_high' => 90.0, 'tracks' => ['ui' => ['score' => 88.0, 'ci_low' => 60.0, 'ci_high' => 100.0, 'provisional' => true, 'rank_pos' => null, 'stat_rank' => null]]],
+    ['id' => 2, 'provisional' => false, 'score' => 78.0, 'ci_low' => 70.0, 'ci_high' => 86.0, 'tracks' => ['ui' => ['score' => 86.0, 'ci_low' => 80.0, 'ci_high' => 92.0, 'provisional' => false, 'rank_pos' => 1, 'stat_rank' => 1]]],
+    ['id' => 3, 'provisional' => false, 'score' => 77.0, 'ci_low' => 70.0, 'ci_high' => 84.0, 'tracks' => ['ui' => ['score' => 86.0, 'ci_low' => 80.0, 'ci_high' => 92.0, 'provisional' => false, 'rank_pos' => 1, 'stat_rank' => 1]]],
+];
+$rk = array_column(WB\Data\Models::rank($rowsR, 'ui'), null, 'id');
+T::ok($rk[1]['d_rank'] === null && $rk[1]['d_provisional'] && $rk[2]['d_rank'] === 1 && $rk[3]['d_rank'] === 1,
+    'track view: 1 task out of 5 cannot take #1 (provisional in the track), equal track scores share rank 1', array_map(static fn($r) => [$r['d_rank'], $r['d_provisional']], $rk));
+$par = WB\Data\Models::paretoIds([
+    ['id' => 1, 'provisional' => true, 'score' => 95.0, 'avg_cost' => 0.001],
+    ['id' => 2, 'provisional' => false, 'score' => 80.0, 'avg_cost' => 0.01],
+    ['id' => 3, 'provisional' => false, 'score' => 90.0, 'avg_cost' => 0.05],
+]);
+T::eq($par, [2, 3], 'Pareto frontier ignores provisional models (engine-13)');
+
+// MariaDB ONLY_FULL_GROUP_BY (engine-1).
+DB::exec("SET SESSION sql_mode = CONCAT(@@SESSION.sql_mode, ',ONLY_FULL_GROUP_BY')");
+try {
+    $cat = (new ReflectionClass(WB\Data\Catalog::class));
+    $cat->setStaticPropertyValue('tracks', null);
+    $tr = WB\Data\Catalog::tracks();
+    T::ok(isset($tr['ui']) && $tr['ui']['task_count'] === 2, 'Catalog::tracks works under ONLY_FULL_GROUP_BY');
+} catch (\Throwable $e) {
+    T::ok(false, 'Catalog::tracks works under ONLY_FULL_GROUP_BY', $e->getMessage());
+}
+DB::exec("SET SESSION sql_mode = REPLACE(@@SESSION.sql_mode, 'ONLY_FULL_GROUP_BY', '')");
+
+// SSRF guard for provider image URLs (sec-web-7).
+$or = new WB\Eval\OpenRouter('k', 'https://openrouter.ai/api/v1');
+$guard = new ReflectionMethod(WB\Eval\OpenRouter::class, 'safeImageTarget');
+$guard->setAccessible(true);
+T::ok($guard->invoke($or, 'http://localhost/x.png') === null && $guard->invoke($or, 'http://[::1]/x.png') === null && $guard->invoke($or, 'http://ip6-localhost/x.png') === null
+    && $guard->invoke($or, 'http://10.1.2.3/x.png') === null && $guard->invoke($or, 'file:///etc/passwd') === null, 'image URLs on loopback / private IPv4 or IPv6 hosts are refused');
+$pub = $guard->invoke($or, 'https://93.184.216.34/x.png');
+T::ok(($pub['ip'] ?? '') === '93.184.216.34' && $pub['port'] === 443, 'a public address is allowed and pinned for the download (no second DNS lookup)');
+
+// Worker without flock() (disabled on some shared hosts, engine-9).
+$cmd = 'WB_DB_NAME=' . escapeshellarg((string) Config::get('db.name')) . ' ' . escapeshellarg(PHP_BINARY) . ' -d disable_functions=flock ' . escapeshellarg(WB_ROOT . '/cron/worker.php') . ' --seconds=1 2>&1';
+exec($cmd, $lines, $rc);
+T::ok($rc === 0 && str_contains(implode("\n", $lines), 'worker:'), 'cron worker runs when flock() is disabled', $lines);
 
 printf("\n%d passed, %d failed in %.1fs\n", T::$pass, T::$fail, microtime(true) - $t0);
 exit(T::$fail > 0 ? 1 : 0);

@@ -62,6 +62,8 @@ const EXPECT = {
   'vt-rtl': [['rtl', true], ['a11y', true], ['greeting', true], ['responsive', true]],
   'vt-sandbox': [['loads', true]],
   'vt-forge': [['nonblank', false]],
+  'vt-hooks': [['loads', false], ['no_errors', false], ['nonblank', false], ['needle', false], ['many', false], ['animates', false], ['canvas', false]],
+  'vt-tamper': [['loads', false], ['nonblank', false]],
   'vt-holdout': [['nonblank', true]],
   'vt-noout': [['loads', false], ['nonblank', false]],
 };
@@ -135,9 +137,15 @@ async function probeOnce(browser, url, vp = { width: 1280, height: 800 }, budget
   const tid = (await sess.send('Target.getTargetInfo')).targetInfo.targetId;
   await page.goto(url, { waitUntil: 'commit' });
   const t0 = Date.now();
-  const r = await within(page.waitForFunction(() => typeof window.__WB_PROBE_RESULT_JSON === 'string', null, { timeout: 0, polling: 200 })
-    .then(() => page.evaluate(() => [window.__WB_PROBE_RESULT_JSON, { cfgSeen: window.__cfgSeen, cfgInDom: window.__cfgInDom, forgeErr: window.__forgeErr, objType: typeof window.__WB_PROBE_RESULT, frozen: Object.isFrozen(window.__WB_PROBE_RESULT) }])), budget);
-  const out = r.ok ? { result: JSON.parse(r.v[0]), extra: r.v[1], ms: Date.now() - t0, page, ctx } : { result: null, ms: Date.now() - t0, page, ctx, timeout: !!r.timeout };
+  // Only primitives come back from the page: hostile outputs patch Object.prototype.then / toJSON, which would
+  // hijack any object Playwright resolves in the page realm.
+  const poll = async () => { for (;;) { if (await page.evaluate(() => typeof window.__WB_PROBE_RESULT_JSON === 'string') === true) return; await sleep(200); } };
+  const r = await within(poll()
+    .then(() => page.evaluate(() => window.__WB_PROBE_RESULT_JSON + '\u0001' + String(window.__cfgSeen) + '\u0001' + String(window.__cfgInDom)
+      + '\u0001' + String(window.__forgeErr) + '\u0001' + (typeof window.__WB_PROBE_RESULT) + '\u0001' + String(Object.isFrozen(window.__WB_PROBE_RESULT)))), budget);
+  const parts = r.ok ? String(r.v).split('\u0001') : [];
+  const extra = r.ok ? { cfgSeen: parts[1], cfgInDom: parts[2] === 'true', forgeErr: parts[3] === 'undefined' ? undefined : parts[3], objType: parts[4], frozen: parts[5] === 'true' } : null;
+  const out = r.ok ? { result: JSON.parse(parts[0]), extra, ms: Date.now() - t0, page, ctx } : { result: null, ms: Date.now() - t0, page, ctx, timeout: !!r.timeout };
   out.close = async () => {
     if (!r.ok) { const cdp = await browser.newBrowserCDPSession(); await within(cdp.send('Target.closeTarget', { targetId: tid }), 5000); }
     await within(ctx.close(), 8000);
@@ -164,7 +172,20 @@ async function phaseProbe(browser) {
     if (slug === 'vt-forge') {
       ok('forge: config (nonce) hidden from page scripts', p.extra.cfgSeen === 'undefined' && p.extra.cfgInDom === false, JSON.stringify(p.extra));
       ok('forge: result property cannot be redefined', p.extra.forgeErr === 'TypeError', JSON.stringify(p.extra));
-      ok('forge: genuine result kept', Array.isArray(p.result.checks) && p.result.checks.length === 1 && typeof p.result.nonce === 'string' && p.result.nonce.length === 24);
+      ok('forge: genuine result kept, without the message nonce', Array.isArray(p.result.checks) && p.result.checks.length === 1 && !('nonce' in p.result));
+    }
+    if (slug === 'vt-hooks') {
+      // Only primitives cross back here: the page patched Object.prototype.then / toJSON, so objects are hostile.
+      const leak = await within(p.page.evaluate(() => String(window.__leak)), 5000);
+      const assign = await within(p.page.evaluate(() => String(window.__patched)), 5000);
+      ok('hooks: built-in patches cannot read a nonce (none is reachable from the page)', leak.ok && leak.v === '', leak.v);
+      ok('hooks: locked built-ins keep their native code (Array.map/forEach/filter, String.indexOf, Promise.then, Function.call)', assign.ok && assign.v === '0', assign.v);
+      ok('hooks: result JSON is genuine (toJSON / Array.map / then / Math hooks ignored)', !JSON.stringify(p.result).includes('FORGED') && !p.result.forged && p.result.checks.length === 7, JSON.stringify(p.result.checks.map((c) => [c.id, c.pass, c.detail])));
+      ok('hooks: not reported as tampering (method patches are simply ignored)', p.result.metrics.tampered === false);
+    }
+    if (slug === 'vt-tamper') {
+      ok('tamper: index accessors on Array.prototype are reported and every check is untrusted', p.result.metrics.tampered === true
+        && p.result.checks.every((c) => !c.pass && /not trusted/.test(c.detail)), JSON.stringify(p.result.checks));
     }
     if (SHOTS) await within(p.page.screenshot({ path: path.join(SHOTS, `probe-${slug}.png`) }), 8000);
     await p.close();

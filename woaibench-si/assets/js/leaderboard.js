@@ -20,6 +20,17 @@
     return null;
   }
 
+  /* ---------- phones: filters and legend sit behind toggles (CSS shows them on wider screens) ---------- */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-collapse] .pub-collapse-toggle'), function (btn) {
+    var body = document.getElementById(btn.getAttribute('aria-controls'));
+    if (!body) return;
+    btn.addEventListener('click', function () {
+      var open = !body.classList.contains('is-open');
+      body.classList.toggle('is-open', open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  });
+
   var tbody = table.tBodies[0];
   var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr.lb-row'));
   var noneRow = tbody.querySelector('tr.lb-none');

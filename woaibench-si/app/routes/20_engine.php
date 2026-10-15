@@ -33,6 +33,14 @@ Router::get('/worker/tick', static function (): void {
         abort(404);
     }
     header('X-Robots-Tag: noindex');
+    // Web-cron services time out after ~30 s: when the SAPI can finish the response early, answer at once and keep
+    // working in the background (.htaccess sets LiteSpeed's noabort for this path), so the client never cuts a unit.
+    $early = function_exists('fastcgi_finish_request') || function_exists('litespeed_finish_request');
+    if ($early) {
+        wb_respond_early(['ok' => true, 'accepted' => true]);
+        Worker::withLock(static fn(): array => Worker::step(50.0));
+        return;
+    }
     [$ran, $out] = Worker::withLock(static fn(): array => Worker::step(50.0));
     if (!$ran) {
         json_out(['ok' => true, 'busy' => true]);

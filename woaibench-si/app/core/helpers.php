@@ -222,10 +222,40 @@ function json_out(mixed $data, int $code = 200, array $headers = []): never
     exit;
 }
 
+/**
+ * Send a complete JSON response now and let the request keep running (fastcgi/litespeed_finish_request), e.g. to
+ * do slow work after answering. The session is closed first so the client's other requests are not blocked.
+ */
+function wb_respond_early(array $data, int $code = 200): void
+{
+    $json = (string) json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    if (!headers_sent()) {
+        http_response_code($code);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        header('Content-Length: ' . strlen($json));
+    }
+    echo $json;
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+    wb_ignore_abort();
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    } elseif (function_exists('litespeed_finish_request')) {
+        litespeed_finish_request();
+    } else {
+        flush();
+    }
+}
+
 /** Stop with an HTTP error page (or JSON error for API requests). */
 function abort(int $code = 404, ?string $message = null): never
 {
     http_response_code($code);
+    if ($code !== 404 && !headers_sent()) {
+        header('Cache-Control: no-store'); // rate-limit / expired-session / error pages are never shared-cacheable
+    }
     if (wants_json()) {
         json_out(['ok' => false, 'error' => $message ?? ('HTTP ' . $code)], $code);
     }
@@ -238,21 +268,91 @@ function abort(int $code = 404, ?string $message = null): never
     exit;
 }
 
-/** Client IP (Hostinger sits behind a proxy that sets X-Forwarded-For only when trusted in config). */
-function client_ip(): string
+/** Cloudflare edge ranges (https://www.cloudflare.com/ips/) for trust_proxy = 'cloudflare'. */
+const WB_CLOUDFLARE_IPS = [
+    '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22', '141.101.64.0/18', '108.162.192.0/18',
+    '190.93.240.0/20', '188.114.96.0/20', '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+    '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+    '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32', '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32',
+];
+
+/** Private / loopback ranges: what the legacy trust_proxy = true trusts (a reverse proxy on the same network). */
+const WB_PRIVATE_IPS = ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '127.0.0.0/8', '::1/128', 'fc00::/7'];
+
+/**
+ * Proxies whose forwarding headers are believed (config trust_proxy): false (default) = none, 'cloudflare' =
+ * Cloudflare's edge, a list of IPs/CIDRs = exactly those, true (legacy) = private addresses only.
+ */
+function trusted_proxies(): array
 {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-    if (Config::get('trust_proxy', false)) {
-        foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP'] as $h) {
-            if (!empty($_SERVER[$h])) {
-                $cand = trim(explode(',', (string) $_SERVER[$h])[0]);
-                if (filter_var($cand, FILTER_VALIDATE_IP)) {
-                    return $cand;
-                }
-            }
+    $t = Config::get('trust_proxy', false);
+    return match (true) {
+        $t === 'cloudflare' => WB_CLOUDFLARE_IPS,
+        is_array($t) => array_values(array_filter($t, 'is_string')),
+        $t === true => WB_PRIVATE_IPS,
+        default => [],
+    };
+}
+
+/** Whether $ip lies in one of the CIDR ranges (or equals one of the plain addresses), IPv4 or IPv6. */
+function ip_in_ranges(string $ip, array $ranges): bool
+{
+    $bin = @inet_pton($ip);
+    if ($bin === false) {
+        return false;
+    }
+    foreach ($ranges as $range) {
+        [$net, $bits] = array_pad(explode('/', $range, 2), 2, null);
+        $netBin = @inet_pton((string) $net);
+        if ($netBin === false || strlen($netBin) !== strlen($bin)) {
+            continue;
+        }
+        $bits = $bits === null ? strlen($bin) * 8 : max(0, min(strlen($bin) * 8, (int) $bits));
+        $bytes = intdiv($bits, 8);
+        $rest = $bits % 8;
+        if (strncmp($bin, $netBin, $bytes) !== 0) {
+            continue;
+        }
+        if ($rest === 0 || ((ord($bin[$bytes]) ^ ord($netBin[$bytes])) & (0xFF << (8 - $rest)) & 0xFF) === 0) {
+            return true;
         }
     }
-    return $ip;
+    return false;
+}
+
+/**
+ * Client IP. Forwarding headers count only when the direct peer (REMOTE_ADDR) is a trusted proxy (see
+ * trusted_proxies()); X-Forwarded-For is read right to left, skipping trusted hops, so a client cannot choose
+ * its own address by sending the header itself. CF-Connecting-IP is used only in 'cloudflare' mode.
+ */
+function client_ip(): string
+{
+    $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+    $trusted = trusted_proxies();
+    if ($trusted === [] || !ip_in_ranges($ip, $trusted)) {
+        return $ip;
+    }
+    $cf = trim((string) ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? ''));
+    if (Config::get('trust_proxy') === 'cloudflare' && filter_var($cf, FILTER_VALIDATE_IP)) {
+        return $cf;
+    }
+    $hops = array_reverse(array_map('trim', explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''))));
+    foreach ($hops as $hop) {
+        if (!filter_var($hop, FILTER_VALIDATE_IP)) {
+            break;
+        }
+        if (!ip_in_ranges($hop, $trusted)) {
+            return $hop;
+        }
+    }
+    $real = trim((string) ($_SERVER['HTTP_X_REAL_IP'] ?? ''));
+    return filter_var($real, FILTER_VALIDATE_IP) ? $real : $ip;
+}
+
+/** Whether the User-Agent looks like a crawler / link-preview bot. */
+function is_crawler(): bool
+{
+    return (bool) preg_match('/bot\b|crawl|spider|slurp|facebookexternalhit|embedly|preview/i', (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
 }
 
 /** Salted, non-reversible client identifier (privacy friendly). */
@@ -281,6 +381,25 @@ function slugify(string $text, int $max = 120): string
         $text = 'item-' . substr(random_token(4), 0, 8);
     }
     return substr($text, 0, $max);
+}
+
+/**
+ * set_time_limit() that is safe on hosts listing it in disable_functions (in PHP 8 a disabled function is
+ * undefined and calling it is a fatal Error that '@' cannot suppress).
+ */
+function wb_time_limit(int $seconds): void
+{
+    if (function_exists('set_time_limit')) {
+        @set_time_limit($seconds);
+    }
+}
+
+/** ignore_user_abort(true) when the host allows it (see wb_time_limit). */
+function wb_ignore_abort(): void
+{
+    if (function_exists('ignore_user_abort')) {
+        @ignore_user_abort(true);
+    }
 }
 
 /** Append a line to storage/logs/app-YYYY-MM-DD.log */
@@ -406,6 +525,22 @@ function fmt_tokens(int|float|string|null $n): string
     return number_format($n, 0);
 }
 
+/**
+ * Arabic counted noun with the right number agreement. $forms = [one, two, few (3–10), many (11–99, accusative),
+ * other (100, 101, 102…, genitive)], e.g. ['يوم', 'يومين', 'أيام', 'يومًا', 'يوم'] → يوم · يومين · 5 أيام · 11 يومًا · 100 يوم.
+ */
+function ar_count(int $n, array $forms): string
+{
+    if ($n === 1) {
+        return $forms[0];
+    }
+    if ($n === 2) {
+        return $forms[1];
+    }
+    $m = $n % 100;
+    return $n . ' ' . ($m >= 3 && $m <= 10 ? $forms[2] : ($m >= 11 ? $forms[3] : $forms[4]));
+}
+
 /** Date in the current language. $style: 'date' | 'datetime' | 'relative' */
 function fmt_date(?string $datetime, string $style = 'date'): string
 {
@@ -422,11 +557,16 @@ function fmt_date(?string $datetime, string $style = 'date'): string
         if ($diff < 60) {
             return $ar ? 'الآن' : 'just now';
         }
-        $units = [[86400 * 30, 'mo', 'شهر'], [86400, 'd', 'يوم'], [3600, 'h', 'ساعة'], [60, 'min', 'دقيقة']];
-        foreach ($units as [$sec, $en, $arU]) {
+        $units = [
+            [86400 * 30, 'mo', ['شهر', 'شهرين', 'أشهر', 'شهرًا', 'شهر']],
+            [86400, 'd', ['يوم', 'يومين', 'أيام', 'يومًا', 'يوم']],
+            [3600, 'h', ['ساعة', 'ساعتين', 'ساعات', 'ساعة', 'ساعة']],
+            [60, 'min', ['دقيقة', 'دقيقتين', 'دقائق', 'دقيقة', 'دقيقة']],
+        ];
+        foreach ($units as [$sec, $en, $arForms]) {
             if ($diff >= $sec) {
                 $n = (int) floor($diff / $sec);
-                return $ar ? "منذ {$n} {$arU}" : "{$n} {$en} ago";
+                return $ar ? 'منذ ' . ar_count($n, $arForms) : "{$n} {$en} ago";
             }
         }
     }

@@ -22,8 +22,8 @@ Router::get('/site.webmanifest', static function (): void {
         'background_color' => '#07080C',
         'theme_color' => '#07080C',
         'icons' => [
-            ['src' => url('/assets/img/icon-192.png'), 'sizes' => '192x192', 'type' => 'image/png'],
-            ['src' => url('/assets/img/icon-512.png'), 'sizes' => '512x512', 'type' => 'image/png'],
+            ['src' => asset('img/icon-192.png'), 'sizes' => '192x192', 'type' => 'image/png'],
+            ['src' => asset('img/icon-512.png'), 'sizes' => '512x512', 'type' => 'image/png'],
         ],
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 });

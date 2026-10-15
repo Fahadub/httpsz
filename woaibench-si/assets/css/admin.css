@@ -632,3 +632,7 @@ body.nav-open .admin-shell { z-index: auto; }
 }
 /* hidden tooltips ([data-tip]::after, e.g. rubric guides on judge criteria) must never widen the page */
 main#main.admin-content { overflow-x: clip; }
+/* provider halt alert (admin/_halt.php) */
+.admin-halt-body { min-width: 0; }
+.admin-halt-body > p { margin: 0; }
+.admin-halt-msg { overflow-wrap: anywhere; }

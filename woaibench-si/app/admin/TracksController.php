@@ -23,8 +23,12 @@ final class TracksController
     {
         \require_admin();
         $tracks = DB::all(
-            'SELECT tr.*, COUNT(t.id) AS task_total, COALESCE(SUM(t.is_active = 1), 0) AS task_active
-               FROM tracks tr LEFT JOIN tasks t ON t.track_id = tr.id GROUP BY tr.id ORDER BY tr.sort, tr.id'
+            // Aggregate in a derived table: `tr.* … GROUP BY tr.id` fails under MariaDB's ONLY_FULL_GROUP_BY.
+            'SELECT tr.*, COALESCE(x.task_total, 0) AS task_total, COALESCE(x.task_active, 0) AS task_active
+               FROM tracks tr
+               LEFT JOIN (SELECT track_id, COUNT(*) AS task_total, SUM(is_active = 1) AS task_active FROM tasks GROUP BY track_id) x
+                 ON x.track_id = tr.id
+              ORDER BY tr.sort, tr.id'
         );
         $errors = $_SESSION['admin_track_errors'] ?? [];
         unset($_SESSION['admin_track_errors']);

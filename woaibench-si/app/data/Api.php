@@ -129,12 +129,13 @@ final class Api
             $opts['track'] = $track;
         }
         $out = [];
-        $pos = 0;
         foreach (Leaderboard::rows($season, $opts) as $r) {
             $row = self::row($r);
             if ($track) {
+                // The aggregator's tie-aware rank within the track; null while the model is provisional in it.
                 $t = $r['tracks'][$track] ?? null;
-                $row['track'] = $t ? ['slug' => $track, 'rank' => $r['provisional'] ? null : ++$pos] + self::trackScore($t) : null;
+                $row['track'] = $t ? ['slug' => $track, 'rank' => !empty($t['provisional']) ? null : ($t['rank_pos'] ?? null),
+                    'stat_rank' => !empty($t['provisional']) ? null : ($t['stat_rank'] ?? null)] + self::trackScore($t) : null;
             }
             $out[] = $row;
         }
@@ -168,6 +169,7 @@ final class Api
             'coverage' => self::r2($r['coverage']),
             'n_tasks' => $r['n_tasks'],
             'n_runs' => $r['n_runs'],
+            'n_failed' => $r['n_failed'] ?? 0,
             'consistency' => self::r2($r['consistency']),
             'auto_avg' => self::r2($r['auto_avg']),
             'judge_avg' => self::r2($r['judge_avg']),
@@ -417,7 +419,8 @@ final class Api
     private static function trackScore(array $t): array
     {
         return ['score' => self::r2($t['score']), 'ci_low' => self::r2($t['ci_low']), 'ci_high' => self::r2($t['ci_high']),
-            'n_tasks' => $t['n_tasks'] ?? null, 'n_runs' => $t['n_runs'] ?? null];
+            'n_tasks' => $t['n_tasks'] ?? null, 'n_runs' => $t['n_runs'] ?? null,
+            'coverage' => isset($t['coverage']) ? self::r2($t['coverage']) : null, 'provisional' => (bool) ($t['provisional'] ?? false)];
     }
 
     private static function r2(mixed $v): ?float

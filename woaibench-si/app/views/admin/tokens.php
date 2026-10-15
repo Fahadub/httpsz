@@ -50,7 +50,7 @@ $site = site_origin() . base_path();
   <aside class="admin-aside card card-pad stack-sm">
     <h2 class="card-title"><?= ui_icon('terminal', 18) ?> <?= _e('admin.tokens.usage') ?></h2>
     <p class="t-small t-muted"><?= _e('admin.tokens.usage_help') ?></p>
-    <pre class="code-block t-xs" dir="ltr">cd tools/verifier-node
+    <pre class="code-block t-xs" dir="ltr" tabindex="0">cd tools/verifier-node
 npm install
 npx playwright install chromium
 node verify.mjs --site <?= e($site) ?> --token &lt;TOKEN&gt;</pre>

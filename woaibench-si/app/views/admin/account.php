@@ -18,10 +18,11 @@ echo partial('admin/_head', ['title' => __('admin.account.title'), 'sub' => __('
       <div class="card-head card-pad"><h2 class="card-title"><?= ui_icon('users', 18) ?> <?= _e('admin.account.admins') ?></h2></div>
       <div class="table-wrap">
         <table class="table table-compact admin-table">
-          <thead><tr><th><?= _e('admin.account.name') ?></th><th><?= _e('admin.login.email') ?></th><th><?= _e('admin.account.last_login') ?></th></tr></thead>
+          <thead><tr><th><?= _e('admin.account.name') ?></th><th><?= _e('admin.login.email') ?></th><th><?= _e('admin.account.last_login') ?></th><th><span class="sr-only"><?= _e('admin.account.remove') ?></span></th></tr></thead>
           <tbody>
           <?php foreach ($admins as $a): ?>
-            <tr<?= (int) $a['id'] === (int) $user['id'] ? ' class="is-highlight"' : '' ?>><td><?= e($a['name']) ?><?= (int) $a['id'] === (int) $user['id'] ? ' ' . ui_badge(__('admin.account.you'), 'gold') : '' ?></td><td class="t-xs" dir="ltr"><?= e($a['email']) ?></td><td class="t-xs t-muted"><?= $a['last_login_at'] ? e(fmt_date($a['last_login_at'], 'relative')) : '—' ?></td></tr>
+            <tr<?= (int) $a['id'] === (int) $user['id'] ? ' class="is-highlight"' : '' ?>><td><?= e($a['name']) ?><?= (int) $a['id'] === (int) $user['id'] ? ' ' . ui_badge(__('admin.account.you'), 'gold') : '' ?></td><td class="t-xs" dir="ltr"><?= e($a['email']) ?></td><td class="t-xs t-muted"><?= $a['last_login_at'] ? e(fmt_date($a['last_login_at'], 'relative')) : '—' ?></td>
+              <td class="shrink"><?php if ((int) $a['id'] !== (int) $user['id']): ?><form method="post" action="<?= e(url('/admin/account/admins/' . (int) $a['id'] . '/delete')) ?>" data-confirm="<?= _e('admin.account.remove_confirm', ['email' => $a['email']]) ?>"><?= csrf_field() ?><button class="btn btn-sm btn-ghost" type="submit"><?= ui_icon('trash', 14) ?><span><?= _e('admin.account.remove') ?></span></button></form><?php endif; ?></td></tr>
           <?php endforeach; ?>
           </tbody>
         </table>

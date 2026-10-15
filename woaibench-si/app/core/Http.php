@@ -59,6 +59,36 @@ final class Http
     }
 
     /**
+     * Call before session_start(). Admin and installer pages keep PHP's no-store limiter; other pages with a
+     * session revalidate on every visit but stay back/forward-cache eligible.
+     */
+    public static function sessionCacheHeaders(string $path): void
+    {
+        if (headers_sent() || preg_match('#^/(admin|install)(/|$)#', $path) === 1) {
+            return;
+        }
+        session_cache_limiter('');
+        header('Cache-Control: private, no-cache');
+    }
+
+    /**
+     * Default caching for session-less GET/HEAD pages: shared caches may keep them for a minute. The page depends
+     * on the language (cookie / Accept-Language). Always-stateless endpoints (API, badges, embeds, frames, cron
+     * tick) send their own headers.
+     */
+    public static function publicCacheHeaders(string $path, string $method): void
+    {
+        if (headers_sent() || !in_array($method, ['GET', 'HEAD'], true)
+            || preg_match(\Auth::STATELESS_RE, $path) === 1 || preg_match('#^/(render/|arena/frame/|api/)#', $path) === 1) {
+            return;
+        }
+        // /arena varies by User-Agent (crawlers get no pair) and a ?lang= switch sets a cookie: never shared-cache those.
+        $private = isset($_GET['lang']) || $path === '/arena';
+        header('Cache-Control: ' . ($private ? 'private' : 'public') . ', max-age=60');
+        header('Vary: Cookie, Accept-Language');
+    }
+
+    /**
      * Headers for documents that contain untrusted, model-generated HTML/JS.
      * The CSP 'sandbox' directive gives the document an opaque origin even if it is opened
      * directly (not only inside <iframe sandbox>), so it can never read our cookies or call our APIs.

@@ -15,6 +15,7 @@ echo partial('admin/_head', [
         . '<a class="btn btn-primary" href="' . e(url('/admin/campaigns/new')) . '">' . ui_icon('plus', 16) . '<span>' . _e('admin.campaigns.new') . '</span></a>',
 ]);
 ?>
+<?= partial('admin/_halt') ?>
 <?php if (!empty($needs_upgrade)): ?>
   <div class="alert alert-warn"><?= ui_icon('database', 16) ?> <span><?= _e('admin.dash.upgrade_needed') ?> <a href="<?= e(url('/admin/settings#s-upgrades')) ?>"><?= _e('admin.dash.upgrade_go') ?></a></span></div>
 <?php endif; ?>

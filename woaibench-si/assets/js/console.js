@@ -271,6 +271,16 @@
     return v === k ? s : v;
   }
 
+  /* Provider halt (OpenRouter credits / key): the worker stops generating and judging until the admin resumes. */
+  let haltShown = false;
+  function showHalt() {
+    if (haltShown) return;
+    haltShown = true;
+    const live = $('[data-halt-live]');
+    if (live) live.hidden = false;
+    if (WB.toast) WB.toast(t('admin.js.c_halted'), 'error', 9000);
+  }
+
   /* ------------------------------------------------------------------ step loop */
   async function step() {
     const body = {};
@@ -321,6 +331,7 @@
         state.spent = res.spent_usd;
       }
       renderMeters();
+      if (res.halted) showHalt();
       const idle = !!res.idle && did.length === 0;
       const c = res.counts || {};
       const waiting = Number(c.awaiting_verify || 0) + Number(c.verifying || 0);

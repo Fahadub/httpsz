@@ -25,13 +25,13 @@ $cols = [
     <div class="pub-hero-grid">
       <div class="stack-sm">
         <p class="eyebrow"><?= _e('pub.lb.eyebrow', ['season' => $season]) ?></p>
-        <h1 class="t-h1 t-balance"><?php if ($isTrack): ?><?= ui_track_badge($cur) ?> <?= e(L($cur, 'name')) ?><?php else: ?><?= _e('pub.lb.h1') ?><?php endif; ?></h1>
+        <h1 class="t-h1 t-balance"><?php if ($isTrack): ?><span class="pub-h1-track" style="--track:<?= e($cur['color']) ?>" aria-hidden="true"><?= ui_icon($cur['icon'], 22) ?></span> <?= e(L($cur, 'name')) ?><?php else: ?><?= _e('pub.lb.h1') ?><?php endif; ?></h1>
         <p class="t-lead t-muted pub-lead"><?= $isTrack ? e(L($cur, 'desc')) : _e('pub.lb.lead') ?></p>
       </div>
       <?php if ($rows): ?>
       <div class="kpi-row pub-kpis">
         <?= ui_stat(fmt_num($stats['models_rated']), __('pub.lb.kpi_models'), 'trophy') ?>
-        <?= ui_stat(fmt_num($stats['tasks']), __('pub.lb.kpi_tasks'), 'list', __('pub.lb.kpi_tasks_hint', ['n' => $stats['tasks_holdout']])) ?>
+        <?= ui_stat(fmt_num($stats['tasks']), __('pub.lb.kpi_tasks'), 'list', (int) $stats['tasks_holdout'] > 0 ? __('pub.lb.kpi_tasks_hint', ['n' => $stats['tasks_holdout']]) : '') ?>
         <?= ui_stat(fmt_num($stats['runs_scored']), __('pub.lb.kpi_runs'), 'bolt') ?>
         <?= ui_stat(fmt_num($stats['judgments']), __('pub.lb.kpi_judgments'), 'scale') ?>
       </div>
@@ -53,7 +53,9 @@ $cols = [
       <?= ui_empty(__('pub.lb.empty_title'), __('pub.lb.empty_text'), 'trophy', '<div class="cluster pub-center"><a class="btn btn-primary" href="' . e(url('/methodology')) . '">' . _e('pub.lb.empty_cta') . '</a><a class="btn btn-ghost" href="' . e(url('/request')) . '">' . _e('nav.request') . '</a></div>') ?>
     <?php else: ?>
 
-    <div class="pub-toolbar card card-glass" data-lb-toolbar>
+    <div class="pub-collapse" data-collapse>
+    <button class="btn btn-ghost btn-sm pub-collapse-toggle" type="button" aria-expanded="false" aria-controls="lb-filters"><?= ui_icon('filter', 16) ?><span><?= _e('pub.lb.filters') ?></span></button>
+    <div class="pub-toolbar card card-glass pub-collapse-body" id="lb-filters" data-lb-toolbar>
       <label class="input-group pub-search">
         <?= ui_icon('search', 16) ?>
         <span class="sr-only"><?= _e('pub.lb.search') ?></span>
@@ -93,12 +95,13 @@ $cols = [
         <a class="btn btn-ghost btn-sm" href="<?= e(url('/api/v1/leaderboard', $exportQ)) ?>"><?= ui_icon('api', 16) ?><span>JSON</span></a>
       </div>
     </div>
-
-    <div class="legend pub-legend" aria-label="<?= _e('pub.lb.legend') ?>">
+    <button class="btn btn-ghost btn-sm pub-collapse-toggle" type="button" aria-expanded="false" aria-controls="lb-legend"><?= ui_icon('info', 16) ?><span><?= _e('pub.lb.legend') ?></span></button>
+    <div class="legend pub-legend pub-collapse-body" id="lb-legend" aria-label="<?= _e('pub.lb.legend') ?>">
       <span class="legend-item"><i class="pub-swatch pub-swatch-tie"></i><?= _e('pub.lb.legend_tie_leader') ?></span>
-      <span class="legend-item"><i class="pub-swatch pub-swatch-link"></i><?= _e('pub.lb.legend_tie_above') ?></span>
+      <span class="legend-item pub-legend-link"><i class="pub-swatch pub-swatch-link"></i><?= _e('pub.lb.legend_tie_above') ?></span>
       <span class="legend-item"><span class="pub-mini-bar"><i></i><b></b></span><?= _e('pub.lb.legend_bar', ['lo' => fmt_num($lo), 'hi' => fmt_num($hi)]) ?></span>
       <span class="legend-item"><?= ui_badge(__('common.provisional'), 'muted') ?><?= _e('pub.lb.legend_prov', ['pct' => fmt_num($minCov * 100)]) ?></span>
+    </div>
     </div>
 
     <div class="pub-lb-scroll">
@@ -122,8 +125,11 @@ $cols = [
         </thead>
         <tbody>
         <?php foreach ($rows as $i => $r):
+            // Provisional in this view = scored but not ranked here (overall or track coverage below min_coverage).
+            $prov = !empty($r['d_provisional']) || ($r['d_rank'] === null && $r['d_score'] !== null);
+            $cov = $isTrack ? ($r['tracks'][$track]['coverage'] ?? $r['coverage']) : $r['coverage'];
             $cls = ['lb-row'];
-            if ($r['provisional']) { $cls[] = 'is-provisional'; }
+            if ($prov) { $cls[] = 'is-provisional'; }
             if ($r['tied_leader']) { $cls[] = 'is-tied-leader'; }
             if ($r['tied_above']) { $cls[] = 'is-tied-above'; }
             if ($r['d_rank'] === 1) { $cls[] = 'is-leader'; }
@@ -145,7 +151,7 @@ $cols = [
                 <?= ui_model_chip($r) ?>
                 <span class="pub-model-flags">
                   <?php if ($r['open_weights']): ?><?= ui_badge(__('pub.open_short'), 'green', null, __('common.open_weights')) ?><?php endif; ?>
-                  <?php if ($r['provisional']): ?><?= ui_badge(__('common.provisional'), 'muted', null, __('common.provisional_tip')) ?><?php endif; ?>
+                  <?php if ($prov): ?><?= ui_badge(__('common.provisional'), 'muted', null, __('common.provisional_tip')) ?><?php endif; ?>
                 </span>
               </div>
             </td>
@@ -159,7 +165,7 @@ $cols = [
               <?php if ($arena): ?><span class="t-num" data-tip="<?= _e('pub.lb.tip_arena_row', ['lo' => fmt_num($arena['ci_low']), 'hi' => fmt_num($arena['ci_high']), 'n' => fmt_num($arena['votes'])]) ?>"><?= e(fmt_num($arena['rating'])) ?></span><?php else: ?><span class="t-faint">—</span><?php endif; ?>
             </td>
             <td class="col-consistency num" data-v="<?= $r['consistency'] ?? '' ?>" data-label="<?= _e('pub.lb.col_consistency') ?>"><span class="t-num"><?= e(fmt_score($r['consistency'])) ?></span></td>
-            <td class="col-coverage num" data-v="<?= $r['coverage'] ?? '' ?>" data-label="<?= _e('pub.lb.col_coverage') ?>"><span class="t-num<?= ($r['coverage'] ?? 0) < $minCov ? ' pub-warn' : '' ?>"><?= $r['coverage'] !== null ? e(fmt_num($r['coverage'] * 100)) . '%' : '—' ?></span></td>
+            <td class="col-coverage num" data-v="<?= $cov ?? '' ?>" data-label="<?= _e('pub.lb.col_coverage') ?>"><span class="t-num<?= ($cov ?? 0) < $minCov ? ' pub-warn' : '' ?>"><?= $cov !== null ? e(fmt_num((float) $cov * 100)) . '%' : '—' ?></span></td>
             <td class="col-cost num" data-v="<?= $r['avg_cost'] ?? '' ?>" data-label="<?= _e('pub.lb.col_cost') ?>"><span class="t-num" dir="ltr"><?= e(fmt_money($r['avg_cost'])) ?></span></td>
             <td class="col-latency num" data-v="<?= $r['avg_latency_ms'] ?? '' ?>" data-label="<?= _e('pub.lb.col_latency') ?>"><span class="t-num" dir="ltr"><?= e(fmt_ms($r['avg_latency_ms'])) ?></span></td>
             <?php foreach ($tracks as $slug => $t):

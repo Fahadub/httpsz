@@ -938,6 +938,40 @@
     });
   }
 
+  /* ---- horizontal scrollers (chip rows, tabs, wide tables): .can-scroll-start / .can-scroll-end fade the
+     edge that hides content (CSS), and the active chip/tab is scrolled into view without moving the page. */
+  const SCROLLERS = '.pub-chips, .tabs, .table-wrap, .pub-lb-scroll, .pub-kpis, .lb-table thead tr';
+  function centerInScroller(sc, el) {
+    if (!sc || !el || sc.scrollWidth <= sc.clientWidth + 1) return;
+    const a = el.getBoundingClientRect();
+    const b = sc.getBoundingClientRect();
+    sc.scrollLeft += (a.left + a.width / 2) - (b.left + b.width / 2);
+  }
+  WB.centerInScroller = centerInScroller;
+  function updateScrollHint(sc) {
+    const ox = getComputedStyle(sc).overflowX; // e.g. the leaderboard turns into cards (overflow visible) on phones
+    const max = ox === 'auto' || ox === 'scroll' ? sc.scrollWidth - sc.clientWidth : 0;
+    const pos = Math.abs(sc.scrollLeft); // RTL scrollers count negative from the start edge
+    sc.classList.toggle('can-scroll-start', max > 1 && pos > 1);
+    sc.classList.toggle('can-scroll-end', max > 1 && pos < max - 1);
+  }
+  WB.updateScrollHint = updateScrollHint;
+  function initScrollHints() {
+    const list = $$(SCROLLERS);
+    if (!list.length) return;
+    list.forEach((sc) => {
+      centerInScroller(sc, $('.chip.active, .chip[aria-current="page"], .tab.active, .tab[aria-selected="true"]', sc));
+      updateScrollHint(sc);
+      sc.addEventListener('scroll', () => updateScrollHint(sc), { passive: true });
+    });
+    if ('ResizeObserver' in window) {
+      const ro = new ResizeObserver((entries) => entries.forEach((en) => updateScrollHint(en.target)));
+      list.forEach((sc) => ro.observe(sc));
+    } else {
+      window.addEventListener('resize', WB.debounce(() => list.forEach(updateScrollHint), 150));
+    }
+  }
+
   /* ---- range sliders: keep --pct (filled part of the track) in sync with the value */
   function syncRange(el) {
     if (!el || el.type !== 'range') return;
@@ -974,6 +1008,7 @@
     initObservers();
     initHeroArt();
     initRanges();
+    initScrollHints();
     $$('table[data-sortable] th[data-sort][data-sort-initial]').forEach((th) => sortTable(th.closest('table'), th, th.getAttribute('data-sort-initial')));
   }
   if (d.readyState === 'loading') d.addEventListener('DOMContentLoaded', boot);

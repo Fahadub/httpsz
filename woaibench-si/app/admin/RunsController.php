@@ -111,6 +111,7 @@ final class RunsController
         if (!$ids) {
             return 0;
         }
+        self::deleteShots($ids);
         DB::tx(static function () use ($ids): void {
             foreach (array_chunk($ids, 500) as $chunk) {
                 DB::exec('DELETE FROM judgments WHERE run_id IN (' . DB::in($chunk) . ')', $chunk);
@@ -128,6 +129,26 @@ final class RunsController
         });
         \Settings::set('aggregate_dirty', 1);
         return count($ids);
+    }
+
+    /**
+     * Delete the screenshot files of these runs (current captures and legacy run_<id>_<viewport>.<ext> names) before
+     * their rows are reset or deleted, so no stale image stays reachable under uploads/shots.
+     */
+    public static function deleteShots(array $runIds): int
+    {
+        $dir = WB_UPLOADS . '/shots';
+        $ids = array_flip(array_map('intval', $runIds));
+        $n = 0;
+        if (!$ids || !is_dir($dir)) {
+            return 0;
+        }
+        foreach (scandir($dir) ?: [] as $name) {
+            if (preg_match('/^run_(\d+)_[A-Za-z0-9_\-]+\.(png|webp|jpe?g)$/', $name, $m) && isset($ids[(int) $m[1]])) {
+                $n += @unlink($dir . '/' . $name) ? 1 : 0;
+            }
+        }
+        return $n;
     }
 
     /** Whether the engine's targeted retry (keeps a good generation) applies to this run. */
@@ -184,6 +205,7 @@ final class RunsController
                 \flash('success', \__('admin.runs.did_rejudge'));
                 break;
             case 'delete':
+                self::deleteShots([$id]);
                 DB::exec('DELETE FROM runs WHERE id = ?', [$id]);
                 \Settings::set('aggregate_dirty', 1);
                 \flash('success', \__('admin.deleted'));

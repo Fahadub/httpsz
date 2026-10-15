@@ -55,7 +55,7 @@ final class BrandController
             \flash('error', \__('admin.login.too_many'));
             \redirect('/admin/brand');
         }
-        @set_time_limit(300);
+        \wb_time_limit(300);
         $res = BrandStudio::generate($kind, $prompt, $model, $size);
         if ($res['ok']) {
             \flash('success', \__('admin.brand.generated'));

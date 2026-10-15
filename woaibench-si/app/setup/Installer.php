@@ -21,8 +21,10 @@ final class Installer
 {
     public const MIN_PHP = '8.1.0';
     public const DEFAULT_OR_BASE = 'https://openrouter.ai/api/v1';
-    private const REQUIRED_EXT = ['pdo_mysql', 'curl', 'json', 'mbstring', 'openssl', 'fileinfo'];
-    private const RECOMMENDED_EXT = ['gd', 'intl'];
+    // openssl / fileinfo are not called directly (HTTPS goes through libcurl, images are checked by magic bytes);
+    // openssl stays recommended because cURL's TLS and random_bytes() commonly rely on it.
+    private const REQUIRED_EXT = ['pdo_mysql', 'curl', 'json', 'mbstring'];
+    private const RECOMMENDED_EXT = ['gd', 'intl', 'openssl'];
     private const DIRS = ['config', 'storage', 'storage/logs', 'storage/cache', 'storage/sessions', 'uploads', 'uploads/shots', 'uploads/brand'];
 
     public static function lockFile(): string
@@ -33,6 +35,55 @@ final class Installer
     public static function isLocked(): bool
     {
         return is_file(self::lockFile());
+    }
+
+    /**
+     * One-time setup token (storage/cache/setup-token.txt). Only someone with access to the hosting file manager
+     * can read it (storage/ is never served), so a stranger who finds a fresh /install/ cannot take the site over.
+     */
+    public static function setupTokenFile(): string
+    {
+        return WB_STORAGE . '/cache/setup-token.txt';
+    }
+
+    /** Create the token file when missing. Returns false when it neither exists nor can be written. */
+    public static function ensureSetupToken(): bool
+    {
+        $file = self::setupTokenFile();
+        if (is_file($file) && self::setupToken() !== '') {
+            return true;
+        }
+        $dir = dirname($file);
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+            return false;
+        }
+        $ok = @file_put_contents($file, \random_token(16) . "\n", LOCK_EX) !== false;
+        if ($ok) {
+            @chmod($file, 0640);
+        }
+        return $ok;
+    }
+
+    /** The current setup token ('' when there is none). */
+    public static function setupToken(): string
+    {
+        $file = self::setupTokenFile();
+        $raw = is_file($file) ? @file_get_contents($file) : false;
+        return is_string($raw) && preg_match('/^\s*([a-f0-9]{32})\s*$/', $raw, $m) ? $m[1] : '';
+    }
+
+    /** Constant-time comparison of a pasted token with the stored one. */
+    public static function setupTokenValid(string $given): bool
+    {
+        $token = self::setupToken();
+        return $token !== '' && hash_equals($token, strtolower(trim($given)));
+    }
+
+    public static function removeSetupToken(): void
+    {
+        if (is_file(self::setupTokenFile())) {
+            @unlink(self::setupTokenFile());
+        }
     }
 
     /** 'none' (no config file) | 'working' (config + DB reachable) | 'broken' (config, DB unreachable). */
@@ -144,7 +195,7 @@ final class Installer
      * GET {base}/models (reachability) when /key is not available. Short timeout; never throws.
      * Returns {ok, state: valid|reachable|invalid|unreachable|http, message key, params}.
      */
-    public static function testOpenRouter(string $key): array
+    public static function testOpenRouter(#[\SensitiveParameter] string $key): array
     {
         $base = rtrim((string) (Config::get('openrouter_base') ?: self::DEFAULT_OR_BASE), '/');
         $hdr = ['Authorization' => 'Bearer ' . $key, 'X-Title' => 'WOAIBench.si installer'];
@@ -179,7 +230,7 @@ final class Installer
      */
     public static function install(array $in): array
     {
-        @set_time_limit(300);
+        \wb_time_limit(300);
         $db = $in['db'];
         $pdo = DB::connect($db['host'], (int) $db['port'], $db['name'], $db['user'], $db['pass']);
         DB::setPdo($pdo);
@@ -201,6 +252,7 @@ final class Installer
             'installed_at' => gmdate('c'), 'version' => WB_VERSION,
             'note' => 'Delete this file AND config/config.local.php to run the installer again.',
         ]) . "\n", LOCK_EX) !== false;
+        self::removeSetupToken(); // one-time: the working config now locks the installer anyway
 
         $tables = (int) DB::val('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()');
         return [

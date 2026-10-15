@@ -119,7 +119,7 @@ TXT;
         if (!Admin::engine('OpenRouter')) {
             return $fail(\__('admin.engine_missing', ['c' => 'WB\\Eval\\OpenRouter']));
         }
-        @set_time_limit(300);
+        \wb_time_limit(300);
         try {
             $res = (new \WB\Eval\OpenRouter())->chat([
                 'model' => $model,

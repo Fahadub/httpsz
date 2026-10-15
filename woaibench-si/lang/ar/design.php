@@ -10,7 +10,7 @@ return [
     'design.footer_method' => 'كيف تُصنع كل درجة',
     'design.chip_runs' => 'محاولات ×:n',
     'design.chip_judges' => 'لجنة تحكيم عمياء',
-    'design.chip_ci' => 'فترة ثقة 95٪',
+    'design.chip_ci' => 'فترة ثقة 95%',
     'design.chip_browser' => 'فحوص في متصفح حقيقي',
     'design.footer_updated' => 'أُعيد حساب الدرجات :t',
     'design.back_to_top' => 'العودة إلى الأعلى',

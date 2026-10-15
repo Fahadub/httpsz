@@ -42,6 +42,7 @@ return [
     'arena.top_title' => 'Arena top 5',
     'arena.see_all' => 'Full ranking',
     'arena.top_empty' => 'No ratings yet — your vote can be the first.',
+    'arena.top_empty_cta' => 'Cast the first vote',
     'arena.err_bad_winner' => 'That vote option is not valid.',
     'arena.err_invalid' => 'This duel no longer exists. Loading a new one…',
     'arena.err_foreign' => 'This duel was opened in another session. Loading a new one…',

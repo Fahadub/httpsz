@@ -3,7 +3,7 @@
 defined('WB') || exit;
 return [
     'common.skip' => 'تخطَّ إلى المحتوى',
-    'common.ci95' => 'فترة ثقة 95٪',
+    'common.ci95' => 'فترة ثقة 95%',
     'common.stat_rank_tip' => 'الترتيب الإحصائي: ‎#:n (يأخذ هامش الخطأ في الحسبان)',
     'common.diff_easy' => 'سهل',
     'common.diff_medium' => 'متوسط',

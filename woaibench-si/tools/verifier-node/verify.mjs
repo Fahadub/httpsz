@@ -251,6 +251,17 @@ function within(promise, ms) {
     sleep(ms).then(() => ({ timeout: true })),
   ]);
 }
+/**
+ * Resolve once `predicate` (evaluated in the page, must return a boolean) is true. Polls with plain evaluate calls
+ * that only move primitives: a hostile output can patch Object.prototype.then / Promise in its realm and break
+ * Playwright's in-page waitForFunction machinery, but it cannot change a boolean coming back.
+ */
+async function pollTrue(page, predicate, intervalMs) {
+  for (;;) {
+    if (await page.evaluate(predicate) === true) return true;
+    await sleep(intervalMs);
+  }
+}
 /** Close a page whose renderer may be hung: the browser process tears the target down. */
 async function killPage(b, targetId) {
   if (!targetId) return;
@@ -269,7 +280,7 @@ async function screenshot(page) {
   }
   return buf.length <= SHOT_LIMIT ? `data:${mime};base64,${buf.toString('base64')}` : null;
 }
-/** → {status:'ok', result, shot} | {status:'infra', error} */
+/** → {status:'ok', result, shot} | {status:'infra', error} | {status:'crash', error} (the page crashed the renderer) */
 async function runViewport(b, run, vp, light) {
   const ctx = await b.newContext({
     viewport: { width: vp.w, height: vp.h }, deviceScaleFactor: 1, serviceWorkers: 'block', acceptDownloads: false,
@@ -277,8 +288,10 @@ async function runViewport(b, run, vp, light) {
   });
   let targetId = null;
   let hung = false;
+  let crashed = false;
   try {
     const page = await ctx.newPage();
+    page.on('crash', () => { crashed = true; });
     try {
       const session = await ctx.newCDPSession(page);
       targetId = (await session.send('Target.getTargetInfo')).targetInfo.targetId;
@@ -302,7 +315,7 @@ async function runViewport(b, run, vp, light) {
     if (!nav.value || nav.value.status() >= 400) return { status: 'infra', error: 'render responded HTTP ' + (nav.value ? nav.value.status() : '?') };
 
     let deadline = num(run.timeout_ms, 15_000);
-    const ready = await within(page.waitForFunction(() => window.__WB_PROBE_READY === true, null, { timeout: 0, polling: 100 }), 20_000);
+    const ready = await within(pollTrue(page, () => window.__WB_PROBE_READY === true, 100), 20_000);
     if (ready.ok) {
       const d = await within(page.evaluate(() => window.__WB_PROBE_DEADLINE), 5000);
       if (d.ok) deadline = num(d.value, deadline);
@@ -312,7 +325,7 @@ async function runViewport(b, run, vp, light) {
     // probe.js loaded but the page may never let us in again: the page itself blocks the main thread.
     const secs = Math.round((Math.min(160_000, Math.max(5000, deadline)) + 6000) / 1000);
     const res = await within(Promise.race([
-      page.waitForFunction(() => typeof window.__WB_PROBE_RESULT_JSON === 'string', null, { timeout: 0, polling: 250 })
+      pollTrue(page, () => typeof window.__WB_PROBE_RESULT_JSON === 'string', 250)
         .then(() => page.evaluate(() => window.__WB_PROBE_RESULT_JSON)),
       away.then(() => null),
     ]), secs * 1000);
@@ -326,6 +339,7 @@ async function runViewport(b, run, vp, light) {
         warn(`run #${run.id} (${vp.name}): page unresponsive after ${secs} s`);
         return { status: 'ok', result: hungResult(run, vp, secs), shot: null };
       }
+      if (crashed || /crash/i.test(String(res.error?.message || res.error))) return { status: 'crash', error: 'the page crashed the browser renderer' };
       return { status: 'infra', error: 'probe result unavailable: ' + trunc(String(res.error?.message || res.error).split('\n')[0], 200) };
     }
     let result;
@@ -358,6 +372,14 @@ async function processRun(browser, run) {
   try {
     for (let i = 0; i < vps.length; i++) {
       const r = await runViewport(browser, run, vps[i], i > 0);
+      if (r.status === 'crash') {
+        // Usually the output (a renderer crash in a fresh context): retried like out-of-memory, and only when it
+        // reproduces on the last allowed try is it reported as the output's own failure (cause "output").
+        const attempt = num(run.attempt, 1);
+        const max = num(run.max_attempts, 3);
+        await release(run, `${r.error} (try ${attempt}/${max})`, attempt >= max ? 'output' : null);
+        return;
+      }
       if (r.status === 'infra') { await release(run, r.error); return; }
       out[vps[i].name] = r.result;
       if (r.shot) shots[vps[i].name] = r.shot;
@@ -406,10 +428,12 @@ async function processRun(browser, run) {
     inflight.delete(run.id);
   }
 }
-async function release(run, error) {
+async function release(run, error, cause = null) {
   stats.released++;
   warn(`run #${run.id} released: ${error}`);
-  try { await api('release', { run_id: run.id, lock_token: run.lock_token, error: trunc(error, 300) }); } catch (e) { warn(`release of #${run.id} failed: ${e.message}`); }
+  const body = { run_id: run.id, lock_token: run.lock_token, agent: 'playwright', error: trunc(error, 300) };
+  if (cause) body.cause = cause;
+  try { await api('release', body); } catch (e) { warn(`release of #${run.id} failed: ${e.message}`); }
 }
 
 /* ------------------------------------------------------------------ main loop */

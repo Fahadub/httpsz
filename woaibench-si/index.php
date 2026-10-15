@@ -28,9 +28,23 @@ if (PHP_SAPI === 'cli-server') {
     }
 }
 
-// Missing static assets: answer with a cheap plain 404 instead of booting the app.
 $__p = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-if (preg_match('#/(assets|uploads)/#', $__p)) {
+// Root icons (browsers and crawlers ask for them whatever the <link> says). .htaccess rewrites them to the files;
+// this covers the PHP dev server and hosts without mod_rewrite.
+if (preg_match('#/(favicon\.ico|apple-touch-icon(?:-precomposed)?\.png)$#', $__p, $__m)) {
+    $__icon = __DIR__ . '/assets/img/' . ($__m[1] === 'favicon.ico' ? 'favicon.ico' : 'apple-touch-icon.png');
+    if (is_file($__icon)) {
+        header('Content-Type: ' . ($__m[1] === 'favicon.ico' ? 'image/x-icon' : 'image/png'));
+        header('Cache-Control: public, max-age=604800');
+        header('Content-Length: ' . filesize($__icon));
+        readfile($__icon);
+        exit;
+    }
+}
+// Missing static assets and static-looking paths (bot probes, stale icons): a cheap plain 404 instead of booting
+// the app. Badges (/badge/x.svg) are the only route with such an extension.
+if (preg_match('#/(assets|uploads)/#', $__p)
+    || (preg_match('#\.(ico|png|jpe?g|gif|webp|avif|bmp|svg|css|js|map|woff2?|ttf|otf|eot)$#i', $__p) && !str_contains($__p, '/badge/'))) {
     http_response_code(404);
     header('Content-Type: text/plain; charset=utf-8');
     exit('Not found');

@@ -20,8 +20,13 @@ $filtered = $f['track'] !== '' || $f['difficulty'] || $f['type'] !== '' || $f['q
       <div class="card card-glass card-pad pub-holdout-card">
         <span class="pub-holdout-icon"><?= ui_icon('lock', 22) ?></span>
         <div class="stack-sm">
-          <p class="t-h3 t-num"><?= _e('pub.tasks.counts', ['pub' => $counts['public'], 'hold' => $counts['holdout']]) ?></p>
-          <p class="t-small t-muted"><?= _e('pub.tasks.holdout', ['n' => $counts['holdout']]) ?></p>
+          <?php if ((int) $counts['holdout'] > 0): ?>
+            <p class="t-h3 t-num"><?= _e('pub.tasks.counts', ['pub' => $counts['public'], 'hold' => $counts['holdout']]) ?></p>
+            <p class="t-small t-muted"><?= _e('pub.tasks.holdout', ['n' => $counts['holdout']]) ?></p>
+          <?php else: ?>
+            <p class="t-h3 t-num"><?= _e('pub.tasks.counts_public', ['pub' => $counts['public']]) ?></p>
+            <p class="t-small t-muted"><?= _e('pub.tasks.holdout_none') ?></p>
+          <?php endif; ?>
         </div>
       </div>
     </div>

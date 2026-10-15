@@ -24,9 +24,12 @@ final class Pipeline
     public const NOTE_CODES = [
         'no_judges', 'judges_partial', 'tiebreak', 'no_code', 'unverified_timeout', 'unverified_off',
         'unverified_failed', 'render_fail', 'judging_failed', 'retried', 'generation',
+        'needs_verification', 'verify_output_failed', 'unverified_unscorable', 'reverified',
     ];
 
     private static ?bool $notesColumn = null;
+    /** @var array<string,bool> hasColumn() cache */
+    private static array $columns = [];
 
     /** Task row joined with its track (adds track_slug, track_auto_weight). */
     public static function loadTask(int $taskId): ?array
@@ -170,23 +173,40 @@ final class Pipeline
             }));
             if ($ok) {
                 self::addNotes($runId, $notes);
+                VerifierApi::pruneShots($runId); // screenshots of an earlier output of this run
             }
             return $ok ? 'awaiting_verify' : null;
         }
         if (self::hasBrowserChecks($task)) {
             $notes[] = trim($code) === '' ? ['code' => 'no_code'] : ['code' => 'unverified_off'];
         }
-        return self::toPost($run, $task, $model, $set, $guard, $notes, true);
+        $status = self::toPost($run, $task, $model, $set, $guard, $notes, true);
+        if ($status !== null) {
+            VerifierApi::pruneShots($runId);
+        }
+        return $status;
     }
 
-    /** Infrastructure failure during generation: retry with backoff, or fail after MAX_TRIES / non-retryable. */
+    /**
+     * Infrastructure failure during generation: retry with backoff (at least the provider's Retry-After), or fail
+     * after MAX_TRIES / non-retryable. A provider halt (no credit, bad key: OpenRouter::haltOf) is neither: the run
+     * goes back to the queue without spending a try and its campaign is paused (Campaign::halt).
+     */
     public static function generationFailed(array $run, string $token, array $gen): ?string
     {
         $tries = (int) ($run['tries'] ?? self::MAX_TRIES);
         $err = self::clip(trim((string) ($gen['error'] ?? '')) ?: 'Generation failed', 1000);
+        if (is_array($gen['halt'] ?? null)) {
+            // The claim counted a try; give it back (we still hold the lease, so the value cannot have moved).
+            $n = Lease::write('runs', (int) $run['id'], ['status' => 'queued', 'error' => $err, 'tries' => max(0, $tries - 1)], ['token' => $token]);
+            if ($n === 1) {
+                Campaign::halt($gen['halt'], (int) $run['campaign_id']);
+            }
+            return $n === 1 ? 'queued' : null;
+        }
         if (!empty($gen['retryable']) && $tries < self::MAX_TRIES) {
             $n = Lease::write('runs', (int) $run['id'], ['status' => 'queued', 'error' => $err], [
-                'token' => $token, 'lease' => self::backoff($tries), 'new_token' => null,
+                'token' => $token, 'lease' => self::holdOff($tries, $gen['retry_after'] ?? null), 'new_token' => null,
             ]);
             return $n === 1 ? 'queued' : null;
         }
@@ -203,6 +223,60 @@ final class Pipeline
             return null;
         }
         return self::toPost($run, $task, $model, $set, ['token' => $token, 'status' => ['verifying', 'awaiting_verify']], $notes, false);
+    }
+
+    /**
+     * Browser verification failed for infrastructure reasons on every try (verifier released it, or its lease
+     * expired, MAX_TRIES times). In verify_mode 'required' the run is never scored without its browser evidence:
+     * it waits in awaiting_verify with the note needs_verification (verify_tries stays at the maximum, so no
+     * verifier claims it again) until an admin re-verifies it (reverify()). In optional / off mode it proceeds
+     * unverified (note unverified_failed, §5.3). $token: the verifier's lease, or null for an expired one.
+     */
+    public static function verificationFailed(int $runId, string $detail, ?string $token = null): ?string
+    {
+        if (self::verifyMode() !== 'required') {
+            if ($token === null) {
+                return self::skipVerification($runId, 'unverified_failed', $detail);
+            }
+            $run = DB::one('SELECT * FROM runs WHERE id = ?', [$runId]);
+            return $run ? self::afterVerification($run, $token, ['verified' => 0], [['code' => 'unverified_failed', 'detail' => $detail]]) : null;
+        }
+        $guard = $token !== null ? ['token' => $token, 'status' => ['verifying']] : ['status' => ['verifying'], 'free' => true];
+        if (Lease::write('runs', $runId, ['status' => 'awaiting_verify'], $guard) !== 1) {
+            return null;
+        }
+        self::addNotes($runId, [['code' => 'needs_verification', 'detail' => $detail]]);
+        return 'awaiting_verify';
+    }
+
+    /**
+     * Admin re-verification of a run left waiting with needs_verification (or any run waiting for a verifier):
+     * its verification tries start again. Returns true when the run was re-queued for the verifiers.
+     */
+    public static function reverify(int $runId): bool
+    {
+        $n = DB::exec(
+            "UPDATE runs SET verify_tries = 0, locked_until = NULL, lock_token = NULL WHERE id = ? AND status = 'awaiting_verify'",
+            [$runId]
+        );
+        if ($n === 1) {
+            self::addNotes($runId, [['code' => 'reverified']]);
+            $cid = (int) DB::val('SELECT campaign_id FROM runs WHERE id = ?', [$runId]);
+            DB::exec("UPDATE campaigns SET status = 'running', finished_at = NULL WHERE id = ? AND status = 'done'", [$cid]);
+        }
+        return $n === 1;
+    }
+
+    /** Runs waiting for an admin re-verification (needs_verification): status awaiting_verify with no tries left. */
+    public static function needsVerificationIds(?int $campaignId = null, int $limit = 500): array
+    {
+        $sql = "SELECT id FROM runs WHERE status = 'awaiting_verify' AND verify_tries >= ?";
+        $params = [self::MAX_TRIES];
+        if ($campaignId !== null) {
+            $sql .= ' AND campaign_id = ?';
+            $params[] = $campaignId;
+        }
+        return array_map('intval', DB::col($sql . ' ORDER BY id LIMIT ' . max(1, $limit), $params));
     }
 
     /** Move a run that waits for browser verification on without it (timeout, mode off, verifier failures). */
@@ -261,9 +335,13 @@ final class Pipeline
                 $release();
                 return 'judging';
             }
+            $want = max(1, (int) setting('judge_count'));
             if (!$done && !$eligible) {
                 // No judge exists for this vendor at all (e.g. after an admin re-judge): automated score only.
                 self::addNotes($runId, [['code' => 'no_judges']]);
+            } elseif ($done && count($done) < $want) {
+                // Scored by a smaller panel than configured (failed judges with no replacement left): say so.
+                self::addNotes($runId, [['code' => 'judges_partial', 'detail' => count($done) . '/' . $want]]);
             } elseif (!$done) {
                 $n = Lease::write('runs', $runId, [
                     'status' => 'failed', 'error' => 'Judging failed: no judge returned a usable verdict.', 'finished_at' => now(),
@@ -332,6 +410,23 @@ final class Pipeline
             "INSERT IGNORE INTO judgments (run_id, judge_model_id, role, status) VALUES (?, ?, ?, 'pending')",
             [$runId, $judgeModelId, $role]
         );
+    }
+
+    /** Whether $table has $column (cached per process; lets code run before an upgrade's migrations were applied). */
+    public static function hasColumn(string $table, string $column): bool
+    {
+        $key = $table . '.' . $column;
+        if (!isset(self::$columns[$key])) {
+            try {
+                self::$columns[$key] = DB::val(
+                    'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+                    [$table, $column]
+                ) !== null;
+            } catch (\Throwable $e) {
+                return false;
+            }
+        }
+        return self::$columns[$key];
     }
 
     /** Whether runs.notes exists (requested schema addition); otherwise notes go to runs.error. Pass a bool to force (tests). */
@@ -434,6 +529,12 @@ final class Pipeline
     public static function backoff(int $tries): int
     {
         return (int) min(600, 30 * (2 ** max(0, $tries - 1)));
+    }
+
+    /** Hold-off before the next try: the backoff, or the provider's Retry-After when longer (capped at 900 s). */
+    public static function holdOff(int $tries, mixed $retryAfter = null): int
+    {
+        return max(self::backoff($tries), is_numeric($retryAfter) ? (int) min(900, max(0, (int) $retryAfter)) : 0);
     }
 
     /** UTF-8 safe truncation. */

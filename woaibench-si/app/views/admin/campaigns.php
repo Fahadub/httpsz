@@ -30,7 +30,7 @@ echo partial('admin/_head', [
           <td><a class="admin-strong" href="<?= e(url('/admin/campaigns/' . $c['id'])) ?>"><?= e($c['name']) ?></a><div class="t-xs t-muted t-mono">#<?= (int) $c['id'] ?> · <?= e($c['season']) ?> · ×<?= (int) $c['runs_per_task'] ?></div></td>
           <td><?= ui_status($c['status']) ?></td>
           <td>
-            <div class="progress" role="progressbar" aria-valuenow="<?= e((string) round($p['pct'])) ?>" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:<?= e(number_format($p['pct'], 2, '.', '')) ?>%"></div></div>
+            <div class="progress" role="progressbar" aria-label="<?= e($c['name']) ?>" aria-valuenow="<?= e((string) round($p['pct'])) ?>" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:<?= e(number_format($p['pct'], 2, '.', '')) ?>%"></div></div>
             <div class="t-xs t-muted t-num"><?= _e('admin.progress.done_of', ['d' => fmt_num($p['done']), 't' => fmt_num($p['total'])]) ?><?= $p['failed'] ? ' · <span class="t-red">' . _e('admin.progress.failed', ['n' => $p['failed']]) . '</span>' : '' ?></div>
           </td>
           <td class="num t-num"><?= e(fmt_money($p['spent'])) ?><?= $p['est'] !== null ? '<div class="t-xs t-muted">' . _e('admin.campaigns.est', ['s' => \WB\Admin\Admin::iso(fmt_money($p['est']))]) . '</div>' : '' ?></td>

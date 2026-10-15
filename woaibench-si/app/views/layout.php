@@ -30,8 +30,10 @@ $page_js = $page_js ?? [];
 $nav_active = $nav_active ?? '';
 $robots = $robots ?? ((isset($code) && is_int($code) && $code >= 400) ? 'noindex' : null);
 $altQuery = static fn(string $l): string => url(current_path(), array_merge(array_filter($_GET, 'is_string'), ['lang' => $l]), true);
+// Pages without a session (cookieless public GETs, see bootstrap) carry no CSRF token: emit the meta only when set.
+$csrf = csrf_token();
 $fontPreload = lang() === 'ar'
-    ? ['fonts/ibm-plex-sans-arabic-arabic-400-normal.woff2', 'fonts/noto-kufi-arabic-arabic-wght-normal.woff2']
+    ? ['fonts/ibm-plex-sans-arabic-arabic-400-normal.woff2', 'fonts/ibm-plex-sans-arabic-arabic-500-normal.woff2', 'fonts/ibm-plex-sans-arabic-arabic-600-normal.woff2', 'fonts/noto-kufi-arabic-arabic-wght-normal.woff2']
     : ['fonts/inter-latin-wght-normal.woff2', 'fonts/instrument-serif-latin-400-normal.woff2'];
 ?><!doctype html>
 <html lang="<?= e(lang()) ?>" dir="<?= e(text_dir()) ?>" data-theme="dark">
@@ -46,7 +48,8 @@ $fontPreload = lang() === 'ar'
 <link rel="alternate" hreflang="ar" href="<?= e($altQuery('ar')) ?>">
 <link rel="alternate" hreflang="en" href="<?= e($altQuery('en')) ?>">
 <link rel="alternate" hreflang="x-default" href="<?= e($altQuery((string) setting('default_lang', 'ar'))) ?>">
-<meta name="csrf-token" content="<?= e(csrf_token()) ?>">
+<?php if ($csrf !== ''): ?><meta name="csrf-token" content="<?= e($csrf) ?>">
+<?php endif; ?>
 <meta name="theme-color" content="#08090C">
 <meta name="color-scheme" content="dark light">
 <meta property="og:type" content="website">
@@ -61,6 +64,7 @@ $fontPreload = lang() === 'ar'
 <meta property="og:url" content="<?= e($canon) ?>">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="<?= e($ogImg) ?>">
+<link rel="icon" href="<?= e(asset('img/favicon.ico')) ?>" sizes="48x48">
 <link rel="icon" href="<?= e(asset('img/favicon.svg')) ?>" type="image/svg+xml">
 <link rel="apple-touch-icon" href="<?= e(asset('img/apple-touch-icon.png')) ?>">
 <link rel="manifest" href="<?= e(url('/site.webmanifest')) ?>">

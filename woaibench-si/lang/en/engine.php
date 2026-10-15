@@ -13,6 +13,11 @@ return [
     'engine.note.judging_failed' => 'No judge returned a usable verdict.',
     'engine.note.generation' => 'Generation note: :detail.',
     'engine.note.retried' => 'This run was retried by an administrator.',
+    // Verification outcomes (engine-4/5): required mode never scores a run without its browser evidence.
+    'engine.note.needs_verification' => 'Browser verification failed three times for infrastructure reasons (:detail). The run is not scored until it is verified again.',
+    'engine.note.verify_output_failed' => 'The page crashed the browser on every verification try (:detail), so every browser check and test counts as failed.',
+    'engine.note.unverified_unscorable' => 'Browser checks could not run and no judge verdict exists, so this run has no score: static checks alone cannot stand in for the rest.',
+    'engine.note.reverified' => 'An administrator sent this run back for browser verification.',
 
     'engine.kind.generate' => 'Generation',
     'engine.kind.judge' => 'Judgment',

@@ -36,7 +36,7 @@ $p = $progress;
       <thead>
         <tr>
           <th class="admin-matrix-corner"><?= _e('common.model') ?></th>
-          <?php foreach ($tasks as $t): ?><th class="admin-matrix-task" title="<?= e(L($t, 'title')) ?>"><span style="--track:<?= e($t['color']) ?>"><?= e($t['slug']) ?></span></th><?php endforeach; ?>
+          <?php foreach ($tasks as $t): ?><th class="admin-matrix-task" title="<?= e(L($t, 'title')) ?>"><span style="--track:<?= e($t['color']) ?>" dir="ltr"><?= e($t['slug']) ?></span></th><?php endforeach; ?>
           <th class="num"><?= _e('common.score') ?></th><th class="num"><?= _e('common.cost') ?></th>
         </tr>
       </thead>

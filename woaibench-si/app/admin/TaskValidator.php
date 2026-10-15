@@ -85,6 +85,7 @@ final class TaskValidator
         if (!$v->errors) {
             $v->checkRubric($r ?? []);
             $v->checkChecks($c ?? [], $outputType, is_array($r) && $r !== []);
+            $v->checkUnjudgedBrowserTask($outputType, $c, $r, null);
         }
         return ['errors' => $v->errors, 'warnings' => $v->warnings];
     }
@@ -179,6 +180,7 @@ final class TaskValidator
             $this->checkRubric($rubric);
         }
         $this->checkChecks($checks ?? [], in_array($type, self::OUTPUT_TYPES, true) ? $type : 'html', is_array($rubric) && $rubric !== []);
+        $this->checkUnjudgedBrowserTask($type, $checks, $rubric, $aw);
         return [
             'slug' => $slug,
             'track' => $track,
@@ -306,6 +308,23 @@ final class TaskValidator
         }
     }
 
+    /**
+     * An html/js task whose automated score rests on browser checks / tests and that has no judges (empty rubric or
+     * auto_weight = 1) can only be scored fairly when it is verified: warn unless verification is 'required'.
+     */
+    private function checkUnjudgedBrowserTask(string $type, mixed $checks, mixed $rubric, mixed $autoWeight): void
+    {
+        $mode = (string) \setting('verify_mode', 'required');
+        if ($mode === 'required' || !in_array($type, ['html', 'js'], true) || !is_array($checks)
+            || (empty($checks['browser']) && empty($checks['tests']))) {
+            return;
+        }
+        $judged = is_array($rubric) && $rubric !== [] && !(is_numeric($autoWeight) && (float) $autoWeight >= 1.0);
+        if (!$judged) {
+            $this->warn('checks', 'unjudged_unverified', ['mode' => $mode]);
+        }
+    }
+
     /** Static / browser check lists. */
     private function checkList(mixed $list, string $path, array $types, array &$ids): void
     {
@@ -398,7 +417,7 @@ final class TaskValidator
             if (!is_string($name) || trim($name) === '') {
                 $this->err($cp . '.name', 'required');
             } elseif (isset($names[$name])) {
-                $this->warn($cp . '.name', 'duplicate', ['v' => $name]);
+                $this->err($cp . '.name', 'duplicate', ['v' => $name]); // results are matched to cases by name
             } else {
                 $names[$name] = true;
             }

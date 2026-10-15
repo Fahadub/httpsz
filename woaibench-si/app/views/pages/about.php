@@ -27,7 +27,11 @@ $principles = [
       <?= ui_stat(fmt_num($stats['models_rated']), __('pub.lb.kpi_models'), 'trophy') ?>
       <?= ui_stat(fmt_num($stats['tasks']), __('pub.lb.kpi_tasks'), 'list') ?>
       <?= ui_stat(fmt_num($stats['runs_scored']), __('pub.lb.kpi_runs'), 'bolt') ?>
-      <?= ui_stat(fmt_num($stats['arena_votes']), __('pub.about.kpi_votes'), 'arena') ?>
+      <?php if ((int) $stats['arena_votes'] > 0): ?>
+        <?= ui_stat(fmt_num($stats['arena_votes']), __('pub.about.kpi_votes'), 'arena') ?>
+      <?php else: ?>
+        <?= ui_stat(fmt_num($stats['judgments'] ?? 0), __('pub.lb.kpi_judgments'), 'scale') ?>
+      <?php endif; ?>
     </div>
 
     <div class="prose pub-prose">

@@ -70,6 +70,8 @@ return [
     'tools.hw_best_sub' => 'Ranked by our overall score, at your context length',
     'tools.hw_best_empty' => 'No benchmarked open-weight models yet',
     'tools.hw_best_empty_text' => 'Once open-weight models with known sizes are scored, they will be ranked here for your hardware.',
+    'tools.hw_best_unsized' => 'Open-weight models are benchmarked, but their sizes are not listed yet',
+    'tools.hw_best_unsized_text' => 'Benchmarked open-weight models without a parameter count: :n. The Fit Lab needs the size to place a model on your hardware, so they will appear here once it is added.',
     'tools.hw_method_title' => 'How these estimates work',
     'tools.hw_method_intro' => 'Everything is computed in your browser with simple, published formulas. GB here means 2³⁰ bytes, the unit GPU memory is sold in.',
     'tools.hw_f_weights' => 'parameters × bits per weight ÷ 8',

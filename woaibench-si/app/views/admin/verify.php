@@ -96,7 +96,7 @@ $headVars = [
         <div class="card-body stack-sm">
           <p class="t-small t-muted"><?= _e('verifier.station.headless_text') ?></p>
           <div class="vs-cmd">
-            <pre class="code-block is-wrap" dir="ltr"><code><?= e($cmd) ?></code></pre>
+            <pre class="code-block is-wrap" dir="ltr" tabindex="0"><code><?= e($cmd) ?></code></pre>
             <button type="button" class="btn btn-ghost btn-sm vs-cmd-copy" data-copy="<?= e($cmd) ?>"><?= ui_icon('copy', 14) ?><span><?= _e('verifier.station.copy') ?></span></button>
           </div>
           <a class="btn btn-outline btn-sm" href="<?= e(url('/admin/tokens')) ?>"><?= ui_icon('key', 14) ?><span><?= _e('verifier.station.manage_tokens') ?></span></a>
@@ -142,7 +142,7 @@ $headVars = [
                 $total = $isTests ? (int) $r['tests_total'] : (int) $r['checks_total'];
                 $passed = $isTests ? (int) $r['tests_passed'] : (int) $r['checks_passed'];
                 $pct = $total > 0 ? $passed / $total * 100 : null;
-                $shot = upload_url($r['screenshot'] ?? null);
+                $shot = \WB\Data\Runs::shotUrl($r['screenshot'] ?? null);
             ?>
               <tr>
                 <td class="shrink">

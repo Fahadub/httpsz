@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Hooker</title></head>
+<body>
+<script>
+  // A malicious output that patches built-ins to read the probe's message nonce and rewrite its result
+  // (sec-web-4). Every attempt must leave the genuine (failing) result in place and the nonce unread.
+  window.__leak = '';
+  var forged = function () { return { id: 'nonblank', type: 'nonblank', pass: true, score: 1, detail: 'FORGED' }; };
+  var grab = function (o) {
+    try { if (o && typeof o === 'object') { for (var k in o) { if (k === 'nonce') { window.__leak += String(o[k]); } } } } catch (e) {}
+  };
+  Object.defineProperty(Object.prototype, 'toJSON', { value: function () { grab(this); return { forged: true, checks: [forged()] }; }, writable: true, configurable: true });
+  Object.defineProperty(Object.prototype, 'then', { value: function (resolve) { grab(this); resolve(forged()); }, writable: true, configurable: true });
+  Object.defineProperty(Object.prototype, 'pass', { value: true, enumerable: true, writable: true, configurable: true });
+  Object.defineProperty(Object.prototype, 'c0', { value: 1, enumerable: true, writable: true, configurable: true });
+  window.__assignErrors = 0;
+  var tryAssign = function (fn) { try { fn(); } catch (e) { window.__assignErrors++; } };
+  tryAssign(function () { Array.prototype.map = function () { grab(this); return [forged()]; }; });
+  tryAssign(function () { Array.prototype.forEach = function () {}; });
+  tryAssign(function () { Array.prototype.filter = function () { return this; }; });
+  tryAssign(function () { String.prototype.indexOf = function () { return 0; }; });
+  tryAssign(function () { Promise.prototype.then = function (f) { return Promise.resolve(f(forged())); }; });
+  tryAssign(function () { Function.prototype.call = function () { grab(arguments[0]); }; });
+  // Sloppy-mode assignments to locked built-ins fail silently: count the ones that actually took effect.
+  window.__patched = [Array.prototype.map, Array.prototype.forEach, Array.prototype.filter, String.prototype.indexOf, Promise.prototype.then, Function.prototype.call]
+    .filter(function (f) { return !/\[native code\]/.test(Function.prototype.toString.call(f)); }).length;
+  Math.max = function () { return 1; };
+  Math.min = function () { return 1; };
+  window.Promise = function () {};
+  JSON.stringify = function (v) { grab(v); return '{"forged":true}'; };
+  setInterval(function () { try { grab(window.__WB_PROBE_RESULT); } catch (e) {} }, 50);
+  try { parent.postMessage({ type: 'wb-probe', nonce: window.__leak || 'guess', checks: [forged()] }, '*'); } catch (e) {}
+  throw new Error('hooks installed');
+</script>
+</body></html>

@@ -14,6 +14,8 @@ final class OpenRouter implements ChatClient
 {
     private const DEFAULT_BASE = 'https://openrouter.ai/api/v1';
     private const RETRYABLE_CODES = [408, 409, 425, 429];
+    /** 403 wording that means the API key itself is blocked (spend limit, credits), not the request. */
+    private const KEY_LIMIT_RE = '/api[\s_-]*key|key\s+limit|credit|billing|payment|quota|insufficient\s+(funds|balance)|spend(ing)?\s+limit/i';
     private const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
     private string $key;
@@ -31,12 +33,18 @@ final class OpenRouter implements ChatClient
     public function chat(array $payload, int $timeout = 240): array
     {
         if ($this->key === '') {
-            return self::failure('OpenRouter API key is not configured', 0, false);
+            $out = self::failure('OpenRouter API key is not configured', 0, false);
+            $out['halt'] = ['code' => 401, 'message' => 'OpenRouter API key is not configured'];
+            return $out;
         }
         $payload['usage'] = array_merge(is_array($payload['usage'] ?? null) ? $payload['usage'] : [], ['include' => true]);
         $payload['stream'] = false;
         $res = $this->send('POST', '/chat/completions', $payload, max(5, $timeout));
-        return self::normalize($res['status'], $res['json'], $res['body'], $res['error'], $res['ms']);
+        $out = self::normalize($res['status'], $res['json'], $res['body'], $res['error'], $res['ms']);
+        if (!$out['ok'] && in_array($res['status'], [429, 503], true)) {
+            $out['retry_after'] = self::retryAfter($res['headers'] ?? []);
+        }
+        return $out;
     }
 
     /** GET /models → raw `data[]` list of the OpenRouter catalogue ([] on failure). */
@@ -92,6 +100,29 @@ final class OpenRouter implements ChatClient
     }
 
     /**
+     * Provider halt: the account, not the model or the request, is the problem — invalid or missing key (401), no
+     * credit left (402), or a key blocked by its spend limit (403 with key / credit wording). Every further call
+     * would fail the same way, so the worker pauses instead of burning the runs' tries (ARCHITECTURE §5.7).
+     * Returns ['code', 'message'] or null.
+     */
+    public static function haltOf(int $code, string $message): ?array
+    {
+        $halt = in_array($code, [401, 402], true) || ($code === 403 && preg_match(self::KEY_LIMIT_RE, $message) === 1);
+        return $halt ? ['code' => $code, 'message' => mb_substr(trim($message), 0, 300)] : null;
+    }
+
+    /** Seconds from a Retry-After header (delta seconds or an HTTP date), capped at 1 hour; null when absent. */
+    public static function retryAfter(array $headers): ?int
+    {
+        $v = trim((string) ($headers['retry-after'] ?? ''));
+        if ($v === '') {
+            return null;
+        }
+        $s = ctype_digit($v) ? (int) $v : (($t = strtotime($v)) !== false ? $t - time() : null);
+        return $s === null ? null : max(0, min(3600, $s));
+    }
+
+    /**
      * Turn a raw HTTP result into the normalized chat response. Public so tests can feed it
      * synthetic bodies (200-with-error, content parts, empty choices …).
      */
@@ -102,7 +133,9 @@ final class OpenRouter implements ChatClient
         }
         if ($json === null) {
             $snippet = mb_substr(trim(strip_tags($body)), 0, 200);
-            return self::failure("HTTP {$status}: invalid JSON response" . ($snippet !== '' ? " ({$snippet})" : ''), $status, $status === 200 || self::isRetryableCode($status), $ms);
+            $out = self::failure("HTTP {$status}: invalid JSON response" . ($snippet !== '' ? " ({$snippet})" : ''), $status, $status === 200 || self::isRetryableCode($status), $ms);
+            $out['halt'] = in_array($status, [401, 402], true) ? self::haltOf($status, 'HTTP ' . $status . ($snippet !== '' ? ': ' . $snippet : '')) : null;
+            return $out;
         }
         $out = self::blank($status, $ms);
         $out['id'] = isset($json['id']) && is_scalar($json['id']) ? (string) $json['id'] : null;
@@ -168,6 +201,7 @@ final class OpenRouter implements ChatClient
             'message' => ['role' => 'assistant', 'content' => ''], 'finish_reason' => null,
             'usage' => ['prompt_tokens' => 0, 'completion_tokens' => 0, 'reasoning_tokens' => 0, 'cost' => null],
             'provider' => null, 'id' => null, 'ms' => $ms, 'error' => null, 'retryable' => false,
+            'halt' => null, 'retry_after' => null,
         ];
     }
 
@@ -206,6 +240,10 @@ final class OpenRouter implements ChatClient
         $out['error'] = ($code ? "[{$code}] " : '') . mb_substr($message, 0, 600);
         // A 2xx carrying an error object without a usable code (code 0) is a provider hiccup → retry.
         $out['retryable'] = self::isRetryableCode($code) || ($status >= 400 && self::isRetryableCode($status));
+        $out['halt'] = self::haltOf($code, $message) ?? ($status !== $code ? self::haltOf($status, $message) : null);
+        if ($out['halt'] !== null) {
+            $out['retryable'] = false;
+        }
         return $out;
     }
 
@@ -354,16 +392,22 @@ final class OpenRouter implements ChatClient
 
     private function imageFromUrl(string $url): array
     {
-        if (!$this->safeImageUrl($url)) {
+        $target = $this->safeImageTarget($url);
+        if ($target === null) {
             return self::imageFail('refusing to fetch image URL');
         }
         $ch = curl_init($url);
-        curl_setopt_array($ch, [
+        $opts = [
             CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 15, CURLOPT_TIMEOUT => 60,
             CURLOPT_FOLLOWLOCATION => false, CURLOPT_MAXFILESIZE => self::MAX_IMAGE_BYTES,
             CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
             CURLOPT_USERAGENT => 'WOAIBench/' . WB_VERSION,
-        ]);
+        ];
+        if ($target['ip'] !== null) {
+            // Connect to the address that was vetted, never to a second DNS answer (rebinding, private AAAA).
+            $opts[CURLOPT_RESOLVE] = [$target['host'] . ':' . $target['port'] . ':' . (str_contains($target['ip'], ':') ? '[' . $target['ip'] . ']' : $target['ip'])];
+        }
+        curl_setopt_array($ch, $opts);
         $bytes = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         curl_close($ch);
@@ -373,19 +417,53 @@ final class OpenRouter implements ChatClient
         return self::imageFromBytes($bytes);
     }
 
-    /** Only http(s); private/loopback hosts only when the API base itself is on that host (local mock). */
-    private function safeImageUrl(string $url): bool
+    /**
+     * SSRF guard for image URLs returned by the provider: only http(s), and every address the host resolves to
+     * (A and AAAA) must be public — then the download is pinned to one of those vetted addresses.
+     * Returns ['host', 'port', 'ip' (null = no pinning: the API base host itself, e.g. the local mock)] or null.
+     */
+    private function safeImageTarget(string $url): ?array
     {
         $p = parse_url($url);
-        $host = strtolower((string) ($p['host'] ?? ''));
-        if (!in_array(strtolower((string) ($p['scheme'] ?? '')), ['http', 'https'], true) || $host === '') {
-            return false;
+        $scheme = strtolower((string) ($p['scheme'] ?? ''));
+        $host = strtolower(trim((string) ($p['host'] ?? ''), '[]'));
+        if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
+            return null;
         }
+        $port = (int) ($p['port'] ?? ($scheme === 'https' ? 443 : 80));
         if ($host === strtolower((string) parse_url($this->base, PHP_URL_HOST))) {
-            return true;
+            return ['host' => $host, 'port' => $port, 'ip' => null];
         }
-        $ip = filter_var($host, FILTER_VALIDATE_IP) ? $host : gethostbyname($host);
-        return (bool) filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+        $ips = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : self::resolveAll($host);
+        if (!$ips) {
+            return null;
+        }
+        foreach ($ips as $ip) {
+            if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                return null;
+            }
+        }
+        return ['host' => $host, 'port' => $port, 'ip' => $ips[0]];
+    }
+
+    /** Every IPv4 and IPv6 address of $host ([] when it does not resolve). */
+    private static function resolveAll(string $host): array
+    {
+        $ips = [];
+        $records = function_exists('dns_get_record') ? @dns_get_record($host, DNS_A | DNS_AAAA) : false;
+        foreach (is_array($records) ? $records : [] as $r) {
+            $ip = $r['ip'] ?? $r['ipv6'] ?? null;
+            if (is_string($ip) && filter_var($ip, FILTER_VALIDATE_IP)) {
+                $ips[] = $ip;
+            }
+        }
+        if (!$ips) {
+            // dns_get_record unavailable or empty (some resolvers / hosts files): IPv4 lookup as the fallback.
+            foreach (@gethostbynamel($host) ?: [] as $ip) {
+                $ips[] = $ip;
+            }
+        }
+        return array_values(array_unique($ips));
     }
 
     /** Validate magic bytes (PNG, JPEG, WebP) and return the image. */

@@ -54,3 +54,9 @@ printf(
     $c['judgments_open'] ?? 0,
     memory_get_peak_usage(true) / 1048576
 );
+if (!empty($out['halted'])) {
+    // No credit / invalid or blocked API key: generation and judging wait until the admin resumes (Admin → Dashboard).
+    $h = WB\Eval\Campaign::providerHalt() ?? [];
+    printf("[%s] worker: PROVIDER HALT (HTTP %s: %s) — generation and judging paused until a campaign is resumed\n",
+        gmdate('Y-m-d H:i:s'), (string) ($h['code'] ?? '?'), (string) ($h['message'] ?? ''));
+}

@@ -102,7 +102,11 @@ $heroImg = $heroRel !== '' && preg_match('#^[A-Za-z0-9_\-./]+$#', $heroRel) && !
         <?= ui_stat($num((int) $stats['runs_scored']), __('home.kpi_runs'), 'refresh', '', true) ?>
         <?= ui_stat($num((int) $stats['judgments']), __('home.kpi_judgments'), 'scale', '', true) ?>
         <?= ui_stat($num((int) $stats['browser_checks']), __('home.kpi_browser'), 'monitor', '', true) ?>
-        <?= ui_stat($num((int) $stats['arena_votes']), __('home.kpi_votes'), 'arena', '', true) ?>
+        <?php if ((int) $stats['arena_votes'] > 0): ?>
+          <?= ui_stat($num((int) $stats['arena_votes']), __('home.kpi_votes'), 'arena', '', true) ?>
+        <?php else: ?>
+          <?= ui_stat($num($trackCount), __('home.kpi_tracks'), 'layers', '', true) ?>
+        <?php endif; ?>
       </div>
       <div class="kpi-foot">
         <span><?= _e('home.kpi_season', ['s' => $season, 'n' => $trackCount]) ?></span>
@@ -217,7 +221,7 @@ $heroImg = $heroRel !== '' && preg_match('#^[A-Za-z0-9_\-./]+$#', $heroRel) && !
         ['equal', 'statrank', []],
         ['monitor', 'browser', []],
         ['code', 'determ', []],
-        ['lock', 'holdout', ['n' => $num($holdout)]],
+        ['lock', $holdout > 0 ? 'holdout' : 'holdout_none', ['n' => $num($holdout)]],
         ['coin', 'cost', []],
         ['eye', 'open', []],
     ];
@@ -242,7 +246,7 @@ $heroImg = $heroRel !== '' && preg_match('#^[A-Za-z0-9_\-./]+$#', $heroRel) && !
       <div>
         <span class="eyebrow"><?= _e('home.tracks_eyebrow') ?></span>
         <h2 class="section-title" id="tracks-title"><?= ui_em(__('home.tracks_title')) ?></h2>
-        <p class="section-sub"><?= _e('home.tracks_sub') ?></p>
+        <p class="section-sub"><?= _e($holdout > 0 ? 'home.tracks_sub' : 'home.tracks_sub_public') ?></p>
       </div>
       <a class="btn btn-outline" href="<?= e(url('/tasks')) ?>"><?= _e('home.tracks_all') ?><?= ui_icon('arrow-right', 17) ?></a>
     </div>
@@ -301,7 +305,7 @@ $heroImg = $heroRel !== '' && preg_match('#^[A-Za-z0-9_\-./]+$#', $heroRel) && !
           <div class="duel-bar"><b>B</b><span>?</span></div>
           <div class="duel-body"><i class="w80"></i><i class="w40"></i><i class="w60"></i><span class="duel-block"></span></div>
         </div>
-        <span class="duel-vs">vs</span>
+        <span class="duel-vs"><?= _e('pub.cmp.vs') ?></span>
         <div class="duel-votes">
           <span class="chip"><?= _e('home.vote_a') ?></span>
           <span class="chip"><?= ui_icon('equal', 14) ?><?= _e('home.vote_tie') ?></span>

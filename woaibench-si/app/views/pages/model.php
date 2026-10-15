@@ -16,6 +16,7 @@ if ($scored) {
             'slug' => $slug, 'name' => L($t, 'name'), 'color' => $t['color'],
             'score' => $ts['score'] ?? null, 'ci_low' => $ts['ci_low'] ?? null, 'ci_high' => $ts['ci_high'] ?? null,
             'median' => isset($medians[$slug]) ? round((float) $medians[$slug], 2) : null,
+            'prov' => $ts !== null && !empty($ts['provisional']),
         ];
     }
 }
@@ -88,7 +89,7 @@ $ctx = $m['context_length'] ? fmt_tokens($m['context_length']) : '—';
     <div class="kpi-row pub-kpis-wide">
       <?= ui_stat($row['arena'] ? fmt_num($row['arena']['rating']) : '—', __('pub.lb.col_arena'), 'arena', $row['arena'] ? __('pub.model.arena_hint', ['lo' => fmt_num($row['arena']['ci_low']), 'hi' => fmt_num($row['arena']['ci_high']), 'n' => fmt_num($row['arena']['votes'])]) : __('pub.model.arena_none')) ?>
       <?= ui_stat(fmt_score($row['consistency']), __('pub.lb.col_consistency'), 'target', __('pub.model.consistency_hint')) ?>
-      <?= ui_stat(fmt_num(($row['coverage'] ?? 0) * 100) . '%', __('pub.lb.col_coverage'), 'layers', __('pub.model.coverage_hint', ['n' => $row['n_tasks'] ?? 0, 'runs' => $row['n_runs'] ?? 0])) ?>
+      <?= ui_stat(fmt_num(($row['coverage'] ?? 0) * 100) . '%', __('pub.lb.col_coverage'), 'layers', __('pub.model.coverage_hint', ['n' => $row['n_tasks'] ?? 0, 'runs' => $row['n_runs'] ?? 0]) . ((int) ($row['n_failed'] ?? 0) > 0 ? ' · ' . __('pub.model.failed_hint', ['n' => (int) $row['n_failed']]) : '')) ?>
       <?= ui_stat(fmt_money($row['avg_cost']), __('pub.lb.col_cost'), 'coin', __('pub.model.tokens_hint', ['n' => fmt_tokens($row['avg_tokens'])])) ?>
       <?= ui_stat(fmt_ms($row['avg_latency_ms']), __('pub.lb.col_latency'), 'timer', __('pub.model.latency_hint')) ?>
       <?= ui_stat($agreement && $agreement['mean_spread'] !== null ? fmt_score($agreement['mean_spread']) : '—', __('pub.model.agreement'), 'scale', $agreement && $agreement['runs'] ? __('pub.model.agreement_hint', ['pct' => fmt_num($agreement['contested_pct'], 1)]) : __('pub.model.agreement_none')) ?>
@@ -132,17 +133,17 @@ $ctx = $m['context_length'] ? fmt_tokens($m['context_length']) : '—';
     <div class="card card-pad stack">
       <div class="card-head split"><h2 class="card-title"><?= ui_icon('layers', 18) ?> <?= _e('pub.model.track_table') ?></h2><span class="t-xs t-muted"><?= _e('pub.model.track_table_note') ?></span></div>
       <div class="table-wrap">
-        <table class="table table-compact">
-          <thead><tr><th scope="col"><?= _e('pub.track') ?></th><th scope="col"><?= _e('pub.lb.col_score') ?></th><th class="num" scope="col"><?= _e('pub.model.ci') ?></th><th class="num" scope="col"><?= _e('pub.model.median') ?></th><th class="num" scope="col"><?= _e('pub.model.delta') ?></th><th class="num" scope="col"><?= _e('pub.model.tasks_n') ?></th></tr></thead>
+        <table class="table table-compact pub-track-scores">
+          <thead><tr><th scope="col"><?= _e('pub.track') ?></th><th scope="col"><?= _e('pub.lb.col_score') ?></th><th class="num pub-hide-sm" scope="col"><?= _e('pub.model.ci') ?></th><th class="num pub-hide-sm" scope="col"><?= _e('pub.model.median') ?></th><th class="num pub-hide-sm" scope="col"><?= _e('pub.model.delta') ?></th><th class="num pub-hide-sm" scope="col"><?= _e('pub.model.tasks_n') ?></th></tr></thead>
           <tbody>
           <?php foreach ($chart as $c): ?>
             <tr>
-              <td><?= ui_track_badge($tracks[$c['slug']], true) ?></td>
-              <td class="pub-track-bar"><span class="t-num"><?= e(fmt_score($c['score'])) ?></span><?= ui_scorebar($c['score'], 100, $c['color'], $c['ci_low'], $c['ci_high']) ?></td>
-              <td class="num t-num t-muted"><?= $c['ci_low'] !== null ? e(fmt_score($c['ci_low']) . '–' . fmt_score($c['ci_high'])) : '—' ?></td>
-              <td class="num t-num t-muted"><?= e(fmt_score($c['median'])) ?></td>
-              <td class="num"><?= $c['score'] !== null && $c['median'] !== null ? ui_delta($c['score'] - $c['median']) : '—' ?></td>
-              <td class="num t-num"><?= e((string) ($row['tracks'][$c['slug']]['n_tasks'] ?? 0)) ?></td>
+              <td><?= ui_track_badge($tracks[$c['slug']], true) ?><?php if ($c['prov']): ?> <?= ui_badge(__('common.provisional'), 'muted', null, __('pub.model.track_prov_tip', ['pct' => fmt_num((float) setting('min_coverage') * 100)])) ?><?php endif; ?></td>
+              <td class="pub-track-bar-cell"><div class="pub-track-bar"><span class="t-num"><?= e(fmt_score($c['score'])) ?></span><?= ui_scorebar($c['score'], 100, $c['color'], $c['ci_low'], $c['ci_high']) ?></div></td>
+              <td class="num t-num t-muted pub-hide-sm"><?= $c['ci_low'] !== null ? e(fmt_score($c['ci_low']) . '–' . fmt_score($c['ci_high'])) : '—' ?></td>
+              <td class="num t-num t-muted pub-hide-sm"><?= e(fmt_score($c['median'])) ?></td>
+              <td class="num pub-hide-sm"><?= $c['score'] !== null && $c['median'] !== null ? ui_delta($c['score'] - $c['median']) : '—' ?></td>
+              <td class="num t-num pub-hide-sm"><?= e((string) ($row['tracks'][$c['slug']]['n_tasks'] ?? 0)) ?></td>
             </tr>
           <?php endforeach; ?>
           </tbody>
@@ -162,27 +163,27 @@ $ctx = $m['context_length'] ? fmt_tokens($m['context_length']) : '—';
         <table class="table table-compact pub-task-table" id="model-tasks" data-sortable>
           <thead><tr>
             <th scope="col" data-sort="text"><?= _e('pub.task_col') ?></th>
-            <th scope="col" data-sort="text"><?= _e('pub.track') ?></th>
-            <th scope="col" data-sort="num"><?= _e('pub.difficulty') ?></th>
+            <th class="pub-hide-sm" scope="col" data-sort="text"><?= _e('pub.track') ?></th>
+            <th class="pub-hide-sm" scope="col" data-sort="num"><?= _e('pub.difficulty') ?></th>
             <th class="num" scope="col" data-sort="num"><?= _e('pub.mean') ?></th>
-            <th class="num" scope="col" data-sort="num"><?= _e('pub.attempts') ?></th>
-            <th scope="col"><span data-tip="<?= _e('pub.split_tip') ?>"><?= _e('pub.split') ?></span></th>
-            <th class="num" scope="col" data-sort="num" data-sort-default="ascending"><?= _e('common.cost') ?></th>
-            <th class="num" scope="col" data-sort="num" data-sort-default="ascending"><?= _e('common.latency') ?></th>
+            <th class="num pub-hide-sm" scope="col" data-sort="num"><?= _e('pub.attempts') ?></th>
+            <th class="pub-hide-sm" scope="col"><span data-tip="<?= _e('pub.split_tip') ?>"><?= _e('pub.split') ?></span></th>
+            <th class="num pub-hide-sm" scope="col" data-sort="num" data-sort-default="ascending"><?= _e('common.cost') ?></th>
+            <th class="num pub-hide-sm" scope="col" data-sort="num" data-sort-default="ascending"><?= _e('common.latency') ?></th>
             <th scope="col"><span class="sr-only"><?= _e('pub.best_run') ?></span></th>
           </tr></thead>
           <tbody>
-          <?php foreach ($tasks as $t): ?>
+          <?php foreach ($tasks as $t): $tb = ui_track_badge(['slug' => $t['track_slug'], 'name_ar' => $t['name_ar'], 'name_en' => $t['name_en'], 'icon' => $t['icon'], 'color' => $t['color']]); ?>
             <tr>
-              <td><a href="<?= e(url('/task/' . $t['slug'])) ?>"><?= e(L($t, 'title')) ?></a><?php if ((int) $t['contested'] > 0): ?> <span class="t-xs" data-tip="<?= _e('pub.contested_tip') ?>"><?= ui_icon('alert', 12) ?></span><?php endif; ?></td>
-              <td><?= ui_track_badge(['slug' => $t['track_slug'], 'name_ar' => $t['name_ar'], 'name_en' => $t['name_en'], 'icon' => $t['icon'], 'color' => $t['color']]) ?></td>
-              <td data-value="<?= (int) $t['difficulty'] ?>"><?= ui_difficulty((int) $t['difficulty']) ?></td>
+              <td><a href="<?= e(url('/task/' . $t['slug'])) ?>"><?= e(L($t, 'title')) ?></a><?php if ((int) $t['contested'] > 0): ?> <span class="t-xs" data-tip="<?= _e('pub.contested_tip') ?>"><?= ui_icon('alert', 12) ?></span><?php endif; ?><span class="pub-show-sm"><?= $tb ?></span></td>
+              <td class="pub-hide-sm"><?= $tb ?></td>
+              <td class="pub-hide-sm" data-value="<?= (int) $t['difficulty'] ?>"><?= ui_difficulty((int) $t['difficulty']) ?></td>
               <td class="num" data-value="<?= e((string) round((float) $t['mean_score'], 2)) ?>"><?= ui_heat_cell($t['mean_score'], $t['sd'] !== null ? '± ' . fmt_score($t['sd']) . ' (' . __('pub.sd') . ')' : '') ?></td>
-              <td class="num t-num"><?= (int) $t['attempts'] ?></td>
-              <td><?= pub_split($t['auto_mean'], $t['judge_mean']) ?></td>
-              <td class="num t-num" data-value="<?= e((string) ($t['cost'] ?? '')) ?>"><span dir="ltr"><?= e(fmt_money($t['cost'])) ?></span></td>
-              <td class="num t-num" data-value="<?= e((string) ($t['latency_ms'] ?? '')) ?>"><span dir="ltr"><?= e(fmt_ms($t['latency_ms'])) ?></span></td>
-              <td><?php if ($t['best_run']): ?><a class="btn btn-ghost btn-sm" href="<?= e(url('/run/' . $t['best_run'])) ?>"><?= _e('pub.best_run') ?> <?= ui_icon(is_rtl() ? 'arrow-left' : 'arrow-right', 14) ?></a><?php endif; ?></td>
+              <td class="num t-num pub-hide-sm"><?= (int) $t['attempts'] ?></td>
+              <td class="pub-hide-sm"><?= pub_split($t['auto_mean'], $t['judge_mean']) ?></td>
+              <td class="num t-num pub-hide-sm" data-value="<?= e((string) ($t['cost'] ?? '')) ?>"><span dir="ltr"><?= e(fmt_money($t['cost'])) ?></span></td>
+              <td class="num t-num pub-hide-sm" data-value="<?= e((string) ($t['latency_ms'] ?? '')) ?>"><span dir="ltr"><?= e(fmt_ms($t['latency_ms'])) ?></span></td>
+              <td><?php if ($t['best_run']): ?><a class="btn btn-ghost btn-sm pub-bestrun" href="<?= e(url('/run/' . $t['best_run'])) ?>"><span class="pub-bestrun-label"><?= _e('pub.best_run') ?></span> <?= ui_icon('arrow-right', 14) ?></a><?php endif; ?></td>
             </tr>
           <?php endforeach; ?>
           </tbody>

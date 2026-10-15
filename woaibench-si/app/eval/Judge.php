@@ -15,6 +15,11 @@ final class Judge
 {
     public const CODE_LIMIT = 60000;
     public const SHOT_MAX_BYTES = 4194304;
+    /** Vendor / brand words too common in code or prose to redact as words (e.g. `const meta`, `command`). */
+    private const REDACT_STOP = [
+        'meta', 'command', 'nova', 'sonar', 'liquid', 'nous', 'together', 'inception', 'perplexity', 'auto', 'free',
+        'model', 'chat', 'instruct', 'preview', 'turbo', 'mini', 'large', 'small', 'base', 'flash', 'lite', 'plus', 'ultra',
+    ];
 
     public const SYSTEM_PROMPT = <<<'TXT'
 You are the WOAIBench Judge: an impartial, senior reviewer grading one anonymous submission in a coding benchmark.
@@ -59,6 +64,27 @@ TXT;
         }));
     }
 
+    /**
+     * Judge panel health per model under test: [model_id => ['eligible' => n, 'panel' => n, 'want' => judge_count,
+     * 'tiebreak' => bool]]. Judges never grade their own vendor, so with judges from only judge_count vendors the
+     * models of those vendors get a smaller panel (a mean of 2 instead of a median of 3) and nobody gets a
+     * tie-break: a full panel plus a reserve judge for every vendor needs judges from judge_count + 2 distinct
+     * vendors. Admin pages warn when panel < want or tiebreak is false.
+     */
+    public static function panelHealth(array $models): array
+    {
+        $judges = DB::all('SELECT id, provider, or_id FROM models WHERE is_judge = 1 ORDER BY judge_order, id');
+        $want = max(1, (int) setting('judge_count'));
+        $out = [];
+        foreach ($models as $m) {
+            $vendor = self::vendor($m);
+            $n = count(array_filter($judges, static fn(array $j): bool => (int) $j['id'] !== (int) ($m['id'] ?? 0)
+                && ($vendor === '' || self::vendor($j) !== $vendor)));
+            $out[(int) ($m['id'] ?? 0)] = ['eligible' => $n, 'panel' => min($n, $want), 'want' => $want, 'tiebreak' => $n > $want];
+        }
+        return $out;
+    }
+
     /** The first judge_count eligible judges (fewer when fewer exist; empty when none). */
     public static function panelFor(array $runModel, ?int $count = null): array
     {
@@ -68,8 +94,8 @@ TXT;
 
     /**
      * Grade one run with one judge model.
-     * Returns ok, retryable, score (0..100), criteria (key → 0..10), rationale (JSON {summary,strengths,weaknesses}),
-     * used_vision, prompt_tokens, completion_tokens, cost_usd, latency_ms, error.
+     * Returns ok, retryable, halt (provider halt ['code','message'] or null), score (0..100), criteria (key → 0..10),
+     * rationale (JSON {summary,strengths,weaknesses}), used_vision, prompt_tokens, completion_tokens, cost_usd, latency_ms, error.
      */
     public static function evaluate(array $run, array $task, array $judgeModel, ?ChatClient $client = null): array
     {
@@ -92,7 +118,7 @@ TXT;
             $res = self::call($client, $payload, $timeout, $judgeModel, $acc);
         }
         if (empty($res['ok'])) {
-            return self::fail((string) ($res['error'] ?? 'Judge request failed'), !array_key_exists('retryable', $res) || !empty($res['retryable']), $acc);
+            return self::fail((string) ($res['error'] ?? 'Judge request failed'), !array_key_exists('retryable', $res) || !empty($res['retryable']), $acc, $res['halt'] ?? null, $res['retry_after'] ?? null);
         }
         $text = self::replyText($res);
         $v = self::parseVerdict($text, $rubric);
@@ -102,6 +128,9 @@ TXT;
             $res2 = self::call($client, $payload, $timeout, $judgeModel, $acc);
             if (!empty($res2['ok'])) {
                 $v = self::mergeVerdicts($v, self::parseVerdict(self::replyText($res2), $rubric), $rubric);
+            } elseif (is_array($res2['halt'] ?? null)) {
+                // Out of credit / key blocked mid-verdict: wait for the admin instead of scoring missing criteria 0.
+                return self::fail((string) ($res2['error'] ?? 'Judge request failed'), false, $acc, $res2['halt']);
             }
         }
         if (!$v['parsed']) {
@@ -418,7 +447,13 @@ TXT;
         return ["(No code could be extracted from the model's reply. Its raw reply follows.)\n\n" . $raw, mb_strlen($raw)];
     }
 
-    /** Blind judging: remove the generating model's own name / id if it appears in its output. */
+    /**
+     * Blind judging: remove the generating model's identity from its output before judges see it — its name,
+     * slug and OpenRouter id (anywhere, when distinctive), and its vendor key, vendor name and brand word (e.g.
+     * "Anthropic", "Claude", "Gemini": whole words in prose only, case-insensitive — not inside identifiers, URLs,
+     * tags or package names such as "googleapis", "fonts.google.com", "@anthropic-ai/sdk", and never common words
+     * listed in REDACT_STOP). Longest names first, so "Claude Sonnet 4.5" becomes one "[model]".
+     */
     private static function redact(string $text, array $run): string
     {
         $model = null;
@@ -438,12 +473,24 @@ TXT;
             $n = trim((string) $n);
             // Only distinctive identifiers (avoid redacting ordinary words used in code).
             if (mb_strlen($n) >= 5 && preg_match('/[\s\d\-\/.]/', $n)) {
-                $needles[$n] = mb_strlen($n);
+                $needles[$n] = false;
             }
         }
-        arsort($needles);
-        foreach (array_keys($needles) as $n) {
-            $text = preg_replace('/' . preg_quote($n, '/') . '/iu', '[model]', $text) ?? $text;
+        $brand = preg_split('/[\s\-_\/.:]+/u', trim((string) ($model['name'] ?? ''))) ?: [];
+        foreach ([self::vendor($model), $model['provider_name'] ?? '', $brand[0] ?? ''] as $n) {
+            $n = trim((string) $n);
+            // Vendor / brand words: letters only, at least 4 of them (skips "AI", "GPT-4o"-style ids handled above).
+            if (preg_match('/^\pL{4,}(?:[ \-]\pL{2,})*$/u', $n) && !isset($needles[$n]) && !in_array(mb_strtolower($n), self::REDACT_STOP, true)) {
+                $needles[$n] = true;
+            }
+        }
+        uksort($needles, static fn($a, $b): int => mb_strlen((string) $b) <=> mb_strlen((string) $a));
+        foreach ($needles as $n => $wordOnly) {
+            $n = (string) $n;
+            $re = $wordOnly
+                ? '/(?<![\pL\pN_\-.\/<@#$])' . preg_quote($n, '/') . '(?![\pL\pN_\-\/]|\.[\pL\pN])/iu'
+                : '/' . preg_quote($n, '/') . '/iu';
+            $text = preg_replace($re, '[model]', $text) ?? $text;
         }
         return $text;
     }
@@ -539,10 +586,12 @@ TXT;
         return $a;
     }
 
-    private static function fail(string $error, bool $retryable, array $acc): array
+    private static function fail(string $error, bool $retryable, array $acc, mixed $halt = null, mixed $retryAfter = null): array
     {
         return [
-            'ok' => false, 'retryable' => $retryable, 'score' => null, 'criteria' => [], 'rationale' => null, 'used_vision' => false,
+            'ok' => false, 'retryable' => $retryable, 'halt' => is_array($halt) ? $halt : null,
+            'retry_after' => is_numeric($retryAfter) ? (int) $retryAfter : null,
+            'score' => null, 'criteria' => [], 'rationale' => null, 'used_vision' => false,
             'prompt_tokens' => $acc['prompt_tokens'], 'completion_tokens' => $acc['completion_tokens'],
             'cost_usd' => round($acc['cost'], 6), 'latency_ms' => $acc['ms'], 'error' => Pipeline::clip($error, 1000),
         ];

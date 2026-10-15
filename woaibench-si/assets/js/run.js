@@ -18,6 +18,7 @@
         tab.setAttribute('aria-selected', on ? 'true' : 'false');
         tab.tabIndex = on ? 0 : -1;
         if (on && focus) tab.focus();
+        if (on && window.WB && WB.centerInScroller) WB.centerInScroller(tab.parentNode, tab);
       });
       root.querySelectorAll('[data-run-panel]').forEach(function (p) { p.hidden = p.getAttribute('data-run-panel') !== key; });
       if (push && window.history && history.replaceState) {
@@ -74,6 +75,13 @@
       document.addEventListener('fullscreenchange', function () {
         frame.classList.toggle('is-full', document.fullscreenElement === frame);
         sizeFrame();
+      });
+    }
+    // Phones: the frame is phone-sized anyway, so the toggle says "Mobile" instead of claiming "Desktop".
+    if (window.innerWidth < 600 && frame.getAttribute('data-device') === 'desktop') {
+      frame.setAttribute('data-device', 'mobile');
+      Array.prototype.forEach.call(frame.querySelectorAll('.device-toggle [data-device]'), function (b) {
+        b.setAttribute('aria-pressed', b.getAttribute('data-device') === 'mobile' ? 'true' : 'false');
       });
     }
     window.addEventListener('resize', sizeFrame);

@@ -5,9 +5,10 @@
  *   1. sql/schema.sql, then every sql/schema-*.sql in name order — re-applied on every run
  *      (they must be idempotent: CREATE TABLE IF NOT EXISTS …; "already exists" errors are tolerated).
  *   2. sql/migrations/NNN_name.sql — each applied exactly once, in numeric order, and recorded.
+ *   3. PHP upgrade steps (self::STEPS: data/file fixes SQL cannot do) — each applied once and recorded.
  *
  * State lives in settings 'schema_version':
- *   {"app":"1.0.0","migrations":["001_add_x.sql"],"files":{"schema.sql":"<sha1>"},"applied_at":"…"}
+ *   {"app":"1.0.0","migrations":["001_add_x.sql"],"steps":["shots_unguessable"],"files":{"schema.sql":"<sha1>"},…}
  */
 declare(strict_types=1);
 
@@ -36,6 +37,14 @@ final class Migrator
 
     private const MIGRATION_RE = '/^(\d{3,})_[A-Za-z0-9_\-]+\.sql$/';
 
+    /** One-off PHP upgrade steps: name => method of this class (PDO $pdo): array. Applied in this order. */
+    private const STEPS = [
+        'shots_unguessable' => 'renameGuessableShots',
+    ];
+
+    /** Legacy screenshot names (run_<id>_<viewport>.<ext>) that anyone could guess from a run id. */
+    private const LEGACY_SHOT_RE = '/^run_(\d+)_(desktop|mobile)\.(png|webp|jpe?g)$/';
+
     /**
      * Apply schema files and pending migrations.
      * Returns {ok, files:[{file,statements,skipped}], migrations:[names applied now], schema_version, error, ms}.
@@ -44,7 +53,7 @@ final class Migrator
     {
         $pdo ??= DB::pdo();
         $t0 = microtime(true);
-        $out = ['ok' => true, 'files' => [], 'migrations' => [], 'schema_version' => null, 'error' => null, 'ms' => 0];
+        $out = ['ok' => true, 'files' => [], 'migrations' => [], 'steps' => [], 'schema_version' => null, 'error' => null, 'ms' => 0];
         $locked = self::lock($pdo);
         try {
             if ($locked === false) {
@@ -59,6 +68,11 @@ final class Migrator
                 $state['migrations'][] = $name;
                 $out['migrations'][] = $name;
                 self::saveState($pdo, $state); // record each one immediately: a later failure must not re-run it
+            }
+            foreach (self::pendingSteps($state) as $name => $method) {
+                $out['steps'][$name] = self::$method($pdo);
+                $state['steps'][] = $name;
+                self::saveState($pdo, $state);
             }
             $state['app'] = WB_VERSION;
             $state['files'] = self::fileHashes();
@@ -89,8 +103,10 @@ final class Migrator
             'app_version' => WB_VERSION,
             'schema_version' => $state,
             'pending' => array_keys(self::pendingFrom($state)),
+            'pending_steps' => array_keys(self::pendingSteps($state)),
             'schema_changed' => ($state['files'] ?? []) !== $hashes,
-            'needs_upgrade' => ($state['app'] ?? null) !== WB_VERSION || self::pendingFrom($state) !== [] || ($state['files'] ?? []) !== $hashes,
+            'needs_upgrade' => ($state['app'] ?? null) !== WB_VERSION || self::pendingFrom($state) !== []
+                || self::pendingSteps($state) !== [] || ($state['files'] ?? []) !== $hashes,
         ];
     }
 
@@ -225,6 +241,54 @@ final class Migrator
         return array_filter(self::migrationFiles(), static fn($f, $name) => !isset($applied[$name]), ARRAY_FILTER_USE_BOTH);
     }
 
+    private static function pendingSteps(array $state): array
+    {
+        $done = array_flip($state['steps'] ?? []);
+        return array_filter(self::STEPS, static fn($m, $name) => !isset($done[$name]), ARRAY_FILTER_USE_BOTH);
+    }
+
+    /**
+     * Step 'shots_unguessable': screenshots used to be stored as uploads/shots/run_<id>_<viewport>.<ext>, which
+     * anyone could enumerate (hold-out outputs included). Give every referenced legacy file an unguessable name
+     * (run_<id>_<viewport>_<32 hex>.<ext>, as VerifierApi::saveShot now writes) and delete unreferenced ones.
+     * Throws when a file cannot be renamed (folder permissions) so the step is retried by the next upgrade.
+     */
+    private static function renameGuessableShots(PDO $pdo): array
+    {
+        $dir = WB_UPLOADS . '/shots';
+        $out = ['renamed' => 0, 'removed' => 0];
+        $failed = [];
+        foreach (is_dir($dir) ? (scandir($dir) ?: []) : [] as $name) {
+            if (!preg_match(self::LEGACY_SHOT_RE, $name, $m)) {
+                continue;
+            }
+            $col = $m[2] === 'desktop' ? 'screenshot' : 'screenshot_mobile';
+            $old = 'shots/' . $name;
+            $st = $pdo->prepare('SELECT COUNT(*) FROM runs WHERE id = ? AND ' . $col . ' = ?');
+            $st->execute([(int) $m[1], $old]);
+            if ((int) $st->fetchColumn() === 0) {
+                if (@unlink($dir . '/' . $name)) {
+                    $out['removed']++;
+                } else {
+                    $failed[] = $name;
+                }
+                continue;
+            }
+            $new = 'run_' . $m[1] . '_' . $m[2] . '_' . random_token(16) . '.' . $m[3];
+            if (!@rename($dir . '/' . $name, $dir . '/' . $new)) {
+                $failed[] = $name;
+                continue;
+            }
+            $pdo->prepare('UPDATE runs SET ' . $col . ' = ? WHERE id = ? AND ' . $col . ' = ?')->execute(['shots/' . $new, (int) $m[1], $old]);
+            $out['renamed']++;
+        }
+        if ($failed) {
+            throw new RuntimeException('uploads/shots: could not rename or delete ' . count($failed) . ' screenshot file(s) such as '
+                . $failed[0] . ' — make the folder writable and run the upgrade again.');
+        }
+        return $out;
+    }
+
     private static function fileHashes(): array
     {
         $out = [];
@@ -248,6 +312,7 @@ final class Migrator
             return ['migrations' => []];
         }
         $data['migrations'] = array_values(array_filter((array) ($data['migrations'] ?? []), 'is_string'));
+        $data['steps'] = array_values(array_filter((array) ($data['steps'] ?? []), 'is_string'));
         return $data;
     }
 

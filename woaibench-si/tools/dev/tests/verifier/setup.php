@@ -69,6 +69,11 @@ $defs = [
     ]]],
     'vt-sandbox' => ['sandbox.html', 'html', 'public', [$b('loads', 'loads')], null],
     'vt-forge' => ['forge.html', 'html', 'public', [$b('nonblank', 'nonblank')], null],
+    'vt-hooks' => ['hooks.html', 'html', 'public', [
+        $b('loads', 'loads'), $b('no_errors', 'no_errors'), $b('nonblank', 'nonblank'), $b('needle', 'text', ['contains' => 'needle that is absent']),
+        $b('many', 'selector', ['sel' => '.missing', 'min' => 3]), $b('animates', 'animates'), $b('canvas', 'canvas'),
+    ], null],
+    'vt-tamper' => ['tamper.html', 'html', 'public', [$b('loads', 'loads'), $b('nonblank', 'nonblank')], null],
     'vt-holdout' => ['good.html', 'html', 'holdout', [$b('nonblank', 'nonblank')], null],
     'vt-noout' => [null, 'html', 'public', [$b('loads', 'loads'), $b('nonblank', 'nonblank')], null],
     'vt-answer' => [null, 'answer', 'public', [], null],

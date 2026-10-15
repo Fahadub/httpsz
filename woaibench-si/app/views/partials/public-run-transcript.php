@@ -24,7 +24,7 @@ $n = 0;
     <summary><?= _e('pub.run.agent_intro') ?></summary>
     <div class="stack-sm">
       <?php foreach ($tx['intro'] as $m): ?>
-        <div><span class="t-xs t-muted"><?= _e('pub.run.role_' . ($m['role'] === 'system' ? 'system' : 'user')) ?></span><pre class="code-block pub-raw t-xs" dir="auto"><?= e($cut($m['text'], 12000)) ?></pre></div>
+        <div><span class="t-xs t-muted"><?= _e('pub.run.role_' . ($m['role'] === 'system' ? 'system' : 'user')) ?></span><pre class="code-block pub-raw t-xs" dir="auto" tabindex="0"><?= e($cut($m['text'], 12000)) ?></pre></div>
       <?php endforeach; ?>
     </div>
   </details>
@@ -46,12 +46,12 @@ $n = 0;
           <div class="card card-pad stack-sm">
             <div class="split"><span class="t-mono pub-tool-name" dir="ltr"><?= ui_icon('wand', 14) ?> <?= e($s['tool']) ?></span><?php if ($s['error'] !== ''): ?><?= ui_badge(__('pub.run.tool_error'), 'red', 'alert') ?><?php endif; ?></div>
             <?php if ($s['args'] !== '' && $s['args'] !== '[]' && $s['args'] !== '{}'): ?>
-              <div><span class="t-xs t-muted"><?= _e('pub.run.args') ?></span><pre class="code-block pub-raw t-xs" dir="ltr"><?= e($cut($s['args'])) ?></pre></div>
+              <div><span class="t-xs t-muted"><?= _e('pub.run.args') ?></span><pre class="code-block pub-raw t-xs" dir="ltr" tabindex="0"><?= e($cut($s['args'])) ?></pre></div>
             <?php endif; ?>
             <?php if ($s['result'] !== ''): ?>
-              <div><span class="t-xs t-muted"><?= _e('pub.run.tool_result') ?></span><pre class="code-block pub-raw t-xs" dir="auto"><?= e($cut($s['result'])) ?></pre></div>
+              <div><span class="t-xs t-muted"><?= _e('pub.run.tool_result') ?></span><pre class="code-block pub-raw t-xs" dir="auto" tabindex="0"><?= e($cut($s['result'])) ?></pre></div>
             <?php endif; ?>
-            <?php if ($s['error'] !== ''): ?><pre class="code-block pub-raw t-xs pub-err" dir="ltr"><?= e($cut($s['error'], 2000)) ?></pre><?php endif; ?>
+            <?php if ($s['error'] !== ''): ?><pre class="code-block pub-raw t-xs pub-err" dir="ltr" tabindex="0"><?= e($cut($s['error'], 2000)) ?></pre><?php endif; ?>
           </div>
         </li>
       <?php else: ?>
@@ -71,7 +71,7 @@ $n = 0;
   <?php if ($tx['final'] !== null && $tx['final'] !== ''): ?>
   <div class="card card-pad stack-sm">
     <h2 class="card-title"><?= ui_icon('flag', 16) ?> <?= _e('pub.run.final_answer') ?></h2>
-    <pre class="code-block pub-raw" dir="auto"><?= e($cut($tx['final'], 8000)) ?></pre>
+    <pre class="code-block pub-raw" dir="auto" tabindex="0"><?= e($cut($tx['final'], 8000)) ?></pre>
   </div>
   <?php endif; ?>
 </div>

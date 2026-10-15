@@ -1,5 +1,5 @@
 <?php
-/** Step 1 — server requirements. Vars: $checks, $pass, $flashes. */
+/** Step 1 — server requirements + setup token. Vars: $checks, $pass, $token_ok, $token_file (null: not created), $flashes. */
 defined('WB') || exit;
 
 $groups = ['setup.grp_php' => [], 'setup.grp_files' => [], 'setup.grp_server' => []];
@@ -51,9 +51,39 @@ $icons = ['ok' => 'check', 'fail' => 'x', 'warn' => 'alert', 'info' => 'info'];
 </section>
 <?php endforeach; ?>
 
+<section class="setup-token" id="setup-token">
+<?php if ($token_ok): ?>
+  <div class="callout callout-success" role="status">
+    <svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>
+    <div><?= _e('setup.token_ok') ?></div>
+  </div>
+<?php elseif ($token_file === null): ?>
+  <div class="callout callout-error" role="alert">
+    <svg class="ic" aria-hidden="true"><use href="#i-alert"/></svg>
+    <div><strong><?= _e('setup.token_title') ?></strong><p><?= _e('setup.token_unwritable', ['file' => "\u{2066}storage/cache/setup-token.txt\u{2069}"]) ?></p></div>
+  </div>
+<?php else: ?>
+  <form method="post" action="<?= e(\WB\Setup\Wizard::url(1)) ?>" data-busy autocomplete="off" novalidate>
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="token">
+    <fieldset class="fs">
+      <legend class="fs-title"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg><?= _e('setup.token_title') ?></legend>
+      <p class="fs-lead"><?= _e('setup.token_help', ['file' => "\u{2066}" . $token_file . "\u{2069}"]) ?></p>
+      <div class="field">
+        <label class="label" for="setup_token"><?= _e('setup.token_label') ?></label>
+        <div class="key-row">
+          <input class="input mono" id="setup_token" name="setup_token" type="text" dir="ltr" required maxlength="64" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="0123456789abcdef…">
+          <button class="btn btn-primary" type="submit"><?= _e('setup.token_submit') ?><svg class="ic flip" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        </div>
+      </div>
+    </fieldset>
+  </form>
+<?php endif; ?>
+</section>
+
 <div class="actions">
   <a class="btn btn-ghost" href="<?= e(\WB\Setup\Wizard::url(1)) ?>"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><?= _e('setup.recheck') ?></a>
-<?php if ($pass): ?>
+<?php if ($pass && $token_ok): ?>
   <a class="btn btn-primary" href="<?= e(\WB\Setup\Wizard::url(2)) ?>"><?= _e('setup.continue') ?><svg class="ic flip" aria-hidden="true"><use href="#i-arrow"/></svg></a>
 <?php else: ?>
   <span class="btn btn-primary is-disabled" aria-disabled="true"><?= _e('setup.continue') ?><svg class="ic flip" aria-hidden="true"><use href="#i-arrow"/></svg></span>

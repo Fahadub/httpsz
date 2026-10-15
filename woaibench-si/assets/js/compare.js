@@ -196,7 +196,7 @@
     var names = selected.map(function (s) { return bySlug[s] ? bySlug[s].name : s; });
     var parts = document.title.split(' · ');
     var site = parts.length > 1 ? parts[parts.length - 1] : '';
-    if (names.length > 1) document.title = names.join(' vs ') + (site ? ' · ' + site : '');
+    if (names.length > 1) document.title = names.join(' ' + t('vs') + ' ') + (site ? ' · ' + site : '');
   }
 
   window.addEventListener('popstate', function (e) {
@@ -288,7 +288,7 @@
         },
         options: {
           responsive: true, maintainAspectRatio: false,
-          scales: { r: { min: min, max: 100, ticks: { stepSize: 10, backdropColor: 'transparent', color: css('--text-faint', '#777'), font: { size: 9 } }, grid: { color: grid }, angleLines: { color: grid }, pointLabels: { color: muted, font: { size: labelSize(radar) }, padding: 6 } } },
+          scales: { r: { min: min, max: 100, ticks: { stepSize: 20, display: radar.clientWidth > 480, backdropColor: 'transparent', color: css('--text-faint', '#777'), font: { size: 9 }, z: 1 }, grid: { color: grid }, angleLines: { color: grid }, pointLabels: { color: muted, font: { size: labelSize(radar) }, padding: 6 } } },
           plugins: { legend: { display: false }, tooltip: { callbacks: { title: function (items) { return items.length ? labels[items[0].dataIndex] : ''; } } } }
         }
       }));

@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Tamper</title></head>
+<body><h1>Tamper</h1><p>Some visible text.</p>
+<script>
+  // Index accessors on Array.prototype intercept every plain array write ([[Set]] walks the prototype chain):
+  // the probe cannot trust its checks then, and must say so instead of reporting them.
+  Object.defineProperty(Array.prototype, '0', { configurable: true, get: function () { return undefined; }, set: function (v) {
+    Object.defineProperty(this, '0', { value: v, writable: true, enumerable: true, configurable: true });
+  } });
+</script>
+</body></html>

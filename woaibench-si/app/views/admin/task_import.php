@@ -31,10 +31,10 @@ $example = [[
   <?= csrf_field() ?>
   <div class="admin-grid admin-grid-2">
     <section class="card card-pad stack">
-      <h2 class="card-title"><?= ui_icon('upload', 18) ?> <?= _e('admin.tasks.import_file') ?></h2>
-      <input class="input" type="file" name="file" accept="application/json,.json">
+      <h2 class="card-title"><label for="import-file"><?= ui_icon('upload', 18) ?> <?= _e('admin.tasks.import_file') ?></label></h2>
+      <input class="input" type="file" id="import-file" name="file" accept="application/json,.json">
       <span class="help"><?= _e('admin.tasks.import_file_help') ?></span>
-      <h2 class="card-title"><?= ui_icon('copy', 18) ?> <?= _e('admin.tasks.import_paste') ?></h2>
+      <h2 class="card-title"><label for="imp-json"><?= ui_icon('copy', 18) ?> <?= _e('admin.tasks.import_paste') ?></label></h2>
       <textarea class="textarea t-mono admin-code" name="json" rows="16" dir="ltr" spellcheck="false" data-json-field="list" id="imp-json" placeholder="[ { &quot;slug&quot;: … } ]"><?= e($json) ?></textarea>
       <span class="admin-json-status" data-json-status="#imp-json"></span>
     </section>
@@ -46,7 +46,7 @@ $example = [[
       <div class="divider"></div>
       <h3 class="t-h3"><?= _e('admin.tasks.format') ?></h3>
       <p class="t-small t-muted"><?= _e('admin.tasks.format_help') ?></p>
-      <pre class="code-block t-xs" dir="ltr"><?= e(json_encode($example, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?></pre>
+      <pre class="code-block t-xs" dir="ltr" tabindex="0"><?= e(json_encode($example, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?></pre>
       <p class="t-xs t-muted"><?= _e('admin.tasks.tracks_known') ?> <span class="t-mono" dir="ltr"><?= e(implode(', ', $tracks)) ?></span></p>
     </section>
   </div>

@@ -3,18 +3,29 @@ Options -Indexes -MultiViews
 DirectoryIndex index.php
 AddDefaultCharset UTF-8
 
+# Private files: denied even when mod_rewrite is missing (dotfiles such as .user.ini, docs, dumps, logs, scripts).
+<FilesMatch "(^\.|\.(md|sql|log|lock|sh|mjs|ini)$)">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
+
+  # Canonical host: drop "www." (first, so http://www reaches the canonical HTTPS host in one redirect).
+  RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+  RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
 
   # Force HTTPS (Hostinger provides free SSL). Comment out for local HTTP testing.
   RewriteCond %{HTTPS} !=on
   RewriteCond %{HTTP:X-Forwarded-Proto} !=https
   RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)
   RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
-
-  # Canonical host: drop "www."
-  RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
-  RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
 
   # Pass the Authorization header to PHP (headless verifier tokens).
   RewriteCond %{HTTP:Authorization} .
@@ -25,6 +36,16 @@ AddDefaultCharset UTF-8
   RewriteRule (^|/)\.(?!well-known) - [F,L]
   RewriteRule \.(md|sql|log|lock|json\.dist|sh|mjs|ini)$ - [F,L,NC]
 
+  # LiteSpeed (Hostinger) stops PHP when the client disconnects: let the worker endpoints finish their unit
+  # (a web-cron service that times out would otherwise kill a generation half-way and burn one of its tries).
+  <IfModule LiteSpeed>
+    RewriteRule ^(worker/tick|admin/api/step)$ - [E=noabort:1,E=noconntimeout:1]
+  </IfModule>
+
+  # Root icons that browsers and crawlers request whatever the page's <link> says.
+  RewriteRule ^favicon\.ico$ assets/img/favicon.ico [L]
+  RewriteRule ^apple-touch-icon(-precomposed)?\.png$ assets/img/apple-touch-icon.png [L]
+
   # Real files are served directly; everything else goes to the front controller.
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
@@ -33,8 +54,13 @@ AddDefaultCharset UTF-8
 </IfModule>
 
 <IfModule mod_headers.c>
+  # Versioned assets (?v=…) and unique upload names (screenshots, brand images) never change in place.
   <FilesMatch "\.(css|js|woff2|svg|png|jpg|jpeg|webp|ico)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  # Unversioned root icons (/favicon.ico, /apple-touch-icon.png) may change with the brand.
+  <FilesMatch "^(favicon\.ico|apple-touch-icon\.png)$">
+    Header set Cache-Control "public, max-age=604800"
   </FilesMatch>
 </IfModule>
 
@@ -42,12 +68,13 @@ AddDefaultCharset UTF-8
   AddOutputFilterByType DEFLATE text/html text/css text/plain text/csv application/javascript application/json image/svg+xml application/manifest+json application/xml
 </IfModule>
 
+# No image/svg+xml here: PHP-generated SVG badges send their own short lifetime (static SVGs get it from the
+# Cache-Control header above).
 <IfModule mod_expires.c>
   ExpiresActive On
   ExpiresByType text/css "access plus 1 year"
   ExpiresByType application/javascript "access plus 1 year"
   ExpiresByType font/woff2 "access plus 1 year"
-  ExpiresByType image/svg+xml "access plus 1 year"
   ExpiresByType image/png "access plus 1 year"
   ExpiresByType image/webp "access plus 1 year"
 </IfModule>

@@ -43,6 +43,8 @@ final class Generator
         if (empty($res['ok'])) {
             $out['retryable'] = (bool) ($res['retryable'] ?? true);
             $out['error'] = (string) ($res['error'] ?? 'unknown API error');
+            $out['halt'] = is_array($res['halt'] ?? null) ? $res['halt'] : null;
+            $out['retry_after'] = isset($res['retry_after']) && is_numeric($res['retry_after']) ? (int) $res['retry_after'] : null;
             return $out;
         }
         $content = (string) ($res['content'] ?? '');
@@ -106,6 +108,7 @@ final class Generator
         $out['ok'] = $a['ok'];
         $out['retryable'] = $a['retryable'];
         $out['error'] = $a['error'];
+        $out['halt'] = is_array($a['halt'] ?? null) ? $a['halt'] : null;
         $out['raw_output'] = $a['raw_output'];
         $out['code'] = $a['final_answer'];
         $out['code_bytes'] = strlen($a['final_answer'] ?? '');
@@ -127,7 +130,7 @@ final class Generator
             'ok' => false, 'retryable' => false, 'error' => null, 'raw_output' => '', 'code' => null, 'code_bytes' => 0,
             'prompt_tokens' => 0, 'completion_tokens' => 0, 'reasoning_tokens' => 0, 'cost_usd' => 0.0, 'latency_ms' => 0,
             'finish_reason' => null, 'provider_used' => null, 'gen_id' => null, 'static' => [], 'answer' => null, 'agent' => null,
-            'note' => null,
+            'note' => null, 'halt' => null, 'retry_after' => null,
         ];
     }
 

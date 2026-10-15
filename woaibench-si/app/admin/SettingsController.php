@@ -271,7 +271,7 @@ final class SettingsController
             \flash('error', \__('admin.engine_missing', ['c' => 'WB\\Eval\\Aggregator']));
             \redirect_back('/admin');
         }
-        @set_time_limit(280);
+        \wb_time_limit(280);
         $t0 = microtime(true);
         try {
             \WB\Eval\Aggregator::recompute();

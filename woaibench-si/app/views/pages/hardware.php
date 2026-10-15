@@ -226,8 +226,13 @@ foreach ($gpus as $g) {
             <tbody id="hw-brows"></tbody>
           </table>
         </div>
-<?php else: ?>
-        <div class="card-pad"><?= ui_empty(__('tools.hw_best_empty'), __('tools.hw_best_empty_text'), 'cpu') ?></div>
+<?php else:
+    // Scored open-weight models without a parameter count cannot be sized: say so instead of "none benchmarked".
+    $unsized = count(array_filter(\WB\Data\Leaderboard::rows(), static fn($r) => $r['open_weights'] && $r['score'] !== null && !((float) ($r['params_b'] ?? 0) > 0)));
+?>
+        <div class="card-pad"><?= $unsized > 0
+            ? ui_empty(__('tools.hw_best_unsized'), __('tools.hw_best_unsized_text', ['n' => $unsized]), 'cpu')
+            : ui_empty(__('tools.hw_best_empty'), __('tools.hw_best_empty_text'), 'cpu') ?></div>
 <?php endif; ?>
       </div>
 

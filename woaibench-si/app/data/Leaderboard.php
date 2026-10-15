@@ -20,12 +20,13 @@ final class Leaderboard
      *
      * Row keys: id slug name provider provider_name open_weights params_b active_params_b context_length
      *   price_in price_out supports_vision color release_date description
-     *   score ci_low ci_high rank_pos stat_rank provisional coverage n_tasks n_runs consistency
+     *   score ci_low ci_high rank_pos stat_rank provisional coverage n_tasks n_runs n_failed consistency
      *   auto_avg judge_avg avg_cost avg_latency_ms avg_tokens updated_at
-     *   tracks => [slug => ['score','ci_low','ci_high','n_tasks','n_runs']]
+     *   tracks => [slug => ['score','ci_low','ci_high','n_tasks','n_runs','n_failed','coverage','provisional','rank_pos','stat_rank']]
+     *   (n_failed = runs excluded from the score: failed after their tries or not scorable; 0 before the upgrade)
      *   arena  => ['rating','ci_low','ci_high','votes'] | null
      *
-     * $opts: 'track' => slug  (sort by that track; rows without it go last)
+     * $opts: 'track' => slug  (sort by that track: ranked in it, then provisional in it, then rows without it)
      *        'include_provisional' => bool (default true)
      */
     public static function rows(?string $season = null, array $opts = []): array
@@ -35,10 +36,11 @@ final class Leaderboard
         if (isset(self::$cache[$key])) {
             return self::$cache[$key];
         }
+        $failed = \WB\Eval\Pipeline::hasColumn('model_scores', 'n_failed') ? 's.n_failed' : '0 AS n_failed';
         $base = DB::all(
             "SELECT m.id, m.slug, m.name, m.provider, m.provider_name, m.open_weights, m.params_b, m.active_params_b,
                     m.context_length, m.price_in, m.price_out, m.supports_vision, m.color, m.release_date, m.description,
-                    s.score, s.ci_low, s.ci_high, s.rank_pos, s.stat_rank, s.provisional, s.coverage, s.n_tasks, s.n_runs,
+                    s.score, s.ci_low, s.ci_high, s.rank_pos, s.stat_rank, s.provisional, s.coverage, s.n_tasks, s.n_runs, $failed,
                     s.consistency, s.auto_avg, s.judge_avg, s.avg_cost, s.avg_latency_ms, s.avg_tokens, s.updated_at
                FROM model_scores s
                JOIN models m ON m.id = s.model_id
@@ -50,7 +52,8 @@ final class Leaderboard
         }
         $ids = array_map(static fn($r) => (int) $r['id'], $base);
         $trackRows = DB::all(
-            "SELECT model_id, scope, score, ci_low, ci_high, n_tasks, n_runs FROM model_scores
+            "SELECT model_id, scope, score, ci_low, ci_high, n_tasks, n_runs, " . str_replace('s.', '', $failed) . ",
+                    coverage, provisional, rank_pos, stat_rank FROM model_scores
               WHERE season = ? AND scope LIKE 'track:%' AND model_id IN (" . DB::in($ids) . ')',
             array_merge([$season], $ids)
         );
@@ -62,6 +65,11 @@ final class Leaderboard
                 'ci_high' => $t['ci_high'] !== null ? (float) $t['ci_high'] : null,
                 'n_tasks' => (int) $t['n_tasks'],
                 'n_runs' => (int) $t['n_runs'],
+                'n_failed' => (int) $t['n_failed'],
+                'coverage' => (float) $t['coverage'],
+                'provisional' => (bool) $t['provisional'],
+                'rank_pos' => $t['rank_pos'] !== null ? (int) $t['rank_pos'] : null,
+                'stat_rank' => $t['stat_rank'] !== null ? (int) $t['stat_rank'] : null,
             ];
         }
         $arena = DB::keyed('SELECT model_id, rating, ci_low, ci_high, votes FROM arena_ratings WHERE model_id IN (' . DB::in($ids) . ')', $ids);
@@ -72,7 +80,7 @@ final class Leaderboard
             foreach (['score', 'ci_low', 'ci_high', 'coverage', 'consistency', 'auto_avg', 'judge_avg', 'avg_cost', 'price_in', 'price_out', 'params_b', 'active_params_b'] as $f) {
                 $r[$f] = $r[$f] !== null ? (float) $r[$f] : null;
             }
-            foreach (['id', 'rank_pos', 'stat_rank', 'n_tasks', 'n_runs', 'avg_latency_ms', 'avg_tokens', 'context_length'] as $f) {
+            foreach (['id', 'rank_pos', 'stat_rank', 'n_tasks', 'n_runs', 'n_failed', 'avg_latency_ms', 'avg_tokens', 'context_length'] as $f) {
                 $r[$f] = $r[$f] !== null ? (int) $r[$f] : null;
             }
             $r['open_weights'] = (bool) $r['open_weights'];
@@ -91,12 +99,11 @@ final class Leaderboard
         $track = $opts['track'] ?? null;
         usort($rows, static function (array $a, array $b) use ($track): int {
             if ($track) {
-                $sa = $a['tracks'][$track]['score'] ?? null;
-                $sb = $b['tracks'][$track]['score'] ?? null;
-                if ($sa === null || $sb === null) {
-                    return ($sa === null) <=> ($sb === null);
-                }
-                return $sb <=> $sa;
+                $ta = $a['tracks'][$track] ?? null;
+                $tb = $b['tracks'][$track] ?? null;
+                $ga = $ta === null ? 2 : (!empty($ta['provisional']) ? 1 : 0);
+                $gb = $tb === null ? 2 : (!empty($tb['provisional']) ? 1 : 0);
+                return $ga <=> $gb ?: ($tb['score'] ?? 0) <=> ($ta['score'] ?? 0);
             }
             if ($a['provisional'] !== $b['provisional']) {
                 return $a['provisional'] <=> $b['provisional'];

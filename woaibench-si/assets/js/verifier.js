@@ -769,12 +769,14 @@
       var onVis = function () { if (document.visibilityState !== 'visible') { wasHidden = true; } };
       document.addEventListener('visibilitychange', onVis);
       var nonce = null;
+      var port = null; // private MessageChannel port handed over in the probe's hello (results + shots arrive there)
       var result = null;
       var done = false;
       var timers = [];
       var later = function (fn, ms) { timers.push(setTimeout(fn, ms)); };
       var cleanup = function (shot) {
         window.removeEventListener('message', onMsg);
+        if (port) { try { port.onmessage = null; port.close(); } catch (e) { /* ignore */ } }
         document.removeEventListener('visibilitychange', onVis);
         timers.forEach(clearTimeout);
         if (ro) { ro.disconnect(); }
@@ -801,24 +803,12 @@
       var requestShot = function () {
         self.setPhase(t('capturing') + ' · ' + vp.name, 'violet', base + span * 0.8);
         later(function () { finish('ok', { result: result, shot: null }); }, SHOT_TIMEOUT);
-        try { frame.contentWindow.postMessage({ type: 'wb-shot' }, '*'); } catch (e) { finish('ok', { result: result, shot: null }); }
+        // The request carries nothing secret; it goes over the private port (when there is one) and the window
+        // channel, and the probe captures once (it ignores a request while a capture is running).
+        if (port) { try { port.postMessage({ type: 'wb-shot' }); } catch (e) { /* ignore */ } }
+        try { frame.contentWindow.postMessage({ type: 'wb-shot' }, '*'); } catch (e) { if (!port) { finish('ok', { result: result, shot: null }); } }
       };
-      var onMsg = function (ev) {
-        if (done || ev.source !== frame.contentWindow) { return; }
-        var d = ev.data;
-        if (!d || typeof d !== 'object' || typeof d.type !== 'string') { return; }
-        if (d.type === 'wb-probe-hello') {
-          if (nonce !== null || typeof d.nonce !== 'string' || !d.nonce) { return; }
-          nonce = d.nonce;
-          var secs = Math.round((Math.min(160000, Math.max(5000, num(d.deadline_ms, 15000))) + 6000) / 1000);
-          self.setPhase(t('checking') + ' · ' + vp.name, 'gold', base + span * 0.25);
-          later(function () {
-            if (result) { return; }
-            st.log('warn', t('log_hung', { id: run.id, vp: vp.name, secs: secs }));
-            finish('ok', { result: hungResult(run, vp, secs), shot: null });
-          }, secs * 1000);
-          return;
-        }
+      var onData = function (d) {
         if (nonce === null || d.nonce !== nonce) { return; }
         if (d.type === 'wb-probe' && !result) {
           result = d;
@@ -829,6 +819,36 @@
           var shot = typeof d.dataUrl === 'string' && /^data:image\/(png|webp|jpeg);base64,[A-Za-z0-9+/=]+$/.test(d.dataUrl) && d.dataUrl.length < 5600000 ? d.dataUrl : null;
           finish('ok', { result: result, shot: shot });
         }
+      };
+      var onPortMsg = function (ev) {
+        var d = ev.data;
+        if (done || !d || typeof d !== 'object' || typeof d.type !== 'string') { return; }
+        onData(d);
+      };
+      var onMsg = function (ev) {
+        if (done || ev.source !== frame.contentWindow) { return; }
+        var d = ev.data;
+        if (!d || typeof d !== 'object' || typeof d.type !== 'string') { return; }
+        if (d.type === 'wb-probe-hello') {
+          if (nonce !== null || typeof d.nonce !== 'string' || !d.nonce) { return; }
+          nonce = d.nonce;
+          // The probe's hello is sent before any page code runs; when it hands over a port, results and shots
+          // are accepted only from that port, so page code that learns the nonce cannot post a forged result.
+          if (ev.ports && ev.ports[0]) {
+            port = ev.ports[0];
+            port.onmessage = onPortMsg;
+          }
+          var secs = Math.round((Math.min(160000, Math.max(5000, num(d.deadline_ms, 15000))) + 6000) / 1000);
+          self.setPhase(t('checking') + ' · ' + vp.name, 'gold', base + span * 0.25);
+          later(function () {
+            if (result) { return; }
+            st.log('warn', t('log_hung', { id: run.id, vp: vp.name, secs: secs }));
+            finish('ok', { result: hungResult(run, vp, secs), shot: null });
+          }, secs * 1000);
+          return;
+        }
+        if (port) { return; } // a port was handed over: window messages are untrusted (page code can post them)
+        onData(d);
       };
       window.addEventListener('message', onMsg);
       later(function () {

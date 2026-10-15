@@ -61,6 +61,7 @@ final class CampaignsController
             'runs_default' => (int) \setting('runs_per_task', 3),
             'engine' => Admin::engine('Campaign'),
             'judges' => (int) DB::val('SELECT COUNT(*) FROM models WHERE is_judge = 1'),
+            'judge_gaps' => Admin::judgeGaps($models), // model id => eligible judges, only models without a tie-break reserve
         ]);
     }
 
@@ -177,6 +178,14 @@ final class CampaignsController
         }
         DB::update('campaigns', ['include_in_scores' => \input('include_in_scores') ? 1 : 0, 'created_by' => (int) $user['id']], 'id = ?', [$id]);
         \flash('success', \__('admin.campaigns.created_msg', ['n' => count($m) * count($t) * $runs]));
+        $gaps = Admin::judgeGaps(DB::all('SELECT id, name, provider, or_id FROM models WHERE id IN (' . DB::in($m) . ')', $m));
+        if ($gaps) {
+            $names = DB::col('SELECT name FROM models WHERE id IN (' . DB::in(array_keys($gaps)) . ') ORDER BY name', array_keys($gaps));
+            \flash('warn', \__('admin.campaigns.warn_judge_reserve', [
+                'n' => count($gaps), 'models' => implode(', ', array_slice($names, 0, 5)) . (count($names) > 5 ? '…' : ''),
+                'need' => max(1, (int) \setting('judge_count')) + 1,
+            ]));
+        }
         \redirect('/admin/console');
     }
 
@@ -273,6 +282,7 @@ final class CampaignsController
                     \flash('error', \__('admin.campaigns.err_delete_running'));
                     \redirect('/admin/campaigns/' . $id);
                 }
+                RunsController::deleteShots(array_map('intval', DB::col('SELECT id FROM runs WHERE campaign_id = ?', [$id])));
                 DB::exec('DELETE FROM campaigns WHERE id = ?', [$id]);
                 \Settings::set('aggregate_dirty', 1);
                 \flash('success', \__('admin.deleted'));

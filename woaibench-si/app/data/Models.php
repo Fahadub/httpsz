@@ -13,8 +13,14 @@ use DB;
 
 final class Models
 {
-    /** SQL fragment: runs that count for a season (same filter as the aggregator). */
-    public const COUNTED = "r.status = 'scored' AND c.include_in_scores = 1 AND c.season = ? AND t.is_active = 1";
+    /**
+     * SQL fragment: runs that count for a season — the same filter as WB\Eval\Aggregator (scored with a usable
+     * score, included campaign of the season, active task, track and model). Needs aliases r (runs), t (tasks) and
+     * c (campaigns); one placeholder (season).
+     */
+    public const COUNTED = "r.status = 'scored' AND r.final_score IS NOT NULL AND c.include_in_scores = 1 AND c.season = ? AND t.is_active = 1
+        AND EXISTS (SELECT 1 FROM tracks trc WHERE trc.id = t.track_id AND trc.is_active = 1)
+        AND EXISTS (SELECT 1 FROM models mc WHERE mc.id = r.model_id AND mc.is_active = 1)";
 
     /** Model catalogue row by slug (public columns only) or null. */
     public static function find(string $slug): ?array
@@ -39,8 +45,10 @@ final class Models
     }
 
     /**
-     * Display ranking for the leaderboard. Adds d_score, d_ci_low, d_ci_high, d_rank, d_stat_rank,
+     * Display ranking for the leaderboard. Adds d_score, d_ci_low, d_ci_high, d_provisional, d_rank, d_stat_rank,
      * tied_leader and tied_above to each row; ordered ranked → provisional → unscored-in-track.
+     * Track mode uses the track row's own provisional flag (track coverage below min_coverage, ARCHITECTURE §5.3)
+     * and the aggregator's tie-aware track rank_pos / stat_rank.
      */
     public static function rank(array $rows, ?string $track = null): array
     {
@@ -49,27 +57,31 @@ final class Models
             $r['d_score'] = $src['score'] ?? null;
             $r['d_ci_low'] = $src['ci_low'] ?? null;
             $r['d_ci_high'] = $src['ci_high'] ?? null;
+            $r['d_provisional'] = $track ? (bool) ($src['provisional'] ?? $r['provisional']) : (bool) $r['provisional'];
+            $r['d_rank_pos'] = $src['rank_pos'] ?? null;
+            $r['d_stat_rank_pos'] = $src['stat_rank'] ?? null;
         }
         unset($r);
         usort($rows, static function (array $a, array $b): int {
-            $ga = $a['d_score'] === null ? 2 : ($a['provisional'] ? 1 : 0);
-            $gb = $b['d_score'] === null ? 2 : ($b['provisional'] ? 1 : 0);
+            $ga = $a['d_score'] === null ? 2 : ($a['d_provisional'] ? 1 : 0);
+            $gb = $b['d_score'] === null ? 2 : ($b['d_provisional'] ? 1 : 0);
             return $ga <=> $gb ?: ($b['d_score'] ?? 0) <=> ($a['d_score'] ?? 0);
         });
-        $ranked = array_values(array_filter($rows, static fn($r) => !$r['provisional'] && $r['d_score'] !== null));
+        $ranked = array_values(array_filter($rows, static fn($r) => !$r['d_provisional'] && $r['d_score'] !== null));
         $pos = 0;
         $leader = $ranked[0] ?? null;
         $prev = null;
         foreach ($rows as &$r) {
             $r['tied_leader'] = false;
             $r['tied_above'] = false;
-            if ($r['provisional'] || $r['d_score'] === null) {
+            if ($r['d_provisional'] || $r['d_score'] === null) {
                 $r['d_rank'] = null;
                 $r['d_stat_rank'] = null;
                 continue;
             }
-            $r['d_rank'] = $track ? ++$pos : ($r['rank_pos'] ?? ++$pos);
-            $r['d_stat_rank'] = $track ? self::statRank($r, $ranked) : ($r['stat_rank'] ?? self::statRank($r, $ranked));
+            $pos++;
+            $r['d_rank'] = $r['d_rank_pos'] ?? $pos; // stored tie-aware rank; position only for rows without one
+            $r['d_stat_rank'] = $r['d_stat_rank_pos'] ?? self::statRank($r, $ranked);
             if ($leader && $leader['id'] !== $r['id']) {
                 $r['tied_leader'] = self::overlaps($r, $leader);
             }
@@ -111,7 +123,9 @@ final class Models
                 continue;
             }
             foreach ($r['tracks'] as $slug => $t) {
-                $by[$slug][] = $t['score'];
+                if (empty($t['provisional'])) {
+                    $by[$slug][] = $t['score'];
+                }
             }
         }
         return array_map(static fn($xs) => \median($xs), $by);
@@ -254,10 +268,14 @@ final class Models
         return $out;
     }
 
-    /** Pareto frontier (min cost, max score) over rows with both values; returns row ids on the frontier. */
+    /**
+     * Pareto frontier (min cost, max score) over ranked rows with both values; returns row ids on the frontier.
+     * Provisional rows are left out: scored on an incomplete (possibly easier) subset of tasks, with a cost average
+     * over that subset, they could push ranked models off the frontier. They can still be drawn as points.
+     */
     public static function paretoIds(array $rows, string $xKey = 'avg_cost'): array
     {
-        $pts = array_values(array_filter($rows, static fn($r) => ($r[$xKey] ?? null) !== null && $r[$xKey] > 0 && $r['score'] !== null));
+        $pts = array_values(array_filter($rows, static fn($r) => empty($r['provisional']) && ($r[$xKey] ?? null) !== null && $r[$xKey] > 0 && $r['score'] !== null));
         usort($pts, static fn($a, $b) => [$a[$xKey], -$a['score']] <=> [$b[$xKey], -$b['score']]);
         $ids = [];
         $best = -INF;

@@ -59,20 +59,20 @@ echo partial('admin/_head', [
     </section>
 
     <section class="card card-pad stack">
-      <div class="card-head"><h2 class="card-title"><?= ui_icon('terminal', 18) ?> <?= _e('admin.tasks.prompt') ?></h2><span class="t-xs t-muted t-num" data-count-for="#tk-prompt"></span></div>
-      <textarea class="textarea t-mono admin-code" id="tk-prompt" name="prompt" rows="14" dir="ltr" spellcheck="false" required><?= e($f['prompt']) ?></textarea>
+      <div class="card-head"><h2 class="card-title" id="tk-prompt-h"><?= ui_icon('terminal', 18) ?> <?= _e('admin.tasks.prompt') ?></h2><span class="t-xs t-muted t-num" data-count-for="#tk-prompt"></span></div>
+      <textarea class="textarea t-mono admin-code" id="tk-prompt" aria-labelledby="tk-prompt-h" name="prompt" rows="14" dir="ltr" spellcheck="false" required><?= e($f['prompt']) ?></textarea>
       <span class="help"><?= _e('admin.tasks.prompt_help') ?></span>
     </section>
 
     <section class="card card-pad stack">
-      <div class="card-head"><h2 class="card-title"><?= ui_icon('scale', 18) ?> <?= _e('admin.tasks.rubric') ?></h2><span class="admin-json-status" data-json-status="#tk-rubric"></span></div>
-      <textarea class="textarea t-mono admin-code" id="tk-rubric" name="rubric_json" rows="12" dir="ltr" spellcheck="false" data-json-field="rubric"><?= e($f['rubric_json']) ?></textarea>
+      <div class="card-head"><h2 class="card-title" id="tk-rubric-h"><?= ui_icon('scale', 18) ?> <?= _e('admin.tasks.rubric') ?></h2><span class="admin-json-status" data-json-status="#tk-rubric"></span></div>
+      <textarea class="textarea t-mono admin-code" id="tk-rubric" aria-labelledby="tk-rubric-h" name="rubric_json" rows="12" dir="ltr" spellcheck="false" data-json-field="rubric"><?= e($f['rubric_json']) ?></textarea>
       <span class="help"><?= _e('admin.tasks.rubric_help') ?></span>
     </section>
 
     <section class="card card-pad stack">
-      <div class="card-head"><h2 class="card-title"><?= ui_icon('check-circle', 18) ?> <?= _e('admin.tasks.checks') ?></h2><span class="admin-json-status" data-json-status="#tk-checks"></span></div>
-      <textarea class="textarea t-mono admin-code" id="tk-checks" name="checks_json" rows="18" dir="ltr" spellcheck="false" data-json-field="checks"><?= e($f['checks_json']) ?></textarea>
+      <div class="card-head"><h2 class="card-title" id="tk-checks-h"><?= ui_icon('check-circle', 18) ?> <?= _e('admin.tasks.checks') ?></h2><span class="admin-json-status" data-json-status="#tk-checks"></span></div>
+      <textarea class="textarea t-mono admin-code" id="tk-checks" aria-labelledby="tk-checks-h" name="checks_json" rows="18" dir="ltr" spellcheck="false" data-json-field="checks"><?= e($f['checks_json']) ?></textarea>
       <details class="admin-ref">
         <summary><?= _e('admin.tasks.reference') ?></summary>
         <div class="admin-ref-grid t-xs">

@@ -151,6 +151,7 @@ CREATE TABLE IF NOT EXISTS runs (
   completion_tokens INT UNSIGNED NULL,
   reasoning_tokens INT UNSIGNED NULL,
   cost_usd DECIMAL(12,6) NULL,
+  spent_usd DECIMAL(12,6) NOT NULL DEFAULT 0, -- every paid call of the run (all attempts + judges), only grows
   latency_ms INT UNSIGNED NULL,
   finish_reason VARCHAR(40) NULL,
   provider_used VARCHAR(80) NULL,
@@ -231,6 +232,7 @@ CREATE TABLE IF NOT EXISTS model_scores (
   provisional TINYINT(1) NOT NULL DEFAULT 0,
   rank_pos INT UNSIGNED NULL,
   stat_rank INT UNSIGNED NULL,
+  n_failed INT UNSIGNED NOT NULL DEFAULT 0, -- runs excluded from this score (failed / not scorable)
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (model_id, season, scope),
   KEY ix_scores_scope (season, scope, score),

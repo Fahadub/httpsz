@@ -11,6 +11,34 @@ final class Auth
     private static ?array $user = null;
     private static bool $resolved = false;
 
+    /** Paths that are always session-less (public, cacheable endpoints: API, badges, embeds, exports…). */
+    public const STATELESS_RE = '#^/(api/v1(/|$)|badge/|embed/|export/|sitemap\.xml$|robots\.txt$|healthz$|site\.webmanifest$|worker/tick$)#';
+
+    /** Paths that start a session for cookieless clients (forms with CSRF, admin, arena pair ownership and votes). */
+    private const SESSION_PAGES_RE = '#^/(admin(/|$)|install(/|$)|request$|arena(/next|/vote)?$)#';
+
+    /**
+     * Whether this request needs a PHP session. Clients that already hold a session cookie keep it (except on the
+     * always-stateless paths); without one only the few pages with forms / pair state start one, so crawlers,
+     * cookieless visitors and bot 404s never create session files (inode quota on shared hosting). Every
+     * browser POST lives under those paths; a POST anywhere else fails its CSRF check without a session anyway.
+     */
+    public static function wantsSession(string $path): bool
+    {
+        if (preg_match(self::STATELESS_RE, $path) === 1) {
+            return false;
+        }
+        if (isset($_COOKIE['wb_sess'])) {
+            return true;
+        }
+        // Sandboxed frames and token-authenticated verifier calls never start one (headless verifiers, iframes);
+        // neither do crawlers on /arena (they get the page without a pair).
+        if (preg_match('#^/(render/|arena/frame/|api/verifier/)#', $path) === 1 || ($path === '/arena' && is_crawler())) {
+            return false;
+        }
+        return preg_match(self::SESSION_PAGES_RE, $path) === 1;
+    }
+
     public static function startSession(): void
     {
         if (session_status() === PHP_SESSION_ACTIVE || WB_CLI) {
@@ -37,6 +65,14 @@ final class Auth
         session_start();
     }
 
+    /** An admin session ends after this many seconds without any admin request. */
+    private const IDLE_SECONDS = 43200;
+
+    /**
+     * The signed-in admin, or null. A session is valid only while its admins row exists (removed admins are out
+     * at once), its password stamp matches (a password change ends every other session), the UA is unchanged and
+     * it has not been idle for IDLE_SECONDS.
+     */
     public static function user(): ?array
     {
         if (self::$resolved) {
@@ -48,12 +84,33 @@ final class Auth
             return null;
         }
         // Bind session to UA to make stolen cookies less useful.
-        if (($_SESSION['admin_ua'] ?? '') !== hash('sha256', (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''))) {
+        $uaOk = ($_SESSION['admin_ua'] ?? '') === hash('sha256', (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+        $seen = (int) ($_SESSION['admin_seen'] ?? 0);
+        $row = $uaOk && time() - $seen <= self::IDLE_SECONDS
+            ? DB::one('SELECT id, email, name, role, last_login_at, pass_hash FROM admins WHERE id = ?', [(int) $id])
+            : null;
+        if (!$row || !hash_equals(self::passwordStamp((string) $row['pass_hash']), (string) ($_SESSION['admin_pw'] ?? ''))) {
             self::logout();
             return null;
         }
-        self::$user = DB::one('SELECT id, email, name, role, last_login_at FROM admins WHERE id = ?', [(int) $id]);
+        unset($row['pass_hash']);
+        if (time() - $seen > 60) {
+            $_SESSION['admin_seen'] = time(); // refreshed at most once a minute (fewer session writes)
+        }
+        self::$user = $row;
         return self::$user;
+    }
+
+    /** Session stamp of the admin's current password hash (keyed, so the session file never holds the hash). */
+    public static function passwordStamp(string $passHash): string
+    {
+        return substr(hash_hmac('sha256', 'admin-pw|' . $passHash, app_secret()), 0, 32);
+    }
+
+    /** Keep the current session valid after its own password change (every other session ends). */
+    public static function refreshPasswordStamp(string $passHash): void
+    {
+        $_SESSION['admin_pw'] = self::passwordStamp($passHash);
     }
 
     public static function check(): bool
@@ -71,11 +128,14 @@ final class Auth
             return false;
         }
         if (password_needs_rehash($hash, PASSWORD_DEFAULT)) {
-            DB::update('admins', ['pass_hash' => password_hash($password, PASSWORD_DEFAULT)], 'id = ?', [(int) $row['id']]);
+            $hash = password_hash($password, PASSWORD_DEFAULT);
+            DB::update('admins', ['pass_hash' => $hash], 'id = ?', [(int) $row['id']]);
         }
         session_regenerate_id(true);
         $_SESSION['admin_id'] = (int) $row['id'];
         $_SESSION['admin_ua'] = hash('sha256', (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+        $_SESSION['admin_pw'] = self::passwordStamp($hash);
+        $_SESSION['admin_seen'] = time();
         unset($_SESSION['_csrf']);
         DB::update('admins', ['last_login_at' => now()], 'id = ?', [(int) $row['id']]);
         self::$resolved = false;
@@ -84,7 +144,7 @@ final class Auth
 
     public static function logout(): void
     {
-        unset($_SESSION['admin_id'], $_SESSION['admin_ua']);
+        unset($_SESSION['admin_id'], $_SESSION['admin_ua'], $_SESSION['admin_pw'], $_SESSION['admin_seen']);
         if (session_status() === PHP_SESSION_ACTIVE) {
             session_regenerate_id(true);
         }

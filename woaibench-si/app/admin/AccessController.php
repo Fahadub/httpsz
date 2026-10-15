@@ -13,7 +13,8 @@ use Auth;
 
 final class AccessController
 {
-    private const LOGIN_MAX = 5;
+    private const LOGIN_MAX = 5;      // attempts per (e-mail, client) per window
+    private const LOGIN_MAX_IP = 20;  // attempts per client per window (several admins behind one NAT)
     private const LOGIN_WINDOW = 900;
     private const MIN_PASSWORD = 10;
 
@@ -33,27 +34,31 @@ final class AccessController
         ]);
     }
 
-    /** POST /admin/login — rate limited per IP and per e-mail, generic error. */
+    /**
+     * POST /admin/login — generic error; every attempt reserves a slot BEFORE the password is checked (atomic, so
+     * parallel requests cannot overshoot): 20 per 15 min per client and 5 per 15 min per (e-mail, client). The
+     * account limit is per client, so failures sent from elsewhere can never lock the owner out.
+     */
     public static function login(): void
     {
         \csrf_check();
         $email = strtolower(trim(Admin::str('email', '')));
         $password = (string) ($_POST['password'] ?? '');
-        // Only failed attempts are counted: 5 per 15 minutes per IP and per e-mail address.
-        $ipKey = 'admin_login_ip:' . \ip_hash();
-        $emailKey = 'admin_login_email:' . $email;
-        if (\RateLimit::remaining($ipKey, self::LOGIN_MAX, self::LOGIN_WINDOW) <= 0
-            || \RateLimit::remaining($emailKey, self::LOGIN_MAX, self::LOGIN_WINDOW) <= 0) {
+        $client = \ip_hash();
+        $ipKey = 'admin_login_ip:' . $client;
+        $pairKey = 'admin_login_email:' . $email . ':' . $client;
+        if (!\rate_limit($ipKey, self::LOGIN_MAX_IP, self::LOGIN_WINDOW)
+            || !\rate_limit($pairKey, self::LOGIN_MAX, self::LOGIN_WINDOW)) {
             self::loginForm(\__('admin.login.too_many'), 429);
             return;
         }
         if ($email === '' || $password === '' || strlen($password) > 1024 || !Auth::attempt($email, $password)) {
-            \rate_limit($ipKey, self::LOGIN_MAX, self::LOGIN_WINDOW);
-            \rate_limit($emailKey, self::LOGIN_MAX, self::LOGIN_WINDOW);
             usleep(random_int(150000, 350000));
             self::loginForm(\__('admin.login.failed'), 401);
             return;
         }
+        \RateLimit::reset($ipKey, self::LOGIN_WINDOW);
+        \RateLimit::reset($pairKey, self::LOGIN_WINDOW);
         \redirect(Admin::safeNext(\input('next')));
     }
 
@@ -93,8 +98,10 @@ final class AccessController
         } elseif (($msg = self::passwordProblem($new, $confirm)) !== null) {
             \flash('error', $msg);
         } else {
-            DB::update('admins', ['pass_hash' => password_hash($new, PASSWORD_DEFAULT)], 'id = ?', [(int) $user['id']]);
+            $hash = password_hash($new, PASSWORD_DEFAULT);
+            DB::update('admins', ['pass_hash' => $hash], 'id = ?', [(int) $user['id']]);
             session_regenerate_id(true);
+            Auth::refreshPasswordStamp($hash); // this session stays signed in; every other one ends
             \flash('success', \__('admin.account.pw_changed'));
         }
         \redirect('/admin/account');
@@ -122,8 +129,25 @@ final class AccessController
         \redirect('/admin/account');
     }
 
+    /** POST /admin/account/admins/{id}/delete — remove another administrator (their sessions end at once). */
+    public static function deleteAdmin(int $id): void
+    {
+        $user = Admin::guardPost();
+        $email = DB::val('SELECT email FROM admins WHERE id = ?', [$id]);
+        if ($id === (int) $user['id']) {
+            \flash('error', \__('admin.account.err_delete_self'));
+        } elseif (!is_string($email)) {
+            \flash('error', \__('admin.not_found'));
+        } else {
+            DB::exec('DELETE FROM admins WHERE id = ?', [$id]);
+            \log_error('Admin removed an administrator', ['admin' => $user['email'], 'removed' => $email]);
+            \flash('success', \__('admin.account.admin_deleted', ['email' => $email]));
+        }
+        \redirect('/admin/account');
+    }
+
     /** Null when acceptable, else a translated reason. */
-    public static function passwordProblem(string $pass, string $confirm): ?string
+    public static function passwordProblem(#[\SensitiveParameter] string $pass, #[\SensitiveParameter] string $confirm): ?string
     {
         if (mb_strlen($pass) < self::MIN_PASSWORD) {
             return \__('admin.account.err_short', ['n' => self::MIN_PASSWORD]);

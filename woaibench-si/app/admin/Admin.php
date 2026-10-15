@@ -284,6 +284,29 @@ final class Admin
         }
     }
 
+    /**
+     * Models whose eligible judge pool has no tie-break reserve: judges never grade their own vendor, so a full panel
+     * plus a reserve needs judge_count + 1 eligible judges. Returns model id => eligible judge count (only the gaps).
+     */
+    public static function judgeGaps(array $models): array
+    {
+        if (!self::engine('Judge')) {
+            return [];
+        }
+        $judges = DB::all('SELECT id, provider, or_id FROM models WHERE is_judge = 1');
+        $need = max(1, (int) \setting('judge_count')) + 1;
+        $out = [];
+        foreach ($models as $m) {
+            $vendor = \WB\Eval\Judge::vendor($m);
+            $n = count(array_filter($judges, static fn(array $j): bool => (int) $j['id'] !== (int) $m['id']
+                && ($vendor === '' || \WB\Eval\Judge::vendor($j) !== $vendor)));
+            if ($n < $need) {
+                $out[(int) $m['id']] = $n;
+            }
+        }
+        return $out;
+    }
+
     /** Start of the current UTC month as DATETIME. */
     public static function monthStart(): string
     {

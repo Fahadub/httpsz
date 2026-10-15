@@ -79,6 +79,23 @@ final class DashboardController
         return 'php ' . $root . '/cron/worker.php --seconds=55';
     }
 
+    /**
+     * POST /admin/halt/clear — "Clear & resume": the admin has topped up credit or fixed the key, so lift the provider
+     * halt (setting 'provider_halt') and resume every campaign it paused.
+     */
+    public static function clearHalt(): void
+    {
+        Admin::guardPost();
+        $n = 0;
+        if (Admin::engine('Campaign') && method_exists('WB\\Eval\\Campaign', 'clearHalt')) {
+            $n = \WB\Eval\Campaign::clearHalt(true);
+        } else {
+            \Settings::set('provider_halt', '');
+        }
+        \flash('success', \__('admin.halt.cleared', ['n' => $n]));
+        \redirect_back('/admin');
+    }
+
     /** GET /admin/console */
     public static function console(): void
     {

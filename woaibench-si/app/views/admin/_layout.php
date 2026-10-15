@@ -25,6 +25,7 @@ $newRequests = $bare ? 0 : \WB\Admin\Admin::newRequests();
 <meta name="robots" content="noindex, nofollow">
 <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
 <meta name="theme-color" content="#07080C">
+<link rel="icon" href="<?= e(asset('img/favicon.ico')) ?>" sizes="48x48">
 <link rel="icon" href="<?= e(asset('img/favicon.svg')) ?>" type="image/svg+xml">
 <script<?= nonce_attr() ?>>(function(){try{var t=localStorage.getItem('wb_theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}else if(window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches){document.documentElement.setAttribute('data-theme','light');}}catch(e){}})();</script>
 <link rel="stylesheet" href="<?= e(asset('css/fonts.css')) ?>">
@@ -45,14 +46,14 @@ $newRequests = $bare ? 0 : \WB\Admin\Admin::newRequests();
 <?php else: ?>
 <div class="admin-shell" data-admin-shell>
   <aside class="admin-sidebar" id="admin-sidebar" aria-label="<?= _e('admin.nav.label') ?>">
-    <a class="brand admin-brand" href="<?= e(url('/admin')) ?>" aria-label="<?= e($siteName . ' — ' . __('admin.brand_suffix')) ?>">
+    <a class="brand admin-brand" href="<?= e(url('/admin')) ?>">
       <img class="brand-mark" src="<?= e(asset('img/logo-mark.svg')) ?>" alt="" width="32" height="32">
       <span class="admin-brand-text">
         <span class="brand-word">WOAI<span class="brand-bench">Bench</span><span class="brand-tld">.si</span></span>
         <span class="admin-brand-sub"><?= _e('admin.brand_suffix') ?></span>
       </span>
     </a>
-    <nav class="admin-nav">
+    <nav class="admin-nav" aria-label="<?= _e('admin.nav.label') ?>">
       <?php foreach (\WB\Admin\Admin::nav() as $group => $items): ?>
         <div class="admin-nav-section">
           <span class="admin-nav-group"><?= _e($group) ?></span>
@@ -84,7 +85,7 @@ $newRequests = $bare ? 0 : \WB\Admin\Admin::newRequests();
         </a>
       </div>
       <div class="admin-topbar-actions">
-        <a class="lang-switch" href="<?= e(lang_url(lang() === 'ar' ? 'en' : 'ar')) ?>" hreflang="<?= lang() === 'ar' ? 'en' : 'ar' ?>"><?= ui_icon('globe', 16) ?><span><?= lang() === 'ar' ? 'EN' : 'عربي' ?></span></a>
+        <a class="lang-switch" href="<?= e(lang_url(lang() === 'ar' ? 'en' : 'ar')) ?>" hreflang="<?= lang() === 'ar' ? 'en' : 'ar' ?>" lang="<?= lang() === 'ar' ? 'en' : 'ar' ?>"><?= ui_icon('globe', 16) ?><span><?= lang() === 'ar' ? 'English' : 'العربية' ?></span></a>
         <button class="theme-toggle btn-icon" type="button" data-theme-toggle aria-label="<?= _e('nav.theme') ?>"><?= ui_icon('sun', 18, 'icon-sun') ?><?= ui_icon('moon', 18, 'icon-moon') ?></button>
         <?php if ($adminUser): ?>
           <a class="admin-user" href="<?= e(url('/admin/account')) ?>" title="<?= e($adminUser['email']) ?>">

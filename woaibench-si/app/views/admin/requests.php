@@ -7,7 +7,7 @@ echo partial('admin/_head', [
     'actions' => '<a class="btn btn-ghost" href="' . e(url('/admin/models/sync')) . '">' . ui_icon('download', 16) . '<span>' . _e('admin.sync.title') . '</span></a>',
 ]);
 ?>
-<nav class="tabs admin-tabs">
+<nav class="tabs admin-tabs" aria-label="<?= _e('admin.requests.filter_label') ?>">
   <?php foreach (['new', 'done', 'dismissed', 'all'] as $s): ?>
     <a class="tab<?= $status === $s || ($s === 'all' && !in_array($status, ['new', 'done', 'dismissed'], true)) ? ' active' : '' ?>" href="<?= e(url('/admin/requests', ['status' => $s])) ?>"><?= _e('admin.requests.st.' . $s) ?><?php if ($s !== 'all'): ?> <span class="t-num t-muted"><?= (int) ($counts[$s] ?? 0) ?></span><?php endif; ?></a>
   <?php endforeach; ?>

@@ -176,7 +176,7 @@ final class AgentSim
         $messages = [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => (string) ($task['prompt'] ?? '')]];
         $ep = [
             'env' => $env, 'native' => $native, 'steps' => 0, 'turns' => 0, 'end' => null, 'error' => null,
-            'retryable' => false, 'ok' => true, 'switch_protocol' => false, 'provider' => null, 'gen_id' => null,
+            'retryable' => false, 'ok' => true, 'switch_protocol' => false, 'provider' => null, 'gen_id' => null, 'halt' => null,
             'usage' => $prev['usage'] ?? ['prompt_tokens' => 0, 'completion_tokens' => 0, 'reasoning_tokens' => 0, 'cost' => 0.0],
             'transcript' => array_merge($prev['transcript'] ?? [], [['role' => 'system', 'content' => self::cut($system)], ['role' => 'user', 'content' => self::cut((string) ($task['prompt'] ?? ''))]]),
             'log' => array_merge($prev['log'] ?? [], ['## Agent episode — ' . ($native ? 'native tool calling' : 'JSON text protocol') . ", max {$opt['max_steps']} steps"]),
@@ -201,13 +201,15 @@ final class AgentSim
             self::addUsage($ep['usage'], $res, $model);
             $ep['turns']++;
             if (!$res['ok']) {
-                if ($native && $ep['turns'] === 1 && $prev === null && !$res['retryable'] && preg_match('/tool/i', (string) $res['error'])) {
+                $halt = is_array($res['halt'] ?? null) ? $res['halt'] : null;
+                if ($halt === null && $native && $ep['turns'] === 1 && $prev === null && !$res['retryable'] && preg_match('/tool/i', (string) $res['error'])) {
                     $ep['switch_protocol'] = true;
                     $ep['log'][] = '[provider] tool calling rejected (' . $res['error'] . ') — switching to the JSON text protocol';
                     return $ep;
                 }
                 $ep['ok'] = false;
                 $ep['retryable'] = (bool) $res['retryable'];
+                $ep['halt'] = $halt;
                 $ep['error'] = 'API error on turn ' . $ep['turns'] . ': ' . $res['error'];
                 $ep['end'] = 'api_error';
                 $ep['log'][] = '[api error] ' . $res['error'];
@@ -579,6 +581,7 @@ final class AgentSim
             'ok' => $ep['ok'],
             'retryable' => $ep['ok'] ? false : $ep['retryable'],
             'error' => $ep['error'],
+            'halt' => $ep['ok'] ? null : ($ep['halt'] ?? null),
             'transcript' => $ep['transcript'],
             'final_answer' => $env->finalAnswer,
             'state' => $env->state(),

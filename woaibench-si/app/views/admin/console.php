@@ -15,6 +15,7 @@ $cfg = [
     'verifier' => $verifier_js,
 ];
 ?>
+<?= partial('admin/_halt', ['live' => true]) ?>
 <section class="admin-console card card-glass" data-console>
   <div class="admin-console-hero">
     <div class="admin-console-state">

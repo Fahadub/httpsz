@@ -26,6 +26,7 @@ Router::post('/admin/logout', static fn() => Access::logout());
 Router::get('/admin/account', static fn() => Access::account());
 Router::post('/admin/account/password', static fn() => Access::changePassword());
 Router::post('/admin/account/admins', static fn() => Access::addAdmin());
+Router::post('/admin/account/admins/{id:\d+}/delete', static fn(string $id) => Access::deleteAdmin((int) $id));
 Router::get('/admin/tokens', static fn() => Access::tokens());
 Router::post('/admin/tokens', static fn() => Access::createToken());
 Router::post('/admin/tokens/{id:\d+}/revoke', static fn(string $id) => Access::revokeToken((int) $id));
@@ -33,6 +34,7 @@ Router::post('/admin/tokens/{id:\d+}/revoke', static fn(string $id) => Access::r
 // Dashboard + console
 Router::get('/admin', static fn() => Dash::index());
 Router::get('/admin/console', static fn() => Dash::console());
+Router::post('/admin/halt/clear', static fn() => Dash::clearHalt());
 
 // Models
 Router::get('/admin/models', static fn() => Models::index());

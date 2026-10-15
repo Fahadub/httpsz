@@ -68,6 +68,7 @@
 .arn-anon { font-weight: 600; font-size: 14.5px; color: var(--text-muted); }
 .arn-side-actions { display: inline-flex; gap: 2px; flex: none; }
 .arn-side-actions .btn-icon { width: 34px; height: 34px; }
+@media (pointer: coarse) { .arn-side-actions .btn-icon { width: 40px; height: 40px; } }
 .arn-frame {
   --frame-h: clamp(420px, 64vh, 640px);
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
@@ -275,3 +276,5 @@ a.arn-model-name:hover { color: var(--gold); }
   .arn-result-actions .btn { justify-content: center; }
   .arn-rho-value { font-size: 44px; }
 }
+/* Empty 'Arena top 5': size the card to its content instead of stretching it beside 'How it works'. */
+.arn-top-empty { align-self: start; }

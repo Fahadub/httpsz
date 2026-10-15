@@ -366,13 +366,15 @@ Router::get('/methodology', static function (): void {
 Router::get('/value', static function (): void {
     $season = pub_season();
     $rows = Leaderboard::rows($season);
+    // Provisional models are still plotted, but only ranked ones may form (and dominate) the frontier.
+    $ranked = array_values(array_filter($rows, static fn(array $r): bool => empty($r['provisional'])));
     view('pages/value', pub_page('pub.value.title', 'pub.value.meta', 'value', [
         'canonical' => url('/value', [], true),
         'page_js' => ['vendor/chart.umd.min.js', 'js/value.js'],
         'rows' => $rows,
         'season' => $season,
-        'frontier' => Models::paretoIds($rows, 'avg_cost'),
-        'frontier_latency' => Models::paretoIds($rows, 'avg_latency_ms'),
+        'frontier' => Models::paretoIds($ranked, 'avg_cost'),
+        'frontier_latency' => Models::paretoIds($ranked, 'avg_latency_ms'),
         'values' => pub_value_scores($rows),
     ]));
 });
@@ -415,17 +417,16 @@ Router::post('/request', static function (): void {
         flash('success', __('pub.req.thanks'));
         redirect('/request');
     }
-    $key = 'model-request:' . ip_hash();
-    if (RateLimit::remaining($key, PUB_REQUEST_MAX, PUB_REQUEST_WINDOW) <= 0) {
-        pub_request_view(['form' => $data, 'error' => __('pub.req.err_rate')], 429);
-        return;
-    }
     $errors = pub_request_validate($data);
     if ($errors) {
         pub_request_view(['form' => $data, 'errors' => $errors, 'error' => __('pub.req.err_fix')], 422);
         return;
     }
-    rate_limit($key, PUB_REQUEST_MAX, PUB_REQUEST_WINDOW);
+    // Reserve the slot atomically (validation errors never count; parallel posts cannot overshoot).
+    if (!rate_limit('model-request:' . ip_hash(), PUB_REQUEST_MAX, PUB_REQUEST_WINDOW)) {
+        pub_request_view(['form' => $data, 'error' => __('pub.req.err_rate')], 429);
+        return;
+    }
     DB::insert('model_requests', [
         'name' => $data['name'],
         'or_id' => $data['or_id'] !== '' ? $data['or_id'] : null,

@@ -81,7 +81,8 @@
           r: {
             min: min,
             max: 100,
-            ticks: { stepSize: 10, display: true, backdropColor: 'transparent', color: css('--text-faint', '#777'), font: { size: 9 } },
+            // Fewer, smaller ticks above the data; hidden on narrow charts where they pile up (grid rings stay).
+            ticks: { stepSize: 20, display: canvas.clientWidth > 480, backdropColor: 'transparent', color: css('--text-faint', '#777'), font: { size: 9 }, z: 1 },
             grid: { color: css('--border', 'rgba(255,255,255,.08)') },
             angleLines: { color: css('--border', 'rgba(255,255,255,.08)') },
             pointLabels: { color: css('--text-muted', '#aaa'), font: { size: labelSize(canvas) }, padding: 6 }

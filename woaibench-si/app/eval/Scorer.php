@@ -45,13 +45,18 @@ final class Scorer
         if ($r['render_fail']) {
             Pipeline::addNotes($runId, [['code' => 'render_fail']]);
         }
+        if ($r['unscorable']) {
+            Pipeline::addNotes($runId, [['code' => 'unverified_unscorable']]);
+        }
         Settings::set('aggregate_dirty', 1);
         return $r;
     }
 
     /**
      * Pure scoring math for one run.
-     * Returns auto, judge, spread, contested, auto_weight, final, render_fail, verified, parts.
+     * Returns auto, judge, spread, contested, auto_weight, final, render_fail, verified, unscorable, parts.
+     * unscorable: browser checks / tests were excluded (unverified) and no judge verdict exists, so only static
+     * checks were measured — final stays null (not aggregated) instead of letting them stand in for the rest.
      */
     public static function compute(array $task, array $run, array $judgeScores): array
     {
@@ -69,8 +74,9 @@ final class Scorer
         if ($auto['score'] === null) {
             $a = $j['score'] === null ? 1.0 : 0.0;
         }
+        $unscorable = $auto['excluded'] > 0 && $j['score'] === null;
         $final = null;
-        if ($auto['score'] !== null || $j['score'] !== null) {
+        if (!$unscorable && ($auto['score'] !== null || $j['score'] !== null)) {
             $final = $a * ($auto['score'] ?? 0.0) + (1 - $a) * ($j['score'] ?? 0.0);
         }
         $renderFail = self::renderFailed($task, $run, $auto['browser']);
@@ -86,6 +92,7 @@ final class Scorer
             'final' => $final !== null ? round(clamp($final, 0.0, 100.0), 2) : null,
             'render_fail' => $renderFail,
             'verified' => (int) ($run['verified'] ?? 0) === 1,
+            'unscorable' => $unscorable,
             'parts' => $auto['parts'],
         ];
     }
@@ -242,23 +249,33 @@ final class Scorer
         return $out;
     }
 
-    /** Fraction of defined test cases reported as passing (matched by name, else by position). */
+    /**
+     * Fraction of defined test cases reported as passing: matched by name when every case has a unique name,
+     * otherwise strictly by position (the verifiers report results in case order) — with duplicate names a
+     * by-name lookup would let one result stand for several cases.
+     */
     public static function testsPassFraction(array $cases, mixed $results): float
     {
         if (!$cases) {
             return 0.0;
         }
+        $cases = array_values($cases);
         $results = is_array($results) ? array_values(array_filter($results, 'is_array')) : [];
+        $names = [];
+        foreach ($cases as $c) {
+            $names[] = is_array($c) && isset($c['name']) && is_scalar($c['name']) && (string) $c['name'] !== '' ? (string) $c['name'] : null;
+        }
+        $byNameOk = !in_array(null, $names, true) && count(array_unique($names)) === count($names);
         $byName = [];
-        foreach ($results as $r) {
+        foreach ($byNameOk ? $results : [] as $r) {
             if (isset($r['name']) && is_scalar($r['name']) && !isset($byName[(string) $r['name']])) {
                 $byName[(string) $r['name']] = $r;
             }
         }
         $pass = 0;
         foreach ($cases as $i => $c) {
-            $name = is_array($c) && isset($c['name']) && is_scalar($c['name']) ? (string) $c['name'] : null;
-            $r = $name !== null && isset($byName[$name]) ? $byName[$name] : (!$byName ? ($results[$i] ?? null) : null);
+            $name = $names[$i];
+            $r = $byNameOk && $byName ? ($byName[$name] ?? null) : ($results[$i] ?? null);
             if (is_array($r) && self::truthy($r['pass'] ?? false)) {
                 $pass++;
             }

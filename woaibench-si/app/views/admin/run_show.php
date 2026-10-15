@@ -15,6 +15,8 @@ $public = $r['visibility'] === 'public';
 $errorText = \WB\Admin\Admin::errorText($r['error']);
 $notes = $notes ?? [];
 $goals = $goals ?? [];
+// Required verification failed for infrastructure reasons: the run waits (unscored) until an admin re-verifies it.
+$needsVerify = $r['status'] === 'awaiting_verify' && in_array('needs_verification', array_column($notes, 'code'), true);
 echo partial('admin/_head', [
     'back' => url('/admin/runs', ['campaign' => $r['campaign_id']]),
     'eyebrow' => $r['campaign'] . ' · ' . __('admin.runs.attempt_n', ['n' => (int) $r['attempt']]),
@@ -24,6 +26,7 @@ echo partial('admin/_head', [
         . ($public ? '<a class="btn btn-sm btn-ghost" href="' . e(url('/run/' . $r['id'])) . '" target="_blank" rel="noopener">' . ui_icon('external', 14) . '<span>' . _e('admin.runs.public') . '</span></a>' : '')
         . '<a class="btn btn-sm btn-ghost" href="' . e(url('/render/' . $r['id'])) . '" target="_blank" rel="noopener">' . ui_icon('monitor', 14) . '<span>' . _e('admin.runs.render') . '</span></a>'
         . (!empty($can_retry) ? $act('retry', 'refresh', __('admin.runs.retry'), 'btn-primary', __('admin.runs.retry_confirm')) : '')
+        . ($needsVerify ? $act('reverify', 'shield', __('admin.runs.reverify'), 'btn-primary', __('admin.runs.reverify_confirm')) : '')
         . $act('regenerate', 'play', __('admin.runs.regenerate'), 'btn-outline', __('admin.runs.regenerate_confirm'))
         . $act('rejudge', 'scale', __('admin.runs.rejudge'), 'btn-ghost', __('admin.runs.rejudge_confirm'))
         . $act('delete', 'trash', __('common.delete'), 'btn-danger', __('admin.runs.delete_confirm'))
@@ -40,17 +43,25 @@ echo partial('admin/_head', [
 </div>
 
 <?php if ($errorText !== ''): ?><div class="alert alert-error"><?= ui_icon('alert', 16) ?> <span class="t-mono t-small admin-break" dir="ltr"><?= e($errorText) ?></span></div><?php endif; ?>
+<?php if ($needsVerify): ?><div class="alert alert-warn t-small"><?= ui_icon('shield', 16) ?> <span><?= _e('admin.runs.needs_verification_hint') ?></span></div><?php endif; ?>
 <?php if ($r['status'] === 'failed' && !empty($can_retry)): ?><div class="alert alert-info t-small"><?= ui_icon('info', 16) ?> <span><?= _e('admin.runs.retry_hint') ?></span></div><?php endif; ?>
 
 <div class="admin-split">
   <div class="stack-lg">
-    <?php if ($r['screenshot'] || $r['screenshot_mobile']): ?>
+    <?php if ($r['screenshot'] || $r['screenshot_mobile']):
+        // Only link files that exist (after a host move or cleanup the column can outlive the file).
+        $sd = \WB\Data\Runs::shotUrl($r['screenshot']);
+        $sm = \WB\Data\Runs::shotUrl($r['screenshot_mobile']);
+    ?>
       <section class="card card-pad stack">
         <h2 class="card-title"><?= ui_icon('image', 18) ?> <?= _e('admin.runs.screenshots') ?></h2>
+        <?php if ($sd || $sm): ?>
         <div class="admin-shots">
-          <?php if ($r['screenshot']): ?><a href="<?= e(upload_url($r['screenshot'])) ?>" target="_blank" rel="noopener"><img src="<?= e(upload_url($r['screenshot'])) ?>" alt="<?= _e('admin.runs.shot_desktop') ?>" loading="lazy"></a><?php endif; ?>
-          <?php if ($r['screenshot_mobile']): ?><a class="is-mobile" href="<?= e(upload_url($r['screenshot_mobile'])) ?>" target="_blank" rel="noopener"><img src="<?= e(upload_url($r['screenshot_mobile'])) ?>" alt="<?= _e('admin.runs.shot_mobile') ?>" loading="lazy"></a><?php endif; ?>
+          <?php if ($sd): ?><a href="<?= e($sd) ?>" target="_blank" rel="noopener"><img src="<?= e($sd) ?>" alt="<?= _e('admin.runs.shot_desktop') ?>" loading="lazy"></a><?php endif; ?>
+          <?php if ($sm): ?><a class="is-mobile" href="<?= e($sm) ?>" target="_blank" rel="noopener"><img src="<?= e($sm) ?>" alt="<?= _e('admin.runs.shot_mobile') ?>" loading="lazy"></a><?php endif; ?>
         </div>
+        <?php endif; ?>
+        <?php if (($r['screenshot'] && !$sd) || ($r['screenshot_mobile'] && !$sm)): ?><p class="t-small t-muted"><?= ui_icon('alert', 14) ?> <?= _e('admin.runs.shot_missing') ?></p><?php endif; ?>
       </section>
     <?php endif; ?>
 
@@ -133,7 +144,7 @@ echo partial('admin/_head', [
                   <span class="t-mono t-xs admin-ep-n"><?= $st['step'] !== null ? (int) $st['step'] : '·' ?></span>
                   <span class="t-mono admin-ep-tool" dir="ltr"><?= e($st['tool']) ?></span>
                   <code class="t-mono t-xs admin-ep-args admin-break" dir="ltr"><?= e(mb_strimwidth(preg_replace('/\s+/', ' ', $st['args']) ?? '', 0, 220, '…')) ?></code>
-                  <details class="admin-ep-result"><summary class="t-xs <?= $st['error'] !== '' ? 't-red' : 't-muted' ?>"><?= $st['error'] !== '' ? _e('admin.runs.ep_error') : _e('admin.runs.ep_result') ?></summary><pre class="code-block admin-pre t-xs" dir="ltr"><?= e(mb_substr($st['error'] !== '' ? $st['error'] : $st['result'], 0, 20000)) ?></pre></details>
+                  <details class="admin-ep-result"><summary class="t-xs <?= $st['error'] !== '' ? 't-red' : 't-muted' ?>"><?= $st['error'] !== '' ? _e('admin.runs.ep_error') : _e('admin.runs.ep_result') ?></summary><pre class="code-block admin-pre t-xs" dir="ltr" tabindex="0"><?= e(mb_substr($st['error'] !== '' ? $st['error'] : $st['result'], 0, 20000)) ?></pre></details>
                 </li>
               <?php else: ?>
                 <li class="is-msg"><span class="t-mono t-xs admin-ep-n">›</span><span class="t-small t-muted admin-ep-text" dir="auto"><?= e(mb_strimwidth($st['text'], 0, 600, '…')) ?></span></li>
@@ -142,7 +153,7 @@ echo partial('admin/_head', [
           </ol>
         <?php endif; ?>
         <?php if ($transcript['final'] !== null && $transcript['final'] !== ''): ?>
-          <div><span class="t-xs t-muted"><?= _e('admin.runs.ep_final') ?></span><pre class="code-block admin-pre" dir="auto"><?= e(mb_substr($transcript['final'], 0, 8000)) ?></pre></div>
+          <div><span class="t-xs t-muted"><?= _e('admin.runs.ep_final') ?></span><pre class="code-block admin-pre" dir="auto" tabindex="0"><?= e(mb_substr($transcript['final'], 0, 8000)) ?></pre></div>
         <?php endif; ?>
       </section>
     <?php endif; ?>
@@ -183,25 +194,25 @@ echo partial('admin/_head', [
     <section class="card card-pad stack">
       <div class="card-head"><h2 class="card-title"><?= ui_icon('code', 18) ?> <?= _e('admin.runs.code', ['n' => fmt_num($r['code_bytes'])]) ?></h2><?php if ($r['code'] !== null && $r['code'] !== ''): ?><button class="btn btn-sm btn-ghost" type="button" data-copy-from="#run-code"><?= ui_icon('copy', 14) ?><span><?= _e('common.copy') ?></span></button><?php endif; ?></div>
       <?php if ($r['code'] === null || $r['code'] === ''): ?><p class="t-muted t-small"><?= _e('admin.runs.no_code') ?></p><?php else: ?>
-        <pre class="code-block admin-pre" id="run-code" dir="ltr"><?= e(mb_strcut((string) $r['code'], 0, 400000)) ?></pre>
+        <pre class="code-block admin-pre" id="run-code" dir="ltr" tabindex="0"><?= e(mb_strcut((string) $r['code'], 0, 400000)) ?></pre>
       <?php endif; ?>
     </section>
     <details class="card card-pad admin-details">
       <summary class="card-title"><?= ui_icon('file', 18) ?> <?= _e('admin.runs.raw') ?></summary>
-      <pre class="code-block admin-pre" dir="ltr"><?= e(mb_strcut((string) $r['raw_output'], 0, 400000)) ?></pre>
+      <pre class="code-block admin-pre" dir="ltr" tabindex="0"><?= e(mb_strcut((string) $r['raw_output'], 0, 400000)) ?></pre>
     </details>
     <?php if ($r['agent_json']): ?>
       <details class="card card-pad admin-details">
         <summary class="card-title"><?= ui_icon('robot', 18) ?> <?= _e('admin.runs.agent') ?></summary>
-        <pre class="code-block admin-pre" dir="ltr"><?= e(\WB\Admin\Admin::pretty($r['agent_json'])) ?></pre>
+        <pre class="code-block admin-pre" dir="ltr" tabindex="0"><?= e(\WB\Admin\Admin::pretty($r['agent_json'])) ?></pre>
       </details>
     <?php endif; ?>
     <details class="card card-pad admin-details">
       <summary class="card-title"><?= ui_icon('database', 18) ?> <?= _e('admin.runs.json') ?></summary>
       <h3 class="t-small admin-subhead">static_json</h3>
-      <pre class="code-block admin-pre" dir="ltr"><?= e(\WB\Admin\Admin::pretty($r['static_json'] ?? 'null')) ?></pre>
+      <pre class="code-block admin-pre" dir="ltr" tabindex="0"><?= e(\WB\Admin\Admin::pretty($r['static_json'] ?? 'null')) ?></pre>
       <h3 class="t-small admin-subhead">browser_json</h3>
-      <pre class="code-block admin-pre" dir="ltr"><?= e(\WB\Admin\Admin::pretty($r['browser_json'] ?? 'null')) ?></pre>
+      <pre class="code-block admin-pre" dir="ltr" tabindex="0"><?= e(\WB\Admin\Admin::pretty($r['browser_json'] ?? 'null')) ?></pre>
     </details>
   </div>
   <aside class="admin-aside stack-lg">

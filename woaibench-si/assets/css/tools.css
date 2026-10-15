@@ -56,7 +56,9 @@
 .hw-quant:hover { border-color: var(--gold-line); }
 .hw-quant input { position: absolute; opacity: 0; pointer-events: none; }
 .hw-quant-name { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--text); direction: ltr; text-align: start; }
+[dir="rtl"] .hw-quant-name { text-align: right; }
 .hw-quant-bits { font-size: 11.5px; color: var(--text-faint); }
+:lang(ar) .hw-quant-bits { font-size: 12.5px; }
 .hw-quant:has(input:checked) { border-color: var(--gold); background: var(--gold-soft); }
 .hw-quant:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 .hw-ctx-out { font-family: var(--font-mono); font-size: 14px; color: var(--gold); }
@@ -119,12 +121,15 @@
 .hw-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .hw-kpis .stat { padding: 18px 20px; }
 .hw-kpis .stat-value { font-size: clamp(24px, 2.4vw, 32px); }
+/* '661 ms' / '1.2 s' (same units as the rest of the site) keep their order inside the RTL tile. */
+[dir="rtl"] .hw-kpis .stat-value[data-out="ttft"] { direction: ltr; text-align: right; }
 .hw-kpis .stat-icon { width: 32px; height: 32px; margin-bottom: 4px; }
 .hw-card { overflow: hidden; }
 .hw-card .card-head { padding: 16px clamp(16px, 2.2vw, 24px); border-bottom: 1px solid var(--border); gap: 8px 16px; }
 .hw-card .card-title { margin: 0; }
 .hw-qpick { padding: 0; border: 0; background: none; color: var(--text); font-family: var(--font-mono); font-size: 13px; font-weight: 600; cursor: pointer; direction: ltr; }
 .hw-qpick:hover, .hw-qpick[aria-pressed="true"] { color: var(--gold); }
+@media (pointer: coarse) { .hw-qpick { min-height: 36px; padding-inline: 4px; } }
 .hw-qbits { display: block; }
 .hw-qtable td, .hw-btable td { vertical-align: middle; }
 .hw-btable .model-chip-provider { white-space: nowrap; }
@@ -161,6 +166,9 @@
 .adv-top-score { display: grid; grid-template-columns: auto auto; align-items: baseline; gap: 2px 8px; }
 .adv-top-value { font-size: clamp(40px, 4vw, 56px); font-weight: 300; letter-spacing: -.03em; line-height: 1; color: var(--text); }
 .adv-top-label { grid-column: 1 / -1; text-align: end; }
+/* RTL: keep 'value ±CI' in reading order like every other score (.score is LTR too); the caption stays Arabic. */
+[dir="rtl"] .adv-top-score { direction: ltr; }
+[dir="rtl"] .adv-top-label { direction: rtl; text-align: right; }
 .adv-reasons { list-style: none; margin: 18px 0 0; padding: 16px 0 0; border-top: 1px solid var(--border); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 10px 22px; }
 .adv-reasons li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--text-muted); line-height: 1.5; }
 .adv-reasons .icon { flex: none; margin-top: 2px; color: var(--gold); }

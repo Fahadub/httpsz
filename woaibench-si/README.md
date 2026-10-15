@@ -39,23 +39,25 @@
 
 ### المتطلبات
 
-- PHP ‏8.1 أو أحدث (يُنصح بـ 8.2 أو 8.3) مع الامتدادات: `pdo_mysql` و`curl` و`json` و`mbstring` و`openssl`
-  و`fileinfo`، ويُستحسن `gd` و`intl`.
+- PHP ‏8.1 أو أحدث (يُنصح بـ 8.2 أو 8.3) مع الامتدادات: `pdo_mysql` و`curl` و`json` و`mbstring`،
+  ويُستحسن `gd` و`intl` و`openssl`.
 - MySQL ‏5.7+ أو MariaDB ‏10.3+ بترميز utf8mb4.
 - Apache أو LiteSpeed مع `mod_rewrite` وملفات `.htaccess` (متوفرة على Hostinger).
 - مفتاح [OpenRouter](https://openrouter.ai/keys) لتشغيل القياسات (يمكن إضافته بعد التثبيت).
-- اختياري: جهاز أو خادم VPS عليه Node.js لتشغيل المتحقق الآلي من المتصفح.
+- لمهام HTML/JS: محطة التحقق داخل لوحة الإدارة مفتوحة في متصفحك، أو جهاز/خادم VPS عليه Node.js لتشغيل المتحقق الآلي.
 
 ### التثبيت
 
 1. ابنِ الحزمة: `bash tools/build-zip.sh` ← ينتج `dist/woaibench-si-<الإصدار>.zip`.
-2. ارفعها إلى `public_html` واستخرجها (مدير الملفات في hPanel).
-3. أنشئ قاعدة بيانات MySQL ومستخدمًا لها من hPanel.
-4. افتح `https://نطاقك/install/` واتبع المعالج: فحص المتطلبات، ثم قاعدة البيانات (المضيف `localhost`)،
-   ثم بيانات الموقع وحساب المالك ومفتاح OpenRouter الاختياري، ثم التثبيت.
+2. جهّز الاستضافة أولًا من hPanel: إصدار PHP، وقاعدة بيانات MySQL ومستخدمًا لها، وشهادة SSL.
+3. ارفع الحزمة إلى `public_html` واستخرجها (مدير الملفات في hPanel)، ثم انتقل فورًا إلى الخطوة التالية.
+4. افتح `https://نطاقك/install/` واتبع المعالج: فحص المتطلبات مع **رمز الإعداد** (انسخه من الملف
+   `storage/cache/setup-token.txt` عبر مدير الملفات)، ثم قاعدة البيانات (المضيف `localhost`)، ثم بيانات الموقع
+   وحساب المالك ومفتاح OpenRouter الاختياري، ثم التثبيت.
 5. احذف مجلد `install` بعد الانتهاء (المعالج يقفل نفسه على أي حال).
 
-الدليل الكامل خطوة بخطوة لاستضافة Hostinger في [docs/DEPLOY.md](docs/DEPLOY.md).
+الدليل الكامل خطوة بخطوة لاستضافة Hostinger في [docs/DEPLOY.md](docs/DEPLOY.md). مجلد `docs/` موجود في المستودع
+(github.com/Fahadub/httpsz، المجلد `woaibench-si/docs`) ولا تتضمنه الحزمة.
 
 ### المهمة المجدولة (Cron)
 
@@ -72,11 +74,13 @@
 تعرض الشاشة الأخيرة في المعالج المسار الدقيق لموقعك. وإلى حين إعداد المهمة يمكنك إبقاء صفحة
 لوحة الإدارة ← وحدة التحكم مفتوحة في المتصفح لتشغيل الطابور نفسه.
 
-### المتحقق الآلي (اختياري)
+### التحقق في المتصفح (إلزامي لمهام HTML/JS)
 
-لا تتوفر المتصفحات على الاستضافة المشتركة، لذا تُنفَّذ فحوص المتصفح الحقيقي بإحدى طريقتين:
-محطة التحقق داخل لوحة الإدارة (تبويب مفتوح في متصفحك)، أو المتحقق الآلي `tools/verifier-node` على أي حاسوب
-أو خادم VPS باستخدام رمز تحقق من لوحة الإدارة ← رموز API:
+لا تتوفر المتصفحات على الاستضافة المشتركة، والـ Cron وحده لا يستطيع تنفيذ فحوص المتصفح. في وضع التحقق الافتراضي
+(`required`) تبقى تشغيلات مهام HTML/JS «بانتظار التحقق» حتى تُنفَّذ فحوصها بإحدى طريقتين:
+محطة التحقق داخل لوحة الإدارة (أو وحدة التحكم التي تتضمنها) في تبويب مفتوح في متصفحك، أو المتحقق الآلي
+`tools/verifier-node` على أي حاسوب أو خادم VPS باستخدام رمز تحقق من لوحة الإدارة ← رموز API
+(أو اضبط وضع التحقق على optional من الإعدادات):
 
 <div dir="ltr">
 
@@ -153,23 +157,26 @@ Plain PHP 8.1+ and MySQL/MariaDB — no Composer, no build step — designed for
 
 ### Requirements
 
-- PHP 8.1+ (8.2 or 8.3 recommended) with `pdo_mysql`, `curl`, `json`, `mbstring`, `openssl`, `fileinfo`;
-  `gd` and `intl` recommended.
+- PHP 8.1+ (8.2 or 8.3 recommended) with `pdo_mysql`, `curl`, `json` and `mbstring`; `gd`, `intl` and `openssl`
+  recommended.
 - MySQL 5.7+ or MariaDB 10.3+ with utf8mb4.
 - Apache or LiteSpeed with `mod_rewrite` and `.htaccess` support (standard on Hostinger).
 - An [OpenRouter](https://openrouter.ai/keys) API key to run benchmarks (can be added after installation).
-- Optional: any PC or VPS with Node.js for the headless browser verifier.
+- For HTML/JS tasks: the admin Verification Station open in your browser, or any PC/VPS with Node.js for the
+  headless browser verifier.
 
 ### Installation
 
 1. Build the package: `bash tools/build-zip.sh` → `dist/woaibench-si-<version>.zip`.
-2. Upload it to `public_html` and extract it (hPanel File Manager).
-3. Create a MySQL database and user in hPanel.
-4. Open `https://your-domain/install/` and follow the wizard: requirements → database (host `localhost`) →
-   site, owner account and optional OpenRouter key → install.
+2. Prepare the hosting first in hPanel: PHP version, a MySQL database and user, and the SSL certificate.
+3. Upload the package to `public_html` and extract it (hPanel File Manager), then go straight to the next step.
+4. Open `https://your-domain/install/` and follow the wizard: requirements plus the **setup token** (copy it from
+   `storage/cache/setup-token.txt` in File Manager) → database (host `localhost`) → site, owner account and
+   optional OpenRouter key → install.
 5. Delete the `install` folder afterwards (the installer locks itself either way).
 
-Step-by-step Hostinger guide: [docs/DEPLOY.md](docs/DEPLOY.md).
+Step-by-step Hostinger guide: [docs/DEPLOY.md](docs/DEPLOY.md). The `docs/` folder lives in the repository
+(github.com/Fahadub/httpsz, folder `woaibench-si/docs`); the zip package does not include it.
 
 ### Cron job
 
@@ -183,11 +190,13 @@ runs **every minute**:
 The installer's final screen prints the exact path for your site. Until the cron job exists, keeping
 Admin → Console open in a browser tab drives the same queue.
 
-### Verifier (optional)
+### Browser verification (required for HTML/JS tasks)
 
-Shared hosting has no browser, so real-browser checks run either in the admin **Verification Station** (a tab in
-your own browser) or with the headless verifier `tools/verifier-node` on any PC/VPS, using a verifier token from
-Admin → API tokens:
+Shared hosting has no browser and cron alone cannot run browser checks. Under the default verification mode
+(`required`) HTML/JS runs wait in "awaiting verification" until their checks run either in the admin
+**Verification Station** (or the Console, which embeds it) in a tab of your own browser, or with the headless
+verifier `tools/verifier-node` on any PC/VPS using a verifier token from Admin → API tokens (or set the
+verification mode to `optional` in Settings):
 
 ```
 cd tools/verifier-node && npm install && npx playwright install chromium

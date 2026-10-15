@@ -263,6 +263,9 @@
 .vs-cmd { position: relative; direction: ltr; }
 .vs-cmd .code-block { margin: 0; padding-inline-end: 84px; font-size: 12.5px; }
 .vs-cmd-copy { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; }
+/* The command block stays dark in both themes: the copy button needs light text on it (contrast ≥ 4.5:1). */
+.vs-cmd .vs-cmd-copy { color: #CFC6B6; }
+.vs-cmd .vs-cmd-copy:hover { color: #fff; }
 .vs-tip-list { list-style: none; margin: 0; display: flex; flex-direction: column; gap: var(--s3); }
 .vs-tip-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; font-size: 13.5px; color: var(--text-muted); line-height: 1.55; }
 .vs-tip-list .icon { color: var(--gold); margin-top: 3px; }

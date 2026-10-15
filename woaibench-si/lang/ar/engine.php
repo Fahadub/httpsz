@@ -13,6 +13,11 @@ return [
     'engine.note.judging_failed' => 'لم يُعِد أي محكّم حكمًا صالحًا للاستخدام.',
     'engine.note.generation' => 'ملاحظة من مرحلة التوليد: :detail.',
     'engine.note.retried' => 'أعاد أحد المشرفين تشغيل هذه المحاولة.',
+    // Verification outcomes (engine-4/5): required mode never scores a run without its browser evidence.
+    'engine.note.needs_verification' => 'أخفق التحقق عبر المتصفح ثلاث مرات لأسباب تتعلق بالبنية التحتية (:detail)، ولن يُقيَّم التشغيل حتى يُتحقَّق منه من جديد.',
+    'engine.note.verify_output_failed' => 'أوقعت الصفحة المتصفح في كل محاولات التحقق (:detail)، فاحتُسبت فحوص المتصفح والاختبارات كلها راسبة.',
+    'engine.note.unverified_unscorable' => 'تعذّر تشغيل فحوص المتصفح ولا يوجد حكم من المحكّمين، لذا لا درجة لهذا التشغيل: فالفحوص الثابتة وحدها لا تكفي بديلًا عن البقية.',
+    'engine.note.reverified' => 'أعاد أحد المشرفين هذا التشغيل إلى التحقق عبر المتصفح.',
 
     'engine.kind.generate' => 'توليد',
     'engine.kind.judge' => 'تحكيم',

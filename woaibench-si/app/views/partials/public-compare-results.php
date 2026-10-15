@@ -71,7 +71,7 @@ foreach ($sel as $i => $r) {
     <?php foreach ($h2h['pairs'] as $p): $a = $sel[$p['a']]; $b = $sel[$p['b']]; $lead = $a['score'] >= $b['score'] ? $a : $b; $trail = $lead === $a ? $b : $a; ?>
       <div class="card card-pad pub-verdict <?= $p['different'] ? 'is-different' : 'is-tied' ?>">
         <div class="pub-verdict-head">
-          <span class="pub-vs"><span class="pub-c<?= $p['a'] ?>"><i class="pub-dot"></i><?= e($a['name']) ?></span><span class="t-faint">vs</span><span class="pub-c<?= $p['b'] ?>"><i class="pub-dot"></i><?= e($b['name']) ?></span></span>
+          <span class="pub-vs"><span class="pub-c<?= $p['a'] ?>"><i class="pub-dot"></i><?= e($a['name']) ?></span><span class="t-faint"><?= _e('pub.cmp.vs') ?></span><span class="pub-c<?= $p['b'] ?>"><i class="pub-dot"></i><?= e($b['name']) ?></span></span>
           <?= $p['different'] ? ui_badge(__('pub.cmp.diff_yes'), 'green', 'check') : ui_badge(__('pub.cmp.diff_no'), 'muted', 'equal') ?>
         </div>
         <p class="t-small"><?= $p['different']

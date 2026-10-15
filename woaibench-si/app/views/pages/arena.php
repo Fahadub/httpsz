@@ -132,7 +132,7 @@ $buttons = [
         </ol>
         <p class="t-xs t-muted arn-privacy"><?= ui_icon('lock', 14) ?> <?= _e('arena.privacy') ?></p>
       </div>
-      <div class="card card-pad stack">
+      <div class="card card-pad stack<?= $top ? '' : ' arn-top-empty' ?>">
         <div class="split">
           <h2 class="t-h3"><?= _e('arena.top_title') ?></h2>
           <a class="t-small" href="<?= e(url('/arena/leaderboard')) ?>"><?= _e('arena.see_all') ?></a>
@@ -149,6 +149,7 @@ $buttons = [
         </ol>
 <?php else: ?>
         <p class="t-muted t-small"><?= _e('arena.top_empty') ?></p>
+        <?php if ($state !== 'disabled' && $state !== 'no_data'): ?><div><a class="btn btn-outline btn-sm" href="#arn-task-title"><?= ui_icon('arena', 15) ?><span><?= _e('arena.top_empty_cta') ?></span></a></div><?php endif; ?>
 <?php endif; ?>
       </div>
     </div>

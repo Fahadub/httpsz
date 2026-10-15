@@ -58,6 +58,8 @@ error_reporting(E_ALL);
 ini_set('display_errors', $debug ? '1' : '0');
 ini_set('log_errors', '1');
 ini_set('error_log', WB_STORAGE . '/logs/php-error.log');
+// Stack traces (debug page, logs, cron output) must never contain argument values such as the DB password.
+ini_set('zend.exception_ignore_args', '1');
 
 set_exception_handler(static function (\Throwable $e) use ($debug): void {
     log_error('Uncaught ' . get_class($e) . ': ' . $e->getMessage(), [
@@ -70,6 +72,7 @@ set_exception_handler(static function (\Throwable $e) use ($debug): void {
     }
     if (!headers_sent()) {
         http_response_code(500);
+        header('Cache-Control: no-store');
     }
     if (wants_json()) {
         if (!headers_sent()) {
@@ -94,18 +97,18 @@ if (!WB_CLI && !defined('WB_INSTALLER')) {
         header('Location: ' . base_path() . '/install/');
         exit;
     }
-    // Public, cacheable endpoints never need a session (no cookies on API/badge/embed/export responses).
+    // Sessions are lazy (ARCHITECTURE §11): a cookieless GET of a public page never creates a session file.
     $path = current_path();
-    $statelessPath = preg_match('#^/(api/v1(/|$)|badge/|embed/|export/|sitemap\.xml$|robots\.txt$|healthz$|site\.webmanifest$)#', $path) === 1;
-    // Sandboxed frames and token-authenticated verifier calls only need a session when the client already has one
-    // (admin Station / hold-out previews); otherwise every headless request would create an empty session file.
-    if (!$statelessPath && preg_match('#^/(render/|arena/frame/|api/verifier/)#', $path) === 1) {
-        $statelessPath = !isset($_COOKIE['wb_sess']);
-    }
-    if (!$statelessPath) {
+    $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    $session = Auth::wantsSession($path);
+    if ($session) {
+        Http::sessionCacheHeaders($path);
         Auth::startSession();
     }
     I18n::boot();
+    if (!$session) {
+        Http::publicCacheHeaders($path, $method);
+    }
 } elseif (WB_CLI) {
     I18n::boot('en');
 }

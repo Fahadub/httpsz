@@ -82,7 +82,7 @@ $groupIcon = ['static' => 'list', 'browser' => 'eye', 'tests' => 'check', 'answe
 
       <?php if ($gallery): ?>
       <div class="stack">
-        <h2 class="t-h3"><?= ui_icon('image', 18) ?> <?= _e('pub.task.gallery') ?></h2>
+        <h2 class="card-title"><?= ui_icon('image', 18) ?> <?= _e('pub.task.gallery') ?></h2>
         <?= partial('partials/public-gallery', ['items' => array_map(static fn($g) => [
             'run_id' => (int) $g['id'], 'shot_url' => $g['shot_url'], 'title' => $g['name'], 'score' => $g['final_score'],
             'sub' => $g['provider_name'] ?: $g['provider'], 'color' => $t['color'], 'icon' => $t['icon'], 'type' => $t['output_type'],

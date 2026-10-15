@@ -194,7 +194,8 @@ function ui_pagination(int $page, int $pages, string $path, array $query = []): 
             }
             continue;
         }
-        $html .= '<a class="page' . ($p === $page ? ' active' : '') . '" href="' . e(url($path, array_merge($query, ['page' => $p]))) . '">' . $p . '</a>';
+        $html .= '<a class="page' . ($p === $page ? ' active" aria-current="page' : '') . '" href="'
+            . e(url($path, array_merge($query, ['page' => $p]))) . '">' . $p . '</a>';
     }
     return $html . '</nav>';
 }

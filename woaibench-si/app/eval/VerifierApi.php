@@ -21,9 +21,11 @@ final class VerifierApi
     public const VIEWPORTS = [['name' => 'desktop', 'w' => 1280, 'h' => 800], ['name' => 'mobile', 'w' => 390, 'h' => 844]];
     private const AGENTS = ['station', 'playwright'];
     private const SHOT_COLUMNS = ['desktop' => 'screenshot', 'mobile' => 'screenshot_mobile'];
+    /** Screenshot files of a run: current names (random suffix) and the legacy guessable ones. */
+    private const SHOT_FILE_RE = '/^run_\d+_(desktop|mobile)(_[0-9a-f]{32})?\.(png|webp|jpe?g)$/';
     /** Numeric and boolean probe/verifier metrics kept in browser_json (everything else is dropped). */
     private const METRIC_NUMBERS = ['load_ms', 'fps', 'js_errors', 'console_errors', 'resource_errors', 'dom_nodes', 'oom'];
-    private const METRIC_FLAGS = ['hung', 'navigated', 'starved', 'hidden', 'offscreen'];
+    private const METRIC_FLAGS = ['hung', 'navigated', 'starved', 'hidden', 'offscreen', 'crashed', 'tampered'];
 
     /**
      * Gate for the verifier endpoints: "Authorization: Bearer <token scope verifier>", or an admin session
@@ -112,26 +114,39 @@ final class VerifierApi
 
         $set = ['browser_json' => to_json($results), 'verified' => 1, 'verified_by' => $agent];
         $warnings = [];
+        $saved = [];
         $shots = is_array($body['screenshots'] ?? null) ? $body['screenshots'] : [];
         foreach (self::SHOT_COLUMNS as $vp => $col) {
             if (!isset($shots[$vp]) || $shots[$vp] === '' || $shots[$vp] === null) {
                 continue;
             }
-            $saved = is_string($shots[$vp]) ? self::saveShot((int) $run['id'], $vp, $shots[$vp]) : ['error' => 'not a data URL'];
-            if (isset($saved['error'])) {
-                $warnings[] = $vp . ' screenshot rejected: ' . $saved['error'];
+            $shot = is_string($shots[$vp]) ? self::saveShot((int) $run['id'], $vp, $shots[$vp]) : ['error' => 'not a data URL'];
+            if (isset($shot['error'])) {
+                $warnings[] = $vp . ' screenshot rejected: ' . $shot['error'];
                 continue;
             }
-            $set[$col] = $saved['path'];
+            $set[$col] = $saved[] = $shot['path'];
         }
         $status = Pipeline::afterVerification($run, (string) $body['lock_token'], $set);
         if ($status === null) {
+            foreach ($saved as $rel) {
+                @unlink(WB_UPLOADS . '/' . $rel); // never stored: the run belongs to another verifier now
+            }
             return self::error('lease_lost', 409);
+        }
+        if ($saved) {
+            self::pruneShots((int) $run['id']);
         }
         return ['ok' => true, 'next_status' => $status, 'warnings' => $warnings];
     }
 
-    /** Verifier could not verify (infrastructure problem): back to the queue, or proceed unverified after 3 tries. */
+    /**
+     * Verifier could not verify: back to the queue with a growing hold-back. On the last try:
+     *  - "cause": "output" (the page itself crashed the browser on every try, in fresh contexts) → the output's own
+     *    failure: stored as verified with every browser check and test failed (note verify_output_failed);
+     *  - otherwise (infrastructure) → Pipeline::verificationFailed(): waits for an admin re-verification in
+     *    verify_mode 'required' (note needs_verification), proceeds unverified in optional / off mode.
+     */
     public static function release(array $body): array
     {
         [$run, $err] = self::ownedRun($body);
@@ -141,7 +156,16 @@ final class VerifierApi
         $token = (string) $body['lock_token'];
         $msg = self::str($body['error'] ?? '', 300) ?: 'verifier error';
         if ((int) $run['verify_tries'] >= Pipeline::MAX_TRIES) {
-            $status = Pipeline::afterVerification($run, $token, ['verified' => 0], [['code' => 'unverified_failed', 'detail' => $msg]]);
+            $task = ($body['cause'] ?? null) === 'output' ? Pipeline::loadTask((int) $run['task_id']) : null;
+            if ($task) {
+                $results = self::sanitizeResults(['errors' => [$msg], 'metrics' => ['crashed' => true]], $task);
+                $results['agent'] = self::agent($body['agent'] ?? null, 'station');
+                $results['verified_at'] = now();
+                $set = ['browser_json' => to_json($results), 'verified' => 1, 'verified_by' => $results['agent']];
+                $status = Pipeline::afterVerification($run, $token, $set, [['code' => 'verify_output_failed', 'detail' => $msg]]);
+            } else {
+                $status = Pipeline::verificationFailed((int) $run['id'], $msg, $token);
+            }
             return $status === null ? self::error('lease_lost', 409) : ['ok' => true, 'next_status' => $status];
         }
         // Growing hold-back (20 s, then 60 s) so a briefly unavailable verifier does not burn every try at once.
@@ -169,7 +193,7 @@ final class VerifierApi
     /**
      * Keep only known keys, matched to the task's own check definitions, with capped sizes:
      * {checks:[{id,type,pass,score,detail,weight,label_en,label_ar}], tests:[{name,pass,ms,got?,error?}], errors:[…],
-     * metrics:{load_ms,fps,js_errors,console_errors,resource_errors,dom_nodes (numbers), hung,navigated,starved,hidden,offscreen (booleans)}}.
+     * metrics:{load_ms,fps,js_errors,console_errors,resource_errors,dom_nodes,oom (numbers), hung,navigated,starved,hidden,offscreen,crashed,tampered (booleans)}}.
      */
     public static function sanitizeResults(array $raw, array $task): array
     {
@@ -263,8 +287,10 @@ final class VerifierApi
 
     /**
      * Validate a screenshot data URL (PNG / JPEG / WebP, ≤ 4 MB, sane dimensions), re-encode it through GD
-     * (strips metadata and anything that is not pixels) and store it as uploads/shots/run_<id>_<viewport>.png
-     * (or .webp when the PNG would exceed 4 MB). Returns ['path' => 'shots/…'] or ['error' => '…'].
+     * (strips metadata and anything that is not pixels) and store it as
+     * uploads/shots/run_<id>_<viewport>_<32 hex>.png (or .webp when the PNG would exceed 4 MB). The random part
+     * makes the URL unguessable (hold-out screenshots are static files that bypass every PHP visibility check) and
+     * unique per capture (safe to cache as immutable). Returns ['path' => 'shots/…'] or ['error' => '…'].
      */
     public static function saveShot(int $runId, string $viewport, string $dataUrl): array
     {
@@ -293,7 +319,7 @@ final class VerifierApi
         if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
             return ['error' => 'storage unavailable'];
         }
-        $name = 'run_' . $runId . '_' . $viewport . '.' . $img['ext'];
+        $name = self::shotName($runId, $viewport, $img['ext']);
         $tmp = $dir . '/.' . $name . '.' . random_token(6) . '.tmp';
         if (@file_put_contents($tmp, $img['bytes'], LOCK_EX) === false || !@rename($tmp, $dir . '/' . $name)) {
             @unlink($tmp);
@@ -301,6 +327,35 @@ final class VerifierApi
         }
         @chmod($dir . '/' . $name, 0644);
         return ['path' => 'shots/' . $name];
+    }
+
+    /** File name of a new capture: run_<id>_<viewport>_<32 hex>.<ext> (128-bit random, unguessable). */
+    public static function shotName(int $runId, string $viewport, string $ext): string
+    {
+        return 'run_' . $runId . '_' . $viewport . '_' . random_token(16) . '.' . $ext;
+    }
+
+    /**
+     * Delete a run's screenshot files (every viewport, legacy guessable names included) except the ones its
+     * screenshot / screenshot_mobile columns still reference. Call after the columns changed: a regenerate or
+     * reset (columns NULL → every file goes), or a new capture (the previous one goes).
+     */
+    public static function pruneShots(int $runId): int
+    {
+        $keep = [];
+        foreach (DB::one('SELECT screenshot, screenshot_mobile FROM runs WHERE id = ?', [$runId]) ?? [] as $rel) {
+            if (is_string($rel) && $rel !== '') {
+                $keep[basename($rel)] = true;
+            }
+        }
+        $n = 0;
+        // "run_1_" never matches run_10_…, and the dot-prefixed temporary files are not listed.
+        foreach (glob(WB_UPLOADS . '/shots/run_' . $runId . '_*') ?: [] as $file) {
+            if (!isset($keep[basename($file)]) && preg_match(self::SHOT_FILE_RE, basename($file)) && @unlink($file)) {
+                $n++;
+            }
+        }
+        return $n;
     }
 
     /** Magic bytes + getimagesizefromstring + GD re-encode. Returns ['bytes','ext'] or ['error']. */

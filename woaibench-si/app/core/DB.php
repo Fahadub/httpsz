@@ -34,7 +34,7 @@ final class DB
     }
 
     /** Open a new connection (also used by the installer to test credentials). */
-    public static function connect(string $host, int $port, string $name, string $user, string $pass): PDO
+    public static function connect(string $host, int $port, string $name, string $user, #[\SensitiveParameter] string $pass): PDO
     {
         $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $host, $port ?: 3306, $name);
         $pdo = new PDO($dsn, $user, $pass, [
@@ -44,7 +44,10 @@ final class DB
             PDO::ATTR_STRINGIFY_FETCHES => false,
             PDO::ATTR_TIMEOUT => 10,
         ]);
-        $pdo->exec("SET time_zone = '+00:00', NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+        // ONLY_FULL_GROUP_BY off for this session: MariaDB has no functional-dependency detection, so a host that
+        // enables it globally would otherwise turn valid `SELECT t.* … GROUP BY t.id` queries into errors.
+        $pdo->exec("SET time_zone = '+00:00', NAMES utf8mb4 COLLATE utf8mb4_unicode_ci, "
+            . "sql_mode = REPLACE(@@SESSION.sql_mode, 'ONLY_FULL_GROUP_BY', '')");
         return $pdo;
     }
 
