@@ -161,11 +161,11 @@
   }
   function adapt(dt) {
     frames++; acc += dt;
-    if (acc < 0.5) return;
+    if (acc < 0.25) return;
     const fps = frames / acc; frames = 0; acc = 0;
     document.getElementById('fps').textContent = `${Math.round(fps)} fps`;
     const prev = scale, max = QUALITY[quality].maxScale;
-    if (fps < 40 && scale > 0.15) scale = Math.max(0.15, scale * 0.75);
+    if (fps < 40 && scale > 0.15) scale = Math.max(0.15, scale * (fps < 20 ? 0.6 : 0.8));
     else if (fps > 57 && scale < max) scale = Math.min(max, scale * 1.12);
     if (scale !== prev) resize();
   }

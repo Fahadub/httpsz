@@ -284,11 +284,11 @@
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     // adaptive resolution
     frames++; fpsT += dt;
-    if (fpsT >= 0.5) {
+    if (fpsT >= 0.25) {
       const fps = frames / fpsT; ui.fps.textContent = `${Math.round(fps)} fps`;
       if (fps < 40) { slow++; fast = 0; } else if (fps > 57) { fast++; slow = 0; } else { slow = fast = 0; }
-      if (slow >= 1 && renderScale > 0.35) { renderScale = Math.max(0.35, renderScale * 0.75); resize(); slow = 0; }
-      if (fast >= 4 && renderScale < 1) { renderScale = Math.min(1, renderScale * 1.15); resize(); fast = 0; }
+      if (slow >= 1 && renderScale > 0.35) { renderScale = Math.max(0.35, renderScale * (fps < 20 ? 0.6 : 0.8)); resize(); slow = 0; }
+      if (fast >= 8 && renderScale < 1) { renderScale = Math.min(1, renderScale * 1.15); resize(); fast = 0; }
       frames = 0; fpsT = 0;
     }
     let eye, target;

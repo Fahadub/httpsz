@@ -169,12 +169,15 @@
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     pf++; pt += dt;
-    if (pt >= 0.5) {
+    if (pt >= 0.25) {
       const fps = pf / pt; document.getElementById('fps').textContent = Math.round(fps);
-      // Adaptive quality: first shed resolution, then draw a random subset of the (shuffled) stars on slow devices.
+      // Adaptive quality: shed resolution first and, when clearly slow, also draw a random subset of the
+      // (shuffled) stars; recover slowly once frames are fast again.
       const prev = renderScale;
-      if (fps < 42) { if (renderScale > 0.5) renderScale *= 0.8; else drawCount = Math.max(15000, Math.floor(drawCount * 0.7)); }
-      else if (fps > 57) { if (drawCount < COUNT) drawCount = Math.min(COUNT, Math.floor(drawCount * 1.15)); else if (renderScale < 1) renderScale = Math.min(1, renderScale * 1.1); }
+      if (fps < 42) {
+        if (renderScale > 0.5) renderScale *= 0.8;
+        if (fps < 30 || renderScale <= 0.5) drawCount = Math.max(15000, Math.floor(drawCount * (fps < 20 ? 0.5 : 0.75)));
+      } else if (fps > 57) { if (drawCount < COUNT) drawCount = Math.min(COUNT, Math.floor(drawCount * 1.1)); else if (renderScale < 1) renderScale = Math.min(1, renderScale * 1.1); }
       if (prev !== renderScale) resize();
       pf = 0; pt = 0;
     }

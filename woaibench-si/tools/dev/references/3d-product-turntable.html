@@ -270,7 +270,7 @@
   let renderScale = 1, perfFrames = 0, perfT = 0;
   function adaptResolution(dt) {
     perfFrames++; perfT += dt;
-    if (perfT < 0.5) return;
+    if (perfT < 0.25) return;
     const fps = perfFrames / perfT; perfFrames = 0; perfT = 0;
     const prev = renderScale;
     if (fps < 42 && renderScale > 0.4) renderScale = Math.max(0.4, renderScale * 0.75);
