@@ -165,6 +165,16 @@ function wb_render_skip_trivia(string $html, int $pos): int
     return $pos;
 }
 
+/** The task's checks definition (accepts the raw checks_json column or an already-decoded array). */
+function wb_render_checks(array $task): array
+{
+    $raw = $task['checks_json'] ?? null;
+    if (is_array($raw)) {
+        return $raw;
+    }
+    return json_arr(is_string($raw) ? $raw : null);
+}
+
 /** Absolute URL of a static asset on the canonical origin (the frame itself has an opaque origin). */
 function wb_render_asset(string $path): string
 {
@@ -175,7 +185,7 @@ function wb_render_asset(string $path): string
 function wb_render_probe_head(array $run, array $task, array $opts, bool $noOutput): string
 {
     $type = (string) ($task['output_type'] ?? 'html');
-    $checks = json_arr(isset($task['checks_json']) ? (string) $task['checks_json'] : null);
+    $checks = wb_render_checks($task);
     $browser = [];
     foreach ((array) ($checks['browser'] ?? []) as $c) {
         if (is_array($c) && isset($c['type']) && is_string($c['type'])) {
@@ -305,11 +315,11 @@ function wb_render_text_doc(array $run, array $task, string $inject, ?string $th
 /** Harness page for js outputs: highlighted code + "Run tests" (public tasks) or automatic tests (verify mode). */
 function wb_render_js_doc(array $run, array $task, string $code, string $inject, ?string $theme, bool $verify): string
 {
-    $checks = json_arr(isset($task['checks_json']) ? (string) $task['checks_json'] : null);
+    $checks = wb_render_checks($task);
     $tests = is_array($checks['tests'] ?? null) ? $checks['tests'] : null;
     $showTests = $tests !== null && !empty($tests['cases']) && ($verify || ($task['visibility'] ?? 'public') === 'public');
     $title = L($task, 'title');
-    $lines = substr_count($code, "\n") + 1;
+    $lines = substr_count(rtrim($code, "\r\n"), "\n") + 1;
     $data = [
         'code' => $code,
         'tests' => $showTests ? $tests : null,

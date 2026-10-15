@@ -55,8 +55,8 @@
   .snow .flake { animation: snowfall 3.6s linear infinite; }
   .snow .flake g { animation: sway 1.8s ease-in-out infinite alternate; }
   .snow .flake path { stroke: var(--snow); stroke-width: 1.6; }
-  .snow .flake:nth-child(2) { animation-delay: -1.2s; } .snow .flake:nth-child(3) { animation-delay: -2.4s; }
-  .snow .flake:nth-child(2) g { animation-delay: -.6s; } .snow .flake:nth-child(3) g { animation-delay: -1.2s; }
+  .snow g:nth-child(2) > .flake { animation-delay: -1.2s; } .snow g:nth-child(3) > .flake { animation-delay: -2.4s; }
+  .snow g:nth-child(2) > .flake g { animation-delay: -.6s; } .snow g:nth-child(3) > .flake g { animation-delay: -1.2s; }
   @keyframes snowfall { 0% { transform: translateY(-4px); opacity: 0; } 15% { opacity: 1; } 80% { opacity: 1; } 100% { transform: translateY(13px); opacity: 0; } }
   @keyframes sway { from { transform: translateX(-2.5px) rotate(-20deg); } to { transform: translateX(2.5px) rotate(20deg); } }
   /* thunderstorm */
@@ -67,15 +67,15 @@
   @keyframes flash { 0%, 62% { opacity: .12; } 64% { opacity: 1; } 67% { opacity: .25; } 70% { opacity: 1; } 76%, 100% { opacity: .12; } }
   @keyframes flicker { 0%, 62% { filter: none; } 64%, 70% { filter: brightness(1.35); } 67% { filter: none; } 76%, 100% { filter: none; } }
   /* wind */
-  .wind path { stroke: var(--wind); stroke-dasharray: 100; animation: gust 3.6s ease-in-out infinite; }
+  .wind path { stroke: var(--wind); stroke-dasharray: 100 101; animation: gust 3.6s ease-in-out infinite; }
   .wind path:nth-child(2) { animation-delay: -.5s; } .wind path:nth-child(3) { animation-delay: -1s; }
-  @keyframes gust { 0% { stroke-dashoffset: 100; } 45% { stroke-dashoffset: 0; } 55% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -100; } }
+  @keyframes gust { 0% { stroke-dashoffset: 100; opacity: 0; } 8% { opacity: 1; } 45%, 55% { stroke-dashoffset: 0; } 92% { opacity: 1; } 100% { stroke-dashoffset: -100; opacity: 0; } }
   /* controls */
   .paused .wx-icon, .paused .wx-icon * { animation-play-state: paused !important; }
   @media (prefers-reduced-motion: reduce) {
     .wx-icon, .wx-icon * { animation: none !important; }
     .storm .bolt { opacity: 1; }
-    .wind path { stroke-dashoffset: 0; }
+    .wind path { stroke-dashoffset: 0; opacity: 1; }
   }
   @media (max-width: 760px) {
     .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -128,9 +128,9 @@
       <svg class="wx-icon snow" role="img" viewBox="0 0 64 64"><title>Snow</title>
         <use class="cloud" href="#cloud-high"/>
         <g>
-          <g class="flake" transform="translate(24 47)"><g><path d="M0-3.5v7M-3 -1.75l6 3.5M-3 1.75l6-3.5"/></g></g>
-          <g class="flake" transform="translate(34 49)"><g><path d="M0-3.5v7M-3 -1.75l6 3.5M-3 1.75l6-3.5"/></g></g>
-          <g class="flake" transform="translate(43 46)"><g><path d="M0-3.5v7M-3 -1.75l6 3.5M-3 1.75l6-3.5"/></g></g>
+          <g transform="translate(24 47)"><g class="flake"><g><path d="M0-3.5v7M-3 -1.75l6 3.5M-3 1.75l6-3.5"/></g></g></g>
+          <g transform="translate(34 49)"><g class="flake"><g><path d="M0-3.5v7M-3 -1.75l6 3.5M-3 1.75l6-3.5"/></g></g></g>
+          <g transform="translate(43 46)"><g class="flake"><g><path d="M0-3.5v7M-3 -1.75l6 3.5M-3 1.75l6-3.5"/></g></g></g>
         </g>
       </svg>
       <h2>Snow</h2><p>Light snow · −2°</p>

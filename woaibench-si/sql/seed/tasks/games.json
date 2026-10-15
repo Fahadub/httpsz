@@ -5,7 +5,7 @@
     "title_en": "Crate-Pushing Puzzle with Undo",
     "title_ar": "لعبة ألغاز دفع الصناديق مع التراجع",
     "summary_en": "A Sokoban-style puzzle with three given levels: exact push rules, unlimited undo, move/push counters, queued animated movement and touch controls.",
-    "summary_ar": "لعبة ألغاز على نمط «سوكوبان» بثلاث مراحل محددة: قواعد دفع دقيقة، وتراجع غير محدود، وعدّاد للحركات والدفعات، وحركة متحركة مع طابور للمدخلات، وأزرار لمس.",
+    "summary_ar": "لعبة ألغاز على نمط «سوكوبان» بثلاث مراحل محددة: قواعد دفع دقيقة، وتراجع غير محدود، وعدّاد للحركات والدفعات، وانتقال سلس بين الخانات مع طابور للمدخلات، وأزرار لمس.",
     "prompt": "Build a polished crate-pushing puzzle game (the Sokoban genre) with exactly these three levels, in this order.\nNotation: # wall, @ player, + player on goal, $ crate, * crate on goal, . goal, space = floor. Spaces outside the outer walls are empty void, not floor.\n\nLevel 1\n########\n#  .   #\n# $##  #\n#@ $ . #\n#      #\n########\n\nLevel 2\n  ######\n  #    #\n###$##.#\n#  $  .#\n# @ $# #\n##   ..#\n ##$#  #\n  #    #\n  ######\n\nLevel 3\n#########\n#   #   #\n# $ . $ #\n## # # ##\n#.  @  .#\n## # # ##\n# $ . $ #\n#   #   #\n#########\n\nRules and features\n1. Arrow keys and WASD move the player one tile. Moving into a crate pushes it if the tile behind it is floor or goal; the player can never pull and cannot push two crates at once; walls block.\n2. HUD: an element id=\"level\" showing \"Level 1 / 3\" (current / total), an element id=\"moves\" with the move count and an element id=\"pushes\" with the push count, updated on every move.\n3. Undo: the Z or U key and a button id=\"undo\" undo one move at a time, all the way back to the level start (crate positions and both counters included). Restart: the R key and a button id=\"restart\".\n4. A level is solved when every crate stands on a goal: show a \"Level complete\" overlay with the move and push counts and a button id=\"next-level\" (Enter also works). After level 3 show \"All levels solved\".\n5. Movement is animated (a ~80–120 ms slide per step) but input is never lost: key presses during an animation are queued (up to 2), and holding a key keeps moving.\n6. Crates on goals look clearly different from crates elsewhere; goals stay visible under the player.\n7. Touch: an on-screen D-pad with four buttons id=\"btn-up\", id=\"btn-down\", id=\"btn-left\" and id=\"btn-right\" (each with an aria-label) plus undo and restart. Swiping on the board is a welcome extra.\n8. The board scales to fit the viewport (crisp, never blurry), stays centred and never causes horizontal scrolling.\n9. Render with <canvas> or DOM/SVG — your choice. Draw all art in code.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
     "output_type": "html",
     "difficulty": 2,
@@ -381,7 +381,7 @@
           "id": "fps",
           "type": "fps",
           "min": 50,
-          "weight": 1,
+          "weight": 0.5,
           "label_en": "Holds at least 50 fps",
           "label_ar": "يحافظ على 50 إطارًا في الثانية على الأقل"
         },
@@ -408,7 +408,7 @@
     "title_en": "Tile-Based Platformer with Great Jump Feel",
     "title_ar": "لعبة منصات مبنية على البلاطات بإحساس قفز متقن",
     "summary_en": "A side-scrolling platformer from a given tile map: fixed-timestep physics, coyote time, jump buffering, variable jumps, one-way platforms, enemies, checkpoints and a smooth camera.",
-    "summary_ar": "لعبة منصات جانبية من خريطة بلاطات محددة: فيزياء بخطوة زمنية ثابتة، ومهلة «الذئب» للقفز، وتخزين القفز المسبق، وارتفاع قفز متغير، ومنصات أحادية الاتجاه، وأعداء، ونقاط حفظ، وكاميرا سلسة.",
+    "summary_ar": "لعبة منصات جانبية من خريطة بلاطات محددة: فيزياء بخطوة زمنية ثابتة، ومهلة قفز قصيرة بعد مغادرة الحافة، وتخزين ضغطة القفز المبكرة، وارتفاع قفز متغير، ومنصات أحادية الاتجاه، وأعداء، ونقاط حفظ، وكاميرا سلسة.",
     "prompt": "Build a side-scrolling platformer level from this exact 80 × 15 tile map (rows top to bottom):\n\n................................................................................\n................................................................................\n................................................................................\n................................................................................\n................................................................o.o.............\n...............................................................=====............\n................................................................................\n...........................................................o....................\n.................ooo...........o..........................====.........o........\n................=====..........................Moo....................====......\n.......................o......##.............=======....#.......................\n.....ooo......................##..........o............##..................o....\n..P......M..##................##.C..^^...M............###...........C........E..\n######################...######################....############...##############\n######################^^^######################^^^^############...##############\n\nLegend: # solid ground · = one-way platform (stand on it, jump up through it) · ^ spikes · o coin · C checkpoint flag · E exit door · P player start · M patrolling enemy · . empty. The left and right edges of the map are walls; falling below the bottom row is fatal.\n\nRequirements\n1. Render on a <canvas id=\"game\"> with crisp integer pixel scaling (no blurry smoothing). Draw all art in code.\n2. Physics must be frame-rate independent: a fixed timestep (e.g. 1/120 s) with an accumulator, rendering interpolated between steps. Tune it so the player (about 0.75 × 0.95 tile) can jump at least 3.5 tiles high and clear a 4-tile gap at full speed — the level is designed for that.\n3. Movement feel: acceleration and deceleration (no instant full speed), less air control, variable jump height (releasing jump early cuts the jump), coyote time ≈ 100 ms, jump buffering ≈ 120 ms. Input is never lost: a key pressed and released between two frames still takes effect.\n4. Collision: robust axis-separated tile collision with no tunnelling, no sticking to walls, no snagging on tile seams; one-way platforms only collide from above.\n5. Enemies walk back and forth on the surface they stand on, turning at walls, ledges and spikes. Landing on an enemy from above defeats it and bounces the player; touching it otherwise costs a life.\n6. Lives: 3. Spikes, enemies and falling out of the level cost a life and respawn the player at the last checkpoint touched (or the start) with ~1 s of blinking invulnerability. At 0 lives show \"Game over\" with a restart (Enter and a button).\n7. Coins: collected coins stay collected after a death. HUD elements: id=\"coins\" showing \"Coins <collected> / <total>\" where total is the number of coins in the map, id=\"lives\" showing the remaining lives, id=\"time\" showing elapsed time.\n8. Reaching the exit shows \"Level complete\" with time and coins, and Enter restarts.\n9. Camera follows the player smoothly with a small dead zone, clamped to the level bounds, with a subtle parallax background.\n10. Controls: ArrowLeft/ArrowRight or A/D to run; Space, ArrowUp or W to jump. On touch screens show on-screen buttons (left, right, jump) with aria-labels; they must support holding.\n11. The world is alive even when the player stands still (coins bob or spin, enemies patrol).\n12. It must fit a 390 × 844 portrait screen (smaller scale, touch buttons visible) and a 1280 × 800 desktop.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
     "output_type": "html",
     "difficulty": 3,
@@ -591,7 +591,7 @@
           "id": "fps",
           "type": "fps",
           "min": 50,
-          "weight": 1,
+          "weight": 0.5,
           "label_en": "Holds at least 50 fps",
           "label_ar": "يحافظ على 50 إطارًا في الثانية على الأقل"
         },
@@ -809,7 +809,7 @@
           "id": "fps",
           "type": "fps",
           "min": 50,
-          "weight": 1,
+          "weight": 0.5,
           "label_en": "Holds at least 50 fps",
           "label_ar": "يحافظ على 50 إطارًا في الثانية على الأقل"
         },
@@ -1024,7 +1024,7 @@
           "id": "fps",
           "type": "fps",
           "min": 50,
-          "weight": 1,
+          "weight": 0.5,
           "label_en": "Holds at least 50 fps",
           "label_ar": "يحافظ على 50 إطارًا في الثانية على الأقل"
         },

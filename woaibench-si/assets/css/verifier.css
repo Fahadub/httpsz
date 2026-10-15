@@ -65,6 +65,7 @@
 .vs-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); gap: var(--gap); align-items: start; }
 .vs-aside { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
 .vs-stage-card { min-width: 0; }
+.vs-stage-card .card-head { flex-wrap: wrap; row-gap: 4px; }
 .vs-stage { padding: clamp(14px, 2vw, 22px); min-height: 280px; }
 .vs-stage-empty .empty-state { min-height: 240px; }
 @media (max-width: 1100px) {
@@ -200,28 +201,30 @@
 .vs-check.is-fail { border-color: color-mix(in srgb, var(--red) 35%, transparent); background: var(--red-soft); color: var(--text); }
 .vs-check.is-fail .vs-check-dot { background: var(--red); }
 
-/* docked previews (stage scrolled out of view: keep frames visible so they are not throttled) */
-.vs-slots.is-docked {
+/* picture-in-picture viewer for a live frame whose lane is scrolled out of view */
+.vs-pip {
   position: fixed;
   z-index: 80;
   inset-block-end: 16px;
   inset-inline-end: 16px;
-  width: min(400px, calc(100vw - 32px));
-  max-height: min(70vh, 640px);
-  overflow: auto;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--s2);
-  padding: var(--s2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
   border: 1px solid var(--gold-line);
   border-radius: var(--radius-lg);
   background: var(--glass-strong, var(--glass));
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg), var(--glow);
+  animation: vs-fade 240ms var(--ease) both;
 }
-.vs-slots.is-docked .vs-slot { padding: var(--s2); gap: var(--s2); }
-.vs-slots.is-docked .vs-checks, .vs-slots.is-docked .vs-device figcaption, .vs-slots.is-docked .vs-slot-sub { display: none; }
-.vs-slots.is-docked .vs-slot-no { width: 26px; height: 26px; }
+.vs-pip[hidden] { display: none; }
+.vs-pip-desktop { width: min(340px, calc(100vw - 32px)); }
+.vs-pip-mobile { width: 140px; }
+.vs-pip-label { color: var(--gold); direction: ltr; padding-inline: 2px; }
+.vs-pip-label::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-inline-end: 6px; border-radius: 50%; background: var(--red); vertical-align: middle; animation: vs-blink 1.2s steps(2, start) infinite; }
+@keyframes vs-blink { to { visibility: hidden; } }
 
 /* ---------------------------------------------------------------- log */
 .vs-log-card { min-width: 0; }
@@ -252,7 +255,7 @@
 .vs-log li:first-child { animation: vs-fade 300ms var(--ease) both; }
 
 /* ---------------------------------------------------------------- headless + tips */
-.vs-cmd { position: relative; }
+.vs-cmd { position: relative; direction: ltr; }
 .vs-cmd .code-block { margin: 0; padding-inline-end: 84px; font-size: 12.5px; }
 .vs-cmd-copy { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; }
 .vs-tip-list { list-style: none; margin: 0; display: flex; flex-direction: column; gap: var(--s3); }
@@ -284,6 +287,18 @@ a.vs-thumb:hover img { transform: scale(1.06); }
 .vs-mini-stats { padding: var(--s3) 0; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .vs-mini-log { max-height: 220px; padding: 0; }
 
+/* ---------------------------------------------------------------- measuring: keep the host page still */
+html.vs-quiet *, html.vs-quiet *::before, html.vs-quiet *::after {
+  /* jump every animation to its end state (paused ones could stay invisible at frame 0) */
+  animation-duration: .01ms !important;
+  animation-iteration-count: 1 !important;
+  animation-delay: 0s !important;
+  transition-duration: 0s !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+html.vs-quiet .vs-pip { background: var(--surface); }
+
 /* ---------------------------------------------------------------- responsive + motion */
 @media (max-width: 640px) {
   .vs-console { flex-direction: column; align-items: stretch; }
@@ -291,10 +306,13 @@ a.vs-thumb:hover img { transform: scale(1.06); }
   .vs-console-actions .btn { flex: 1 1 auto; justify-content: center; }
   .vs-slots { grid-template-columns: minmax(0, 1fr); }
   .vs-recent .table th:nth-child(3), .vs-recent .table td:nth-child(3),
+  .vs-recent .table th:nth-child(5), .vs-recent .table td:nth-child(5),
   .vs-recent .table th:nth-child(6), .vs-recent .table td:nth-child(6) { display: none; }
-  .vs-thumb { width: 72px; height: 46px; }
+  .vs-thumb { width: 64px; height: 42px; }
+  .vs-recent-checks { min-width: 84px; }
+  .vs-kpis > :last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) {
   .vs-slot.is-busy::before, .vs-screen.is-live::after, [data-state="running"] .vs-orb::after { animation: none; }
-  .vs-shot, .vs-log li:first-child { animation: none; }
+  .vs-shot, .vs-log li:first-child, .vs-pip, .vs-pip-label::before { animation: none; }
 }

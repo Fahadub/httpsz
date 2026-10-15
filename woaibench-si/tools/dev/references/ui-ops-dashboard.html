@@ -144,7 +144,13 @@
         <p class="count" id="count" aria-live="polite"></p>
         <div class="table-wrap" tabindex="0" role="region" aria-labelledby="st-title">
           <table id="stations">
-            <thead><tr></tr></thead>
+            <thead><tr>
+              <th scope="col" data-key="name" aria-sort="none"><button type="button" data-key="name">Station<span class="arrow" aria-hidden="true">▲</span></button></th>
+              <th scope="col" data-key="district" aria-sort="none"><button type="button" data-key="district">District<span class="arrow" aria-hidden="true">▲</span></button></th>
+              <th scope="col" class="num" data-key="fill" aria-sort="none"><button type="button" data-key="fill">Bikes / Docks<span class="arrow" aria-hidden="true">▲</span></button></th>
+              <th scope="col" class="num" data-key="trips" aria-sort="none"><button type="button" id="sort-trips" data-key="trips">Trips<span class="arrow" aria-hidden="true">▲</span></button></th>
+              <th scope="col" data-key="status" aria-sort="none"><button type="button" data-key="status">Status<span class="arrow" aria-hidden="true">▲</span></button></th>
+            </tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -178,7 +184,7 @@ S12,Canal Basin,Eastbank,8,16,57,ok`;
     { key: 'name', label: 'Station', type: 'text' },
     { key: 'district', label: 'District', type: 'text' },
     { key: 'fill', label: 'Bikes / Docks', type: 'num', value: (s) => s.bikes / s.docks },
-    { key: 'trips', label: 'Trips', type: 'num', id: 'sort-trips' },
+    { key: 'trips', label: 'Trips', type: 'num' },
     { key: 'status', label: 'Status', type: 'num', value: (s) => STATUS_RANK[s.status] },
   ];
   const nf = new Intl.NumberFormat('en-US');
@@ -225,11 +231,7 @@ S12,Canal Basin,Eastbank,8,16,57,ok`;
     document.getElementById('district-chart').innerHTML = svg;
   }
 
-  function renderHead() {
-    document.querySelector('#stations thead tr').innerHTML = COLUMNS.map((c) => `
-      <th scope="col" class="${c.type === 'num' && c.key !== 'status' ? 'num' : ''}" data-key="${c.key}" aria-sort="none">
-        <button type="button"${c.id ? ` id="${c.id}"` : ''} data-key="${c.key}">${c.label}<span class="arrow" aria-hidden="true">▲</span></button>
-      </th>`).join('');
+  function bindHead() {
     document.querySelectorAll('#stations th button').forEach((b) => b.addEventListener('click', () => sortBy(b.dataset.key)));
   }
 
@@ -292,7 +294,7 @@ S12,Canal Basin,Eastbank,8,16,57,ok`;
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && side.classList.contains('open')) set(false); });
   }
 
-  renderKpis(); renderChart(); renderHead(); renderChips(); renderRows(); setupDrawer();
+  renderKpis(); renderChart(); bindHead(); renderChips(); renderRows(); setupDrawer();
   document.getElementById('search').addEventListener('input', (e) => { state.query = e.target.value; renderRows(); });
 })();
 </script>

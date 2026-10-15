@@ -1,0 +1,275 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spring micro-interactions</title>
+<style>
+  :root { --bg: #f4f1ec; --card: #fffdf9; --ink: #1d1b19; --muted: #77716a; --line: #e6e0d6; --accent: #ff4d6d; --accent-2: #5b5bd6; --ok: #2fbf71; --shadow: 0 1px 2px rgba(29,27,25,.06), 0 18px 40px -24px rgba(29,27,25,.35); }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { width: min(1000px, 100% - 32px); margin: 0 auto; padding: 40px 0 64px; }
+  h1 { font: 400 clamp(30px, 5vw, 46px)/1.05 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; margin: 0 0 8px; letter-spacing: -.01em; }
+  .lede { color: var(--muted); margin: 0 0 30px; max-width: 60ch; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 24px; box-shadow: var(--shadow); min-height: 230px; display: flex; flex-direction: column; }
+  .card h2 { font-size: 14px; margin: 0; letter-spacing: .02em; }
+  .card p.note { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+  .demo { flex: 1; display: grid; place-items: center; padding: 24px 0 6px; position: relative; }
+  :focus-visible { outline: 3px solid var(--accent-2); outline-offset: 3px; }
+  /* toggle */
+  #toggle-demo { width: 76px; height: 44px; border-radius: 999px; border: 0; padding: 0; background: #d9d3c9; position: relative; cursor: pointer; transition: background-color .25s; }
+  #toggle-demo[aria-checked="true"] { background: var(--ok); }
+  #toggle-demo .knob { position: absolute; top: 4px; left: 4px; width: 36px; height: 36px; border-radius: 999px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.2), 0 0 0 .5px rgba(0,0,0,.05); will-change: transform; }
+  .toggle-row { display: flex; align-items: center; gap: 14px; }
+  .toggle-row label { font-weight: 600; }
+  /* like */
+  #like-btn { position: relative; display: inline-flex; align-items: center; gap: 12px; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 12px 22px 12px 16px; font: inherit; font-weight: 650; cursor: pointer; box-shadow: var(--shadow); }
+  #like-btn svg { width: 30px; height: 30px; will-change: transform; overflow: visible; }
+  #like-btn .heart { fill: none; stroke: var(--ink); stroke-width: 2; transition: fill .15s, stroke .15s; }
+  #like-btn[aria-pressed="true"] .heart { fill: var(--accent); stroke: var(--accent); }
+  .burst { position: absolute; left: 31px; top: 50%; width: 0; height: 0; pointer-events: none; }
+  .burst i { position: absolute; width: 7px; height: 7px; border-radius: 50%; margin: -3.5px; will-change: transform, opacity; }
+  .count { display: inline-flex; font-variant-numeric: tabular-nums; height: 1.4em; overflow: hidden; line-height: 1.4em; }
+  .digit { display: inline-block; height: 1.4em; overflow: hidden; }
+  .digit .strip { display: flex; flex-direction: column; will-change: transform; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* segmented */
+  #segmented { position: relative; display: inline-grid; grid-template-columns: repeat(3, 1fr); background: #ece7df; border-radius: 14px; padding: 4px; }
+  #segmented .indicator { position: absolute; top: 4px; bottom: 4px; left: 0; width: 0; background: #fff; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.12); will-change: transform, width; }
+  #segmented [role=radio] { position: relative; z-index: 1; border: 0; background: none; font: inherit; font-weight: 600; padding: 10px 22px; min-height: 44px; cursor: pointer; color: var(--muted); border-radius: 10px; }
+  #segmented [role=radio][aria-checked="true"] { color: var(--ink); }
+  /* notifications */
+  .stack-area { position: relative; width: min(340px, 100%); height: 150px; }
+  #stack { position: absolute; inset: 0; }
+  .toast { position: absolute; left: 0; right: 0; bottom: 0; background: #1f1d1b; color: #f7f3ee; border-radius: 16px; padding: 14px 16px; display: flex; gap: 12px; align-items: center; touch-action: pan-y; cursor: grab; user-select: none; will-change: transform, opacity; box-shadow: 0 12px 30px rgba(0,0,0,.25); }
+  .toast .dot { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; font-size: 16px; }
+  .toast b { display: block; font-size: 14px; } .toast span { font-size: 13px; color: #c8c1b8; }
+  #notify { border: 0; background: var(--ink); color: #fff; font: inherit; font-weight: 650; border-radius: 12px; padding: 11px 18px; cursor: pointer; margin-top: 14px; min-height: 44px; }
+  .row-c { display: flex; flex-direction: column; align-items: center; width: 100%; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } #segmented [role=radio] { padding: 10px 16px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Springs, not timers.</h1>
+  <p class="lede">Four controls driven by one damped-spring integrator. Every motion can be interrupted mid-flight and continues from its current velocity.</p>
+  <div class="grid">
+    <section class="card" aria-labelledby="h-toggle">
+      <h2 id="h-toggle">Toggle</h2><p class="note">Stiffness 420 · damping 24 — a small overshoot, squish on press.</p>
+      <div class="demo"><div class="toggle-row"><button type="button" id="toggle-demo" role="switch" aria-checked="false" aria-labelledby="toggle-label"><span class="knob"></span></button><label id="toggle-label">Wi-Fi sync</label></div></div>
+    </section>
+    <section class="card" aria-labelledby="h-like">
+      <h2 id="h-like">Like</h2><p class="note">Velocity kick into a spring, particle burst, rolling counter.</p>
+      <div class="demo">
+        <button type="button" id="like-btn" aria-pressed="false">
+          <svg viewBox="0 0 32 32" aria-hidden="true"><path class="heart" d="M16 27s-10.5-6.3-10.5-14A6 6 0 0 1 16 9.6 6 6 0 0 1 26.5 13C26.5 20.7 16 27 16 27z"/></svg>
+          <span class="burst" aria-hidden="true"></span>
+          <span class="count" aria-hidden="true" id="like-roller"></span>
+          <span class="sr" id="like-count">1,284 likes</span>
+        </button>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="h-seg">
+      <h2 id="h-seg">Segmented control</h2><p class="note">The indicator springs to the selection; arrow keys move it.</p>
+      <div class="demo">
+        <div id="segmented" role="radiogroup" aria-label="Report range">
+          <span class="indicator" aria-hidden="true"></span>
+          <button type="button" role="radio" aria-checked="true" tabindex="0">Day</button>
+          <button type="button" role="radio" aria-checked="false" tabindex="-1">Week</button>
+          <button type="button" role="radio" aria-checked="false" tabindex="-1">Month</button>
+        </div>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="h-stack">
+      <h2 id="h-stack">Notification stack</h2><p class="note">Springy entry, stacked depth, swipe with a velocity-based fling.</p>
+      <div class="demo"><div class="row-c">
+        <div class="stack-area"><div id="stack" aria-live="polite"></div></div>
+        <button type="button" id="notify">Send notification</button>
+      </div></div>
+    </section>
+  </div>
+</div>
+<script>
+(() => {
+  'use strict';
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // ---------- spring engine ----------
+  /** Damped harmonic oscillator integrated with fixed 1/240 s semi-implicit Euler steps. */
+  class Spring {
+    constructor(value, { stiffness = 170, damping = 26, mass = 1, onUpdate } = {}) {
+      Object.assign(this, { value, target: value, velocity: 0, stiffness, damping, mass, onUpdate });
+    }
+    to(target, velocity) { this.target = target; if (velocity !== undefined) this.velocity = velocity; if (reduced) { this.value = target; this.velocity = 0; } Engine.wake(this); return this; }
+    jump(value) { this.value = this.target = value; this.velocity = 0; this.onUpdate && this.onUpdate(value); }
+    step(dt) {
+      const f = -this.stiffness * (this.value - this.target) - this.damping * this.velocity;
+      this.velocity += (f / this.mass) * dt;
+      this.value += this.velocity * dt;
+    }
+    get resting() { return Math.abs(this.velocity) < 0.01 && Math.abs(this.value - this.target) < 0.005; }
+  }
+  const Engine = {
+    active: new Set(), running: false, last: 0, acc: 0,
+    wake(s) { this.active.add(s); if (!this.running) { this.running = true; this.last = performance.now(); requestAnimationFrame((t) => this.frame(t)); } },
+    frame(now) {
+      this.acc += Math.min(0.064, (now - this.last) / 1000); this.last = now;
+      const STEP = 1 / 240;
+      while (this.acc >= STEP) { for (const s of this.active) s.step(STEP); this.acc -= STEP; }
+      for (const s of this.active) { if (s.resting) { s.value = s.target; s.velocity = 0; this.active.delete(s); } s.onUpdate && s.onUpdate(s.value); }
+      if (this.active.size || particles.length) { tickParticles(); requestAnimationFrame((t) => this.frame(t)); } else this.running = false;
+    },
+  };
+
+  // ---------- toggle ----------
+  const toggle = document.getElementById('toggle-demo'), knob = toggle.querySelector('.knob');
+  const knobX = new Spring(0, { stiffness: 420, damping: 24, onUpdate: renderKnob });
+  const squish = new Spring(1, { stiffness: 600, damping: 30, onUpdate: renderKnob });
+  function renderKnob() { knob.style.transform = `translateX(${knobX.value * 32}px) scaleX(${squish.value})`; }
+  toggle.addEventListener('pointerdown', () => squish.to(1.22));
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => toggle.addEventListener(ev, () => squish.to(1)));
+  toggle.addEventListener('click', () => {
+    const on = toggle.getAttribute('aria-checked') !== 'true';
+    toggle.setAttribute('aria-checked', String(on));
+    knobX.to(on ? 1 : 0); squish.to(1);
+  });
+
+  // ---------- like ----------
+  const likeBtn = document.getElementById('like-btn'), heart = likeBtn.querySelector('svg'), roller = document.getElementById('like-roller'), burst = likeBtn.querySelector('.burst');
+  const BASE = 1284;
+  const heartScale = new Spring(1, { stiffness: 380, damping: 14, onUpdate: (v) => { heart.style.transform = `scale(${v})`; } });
+  let digitSprings = [];
+  function buildRoller(n) {
+    const str = n.toLocaleString('en-US');
+    roller.innerHTML = '';
+    digitSprings = [...str].map((ch) => {
+      if (!/\d/.test(ch)) { const s = document.createElement('span'); s.textContent = ch; roller.appendChild(s); return null; }
+      const d = document.createElement('span'); d.className = 'digit';
+      const strip = document.createElement('span'); strip.className = 'strip';
+      strip.innerHTML = '0123456789'.split('').map((x) => `<span>${x}</span>`).join('');
+      d.appendChild(strip); roller.appendChild(d);
+      const sp = new Spring(+ch, { stiffness: 260, damping: 24, onUpdate: (v) => { strip.style.transform = `translateY(${-v * 1.4}em)`; } });
+      sp.jump(+ch);
+      return sp;
+    });
+  }
+  function setCount(n) {
+    const str = n.toLocaleString('en-US');
+    if (str.length !== digitSprings.length) buildRoller(n);
+    [...str].forEach((ch, i) => { if (digitSprings[i]) digitSprings[i].to(+ch); });
+    document.getElementById('like-count').textContent = `${str} likes`;
+  }
+  const particles = [];
+  function tickParticles() {
+    for (const p of particles) {
+      p.vx *= 0.94; p.vy = p.vy * 0.94 + 0.35; p.x += p.vx; p.y += p.vy; p.life -= 0.022;
+      p.el.style.transform = `translate(${p.x}px, ${p.y}px) scale(${Math.max(0, p.life)})`;
+      p.el.style.opacity = Math.max(0, p.life);
+    }
+    for (let i = particles.length - 1; i >= 0; i--) if (particles[i].life <= 0) { particles[i].el.remove(); particles.splice(i, 1); }
+  }
+  function burstParticles() {
+    if (reduced) return;
+    const colors = ['#ff4d6d', '#ffb703', '#5b5bd6', '#2fbf71'];
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2 + Math.random() * 0.3, v = 5 + Math.random() * 3;
+      const el = document.createElement('i'); el.style.background = colors[i % 4]; burst.appendChild(el);
+      particles.push({ el, x: 0, y: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1 });
+    }
+    Engine.wake(heartScale);
+  }
+  likeBtn.addEventListener('click', () => {
+    const liked = likeBtn.getAttribute('aria-pressed') !== 'true';
+    likeBtn.setAttribute('aria-pressed', String(liked));
+    heartScale.velocity = 0; heartScale.value = liked ? 0.6 : 0.85; heartScale.to(1, liked ? 22 : 6);
+    if (liked) burstParticles();
+    setCount(BASE + (liked ? 1 : 0));
+  });
+
+  // ---------- segmented ----------
+  const seg = document.getElementById('segmented'), indicator = seg.querySelector('.indicator'), radios = [...seg.querySelectorAll('[role=radio]')];
+  const segX = new Spring(0, { stiffness: 320, damping: 28, onUpdate: renderIndicator });
+  const segW = new Spring(0, { stiffness: 320, damping: 28, onUpdate: renderIndicator });
+  function renderIndicator() { indicator.style.transform = `translateX(${segX.value}px)`; indicator.style.width = `${segW.value}px`; }
+  function select(i, focus) {
+    radios.forEach((r, k) => { r.setAttribute('aria-checked', String(k === i)); r.tabIndex = k === i ? 0 : -1; });
+    segX.to(radios[i].offsetLeft); segW.to(radios[i].offsetWidth);
+    if (focus) radios[i].focus();
+  }
+  radios.forEach((r, i) => r.addEventListener('click', () => select(i, false)));
+  seg.addEventListener('keydown', (e) => {
+    const cur = radios.findIndex((r) => r.getAttribute('aria-checked') === 'true');
+    const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (d) { e.preventDefault(); select((cur + d + radios.length) % radios.length, true); }
+    if (e.key === 'Home') { e.preventDefault(); select(0, true); }
+    if (e.key === 'End') { e.preventDefault(); select(radios.length - 1, true); }
+  });
+  requestAnimationFrame(() => { segX.jump(radios[0].offsetLeft); segW.jump(radios[0].offsetWidth); });
+  window.addEventListener('resize', () => { const i = radios.findIndex((r) => r.getAttribute('aria-checked') === 'true'); segX.jump(radios[i].offsetLeft); segW.jump(radios[i].offsetWidth); });
+
+  // ---------- notification stack ----------
+  const stack = document.getElementById('stack');
+  const MESSAGES = [['📦', '#ffb703', 'Order shipped', 'Arriving Thursday by 18:00'], ['💬', '#5b5bd6', 'New comment', 'Mira replied to your sketch'], ['✅', '#2fbf71', 'Backup complete', '2,418 files · 3.2 GB'], ['🔔', '#ff4d6d', 'Reminder', 'Design review in 10 minutes']];
+  let toasts = [], msgIdx = 0;
+  function layoutToasts() {
+    toasts.forEach((t, i) => {
+      const depth = toasts.length - 1 - i; // 0 = newest (front)
+      t.y.to(-depth * 12); t.s.to(1 - depth * 0.05); t.o.to(depth > 2 ? 0 : 1 - depth * 0.15);
+      t.el.style.zIndex = String(100 - depth);
+      t.el.setAttribute('aria-hidden', depth > 2 ? 'true' : 'false');
+    });
+  }
+  function renderToast(t) { t.el.style.transform = `translate(${t.x.value}px, ${t.y.value}px) scale(${t.s.value})`; t.el.style.opacity = String(Math.max(0, Math.min(1, t.o.value * (1 - Math.min(1, Math.abs(t.x.value) / 320))))); }
+  function dismiss(t, dir) {
+    if (t.gone) return;
+    t.gone = true; clearTimeout(t.timer);
+    t.x.onUpdate = () => { renderToast(t); if (Math.abs(t.x.value) > 380 || reduced) { t.el.remove(); } };
+    t.x.to(dir * 420, t.x.velocity || dir * 900);
+    toasts = toasts.filter((o) => o !== t); layoutToasts();
+  }
+  function notify() {
+    const [icon, color, title, body] = MESSAGES[msgIdx++ % MESSAGES.length];
+    const el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status');
+    el.innerHTML = `<span class="dot" style="background:${color}22" aria-hidden="true">${icon}</span><span><b>${title}</b><span>${body}</span></span>`;
+    stack.appendChild(el);
+    const t = { el };
+    const upd = () => renderToast(t);
+    t.x = new Spring(0, { stiffness: 300, damping: 30, onUpdate: upd });
+    t.y = new Spring(60, { stiffness: 260, damping: 20, onUpdate: upd });
+    t.s = new Spring(0.9, { stiffness: 260, damping: 20, onUpdate: upd });
+    t.o = new Spring(0, { stiffness: 200, damping: 26, onUpdate: upd });
+    toasts.push(t);
+    while (toasts.length > 4) { const old = toasts.shift(); old.gone = true; clearTimeout(old.timer); old.el.remove(); }
+    layoutToasts(); renderToast(t);
+    t.timer = setTimeout(() => dismiss(t, 1), 5000);
+    attachSwipe(t);
+  }
+  function attachSwipe(t) {
+    let start = null, samples = [];
+    t.el.addEventListener('pointerdown', (e) => { if (t !== toasts[toasts.length - 1]) return; start = { x: e.clientX, v: t.x.value }; samples = [[performance.now(), e.clientX]]; t.el.setPointerCapture(e.pointerId); clearTimeout(t.timer); });
+    t.el.addEventListener('pointermove', (e) => {
+      if (!start) return;
+      t.x.target = t.x.value = start.v + (e.clientX - start.x); t.x.velocity = 0; renderToast(t);
+      samples.push([performance.now(), e.clientX]); if (samples.length > 5) samples.shift();
+    });
+    const end = () => {
+      if (!start) return;
+      start = null;
+      const [t0, x0] = samples[0], [t1, x1] = samples[samples.length - 1];
+      const v = t1 > t0 ? (x1 - x0) / ((t1 - t0) / 1000) : 0;
+      const w = t.el.offsetWidth;
+      if (Math.abs(v) > 700 || Math.abs(t.x.value) > w * 0.4) { t.x.velocity = v; dismiss(t, Math.sign(v || t.x.value)); }
+      else { t.x.to(0, v); t.timer = setTimeout(() => dismiss(t, 1), 5000); }
+    };
+    t.el.addEventListener('pointerup', end); t.el.addEventListener('pointercancel', end);
+  }
+  document.getElementById('notify').addEventListener('click', notify);
+
+  buildRoller(BASE);
+  renderKnob();
+  setTimeout(notify, 500); // one sample notification so the stack is not empty on arrival
+})();
+</script>
+</body>
+</html>

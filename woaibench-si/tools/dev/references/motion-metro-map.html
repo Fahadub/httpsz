@@ -1,0 +1,217 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Port Avalon Metro — live map</title>
+<style>
+  :root { --bg: #f6f4ef; --paper: #fffefb; --ink: #1d2126; --muted: #6b7178; --line: #e3dfd6; --red: #d7263d; --blue: #1b6ec2; --green: #1f9e6e; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; }
+  header { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--line); background: var(--paper); }
+  h1 { font-size: 18px; margin: 0; letter-spacing: .01em; }
+  h1 small { color: var(--muted); font-weight: 500; margin-inline-start: 8px; font-size: 13px; }
+  #clock { font: 700 18px ui-monospace, "SF Mono", Menlo, monospace; background: var(--ink); color: #fff; padding: 4px 10px; border-radius: 8px; letter-spacing: .04em; }
+  .legend { display: flex; gap: 8px; flex-wrap: wrap; margin-inline-start: auto; }
+  .line-toggle { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 12px 6px 8px; font: inherit; font-weight: 600; cursor: pointer; min-height: 36px; }
+  .line-toggle i { width: 22px; height: 8px; border-radius: 4px; }
+  .line-toggle[aria-pressed="false"] { opacity: .45; text-decoration: line-through; }
+  .map-wrap { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+  #map { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; background: radial-gradient(circle at 1px 1px, #e6e2d9 1px, transparent 1.2px) 0 0 / 20px 20px, var(--paper); }
+  .route { fill: none; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+  .station circle { fill: #fff; stroke: var(--ink); stroke-width: 3; }
+  .station { cursor: pointer; outline: none; }
+  .station:focus circle, .station:hover circle { stroke-width: 4.5; }
+  .station.interchange rect { fill: #fff; stroke: var(--ink); stroke-width: 3.5; }
+  .station text { font-size: 13px; font-weight: 600; fill: var(--ink); paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round; }
+  .station.interchange text { font-weight: 800; }
+  .train rect { stroke: #fff; stroke-width: 2; }
+  .train path { fill: #fff; }
+  .hidden { display: none; }
+  .zoom { position: absolute; inset-inline-end: 14px; bottom: 14px; display: grid; gap: 6px; }
+  .zoom button { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: #fff; font: 700 18px system-ui; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+  #tooltip { position: absolute; top: 14px; inset-inline-start: 14px; width: min(300px, calc(100% - 28px)); background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; box-shadow: 0 16px 40px -20px rgba(0,0,0,.35); }
+  #tooltip h2 { margin: 0 0 8px; font-size: 16px; }
+  #tooltip .hint { color: var(--muted); margin: 0; }
+  #tooltip ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  #tooltip li { display: grid; grid-template-columns: 10px 1fr; gap: 10px; }
+  #tooltip li i { width: 10px; border-radius: 3px; }
+  #tooltip li b { display: block; }
+  #tooltip li span { color: var(--muted); font-variant-numeric: tabular-nums; }
+  select { font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff; }
+  :focus-visible { outline: 3px solid #f2b705; outline-offset: 2px; }
+  @media (max-width: 640px) { .station text { font-size: 18px; stroke-width: 5px; } .route { stroke-width: 12; } header { padding: 10px 12px; } h1 small { display: none; } .legend { margin-inline-start: 0; } #tooltip { top: auto; bottom: 14px; width: calc(100% - 84px); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Port Avalon Metro <small>live service map</small></h1>
+  <span id="clock" aria-live="off">06:00</span>
+  <label>Speed <select id="speed" aria-label="Simulation speed"><option value="60" selected>1 min / s</option><option value="300">5 min / s</option><option value="15">¼ min / s</option></select></label>
+  <div class="legend" id="legend" aria-label="Lines"></div>
+</header>
+<div class="map-wrap">
+  <svg id="map" viewBox="20 20 960 600" role="application" aria-label="Schematic metro map. Tab to stations for next arrivals; drag to pan, scroll to zoom."></svg>
+  <div id="tooltip" role="status" aria-live="polite"><h2>Next trains</h2><p class="hint">Hover, tap or focus a station to see the next two arrivals on each line.</p></div>
+  <div class="zoom"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button></div>
+</div>
+<script>
+(() => {
+  'use strict';
+  const LINES = [
+    { id: 'red', name: 'Harbour Line', color: '#d7263d', trains: 3, stations: [['Westmere', 80, 320], ['Foundry Lane', 180, 320], ['Cathedral', 300, 320], ['Market Square', 420, 320], ['Central', 540, 320], ['Opera', 660, 320], ['Harbourfront', 780, 200], ['Lighthouse', 900, 200]] },
+    { id: 'blue', name: 'Hill Line', color: '#1b6ec2', trains: 2, stations: [['Northgate', 300, 60], ['Observatory', 300, 180], ['Cathedral', 300, 320], ['Tannery', 300, 440], ['Old Mill', 180, 560], ['Westfield', 80, 560]] },
+    { id: 'green', name: 'River Line', color: '#1f9e6e', trains: 2, stations: [['Kingsbridge', 540, 60], ['Museum', 540, 180], ['Central', 540, 320], ['Riverside', 540, 440], ['Southpark', 660, 560], ['Airport', 860, 560]] },
+  ];
+  const TRAVEL = 120, DWELL = 30, LAYOVER = 60; // simulated seconds
+  const LABEL = { Westmere: [0, 26, 'middle'], 'Foundry Lane': [0, 26, 'middle'], Cathedral: [-14, -22, 'end'], 'Market Square': [0, 26, 'middle'], Central: [14, -22, 'start'], Opera: [0, 26, 'middle'], Harbourfront: [0, -18, 'middle'], Lighthouse: [0, -18, 'middle'], Northgate: [16, 5, 'start'], Observatory: [16, 5, 'start'], Tannery: [16, 5, 'start'], 'Old Mill': [0, 26, 'middle'], Westfield: [0, 26, 'middle'], Kingsbridge: [16, 5, 'start'], Museum: [16, 5, 'start'], Riverside: [16, 5, 'start'], Southpark: [0, 26, 'middle'], Airport: [0, 26, 'middle'] };
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('map');
+  const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- schedule (pure functions of simulated time) ----------
+  for (const L of LINES) {
+    const n = L.stations.length;
+    L.oneWay = (n - 1) * TRAVEL + (n - 2) * DWELL;
+    L.period = 2 * L.oneWay + 2 * LAYOVER;
+    // cumulative path length to each station
+    L.dist = [0];
+    for (let i = 1; i < n; i++) L.dist.push(L.dist[i - 1] + Math.hypot(L.stations[i][1] - L.stations[i - 1][1], L.stations[i][2] - L.stations[i - 1][2]));
+    // arrival phases within one cycle: [phase, stationIndex, towards]
+    L.arrivals = [];
+    for (let i = 1; i < n; i++) L.arrivals.push([i * TRAVEL + (i - 1) * DWELL, i, n - 1]);
+    for (let i = 1; i < n; i++) L.arrivals.push([L.oneWay + LAYOVER + i * TRAVEL + (i - 1) * DWELL, n - 1 - i, 0]);
+  }
+  /** Train state at simulated second T: index along the line as a float (0 … n-1) and travel direction. */
+  function trainAt(L, k, T) {
+    const n = L.stations.length;
+    let ph = ((T + k * L.period / L.trains) % L.period + L.period) % L.period;
+    let dir = 1;
+    if (ph >= L.oneWay + LAYOVER) { ph -= L.oneWay + LAYOVER; dir = -1; }
+    if (ph >= L.oneWay) return { pos: dir > 0 ? n - 1 : 0, dir: -dir, dwell: true };
+    const seg = TRAVEL + DWELL;
+    const i = Math.floor(ph / seg), f = ph - i * seg;
+    let pos;
+    if (f < TRAVEL) { const t = f / TRAVEL; const e = reduced ? (t < 0.5 ? 0 : 1) : t * t * (3 - 2 * t); pos = i + e; } else pos = i + 1;
+    return { pos: dir > 0 ? pos : n - 1 - pos, dir, dwell: f >= TRAVEL };
+  }
+  function pointAt(L, pos) {
+    const i = Math.min(L.stations.length - 2, Math.floor(pos)), f = pos - i;
+    const a = L.stations[i], b = L.stations[i + 1];
+    return { x: a[1] + (b[1] - a[1]) * f, y: a[2] + (b[2] - a[2]) * f, ang: Math.atan2(b[2] - a[2], b[1] - a[1]) };
+  }
+  function nextArrivals(L, stationIdx, T, count = 2) {
+    const out = [];
+    for (let k = 0; k < L.trains; k++) {
+      const ph = ((T + k * L.period / L.trains) % L.period + L.period) % L.period;
+      for (const [aph, s, towards] of L.arrivals) if (s === stationIdx) out.push({ t: Math.round(T + ((aph - ph) % L.period + L.period) % L.period), towards: L.stations[towards][0] }); // whole seconds: avoids 05:59.999 → 05 display bugs
+    }
+    return out.sort((a, b) => a.t - b.t).slice(0, count);
+  }
+  const fmt = (T) => { const m = Math.floor(T / 60) + 6 * 60; return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
+
+  // ---------- drawing ----------
+  const gRoutes = el('g', {}, svg), gTrains = el('g', {}, svg), gStations = el('g', {}, svg);
+  const stationMap = new Map();
+  for (const L of LINES) {
+    L.route = el('polyline', { class: 'route', stroke: L.color, points: L.stations.map((s) => `${s[1]},${s[2]}`).join(' '), 'data-line': L.id }, gRoutes);
+    L.stations.forEach(([name, x, y], i) => {
+      if (!stationMap.has(name)) stationMap.set(name, { name, x, y, lines: [] });
+      stationMap.get(name).lines.push({ L, i });
+    });
+    L.trainEls = Array.from({ length: L.trains }, () => {
+      const g = el('g', { class: 'train', 'data-line': L.id }, gTrains);
+      el('rect', { x: -11, y: -7, width: 22, height: 14, rx: 5, fill: L.color }, g);
+      el('path', { d: 'M2-4l5 4-5 4z' }, g);
+      return g;
+    });
+  }
+  for (const st of stationMap.values()) {
+    const inter = st.lines.length > 1;
+    const g = el('g', { class: 'station' + (inter ? ' interchange' : ''), tabindex: '0', role: 'button', 'aria-label': `${st.name} station, ${st.lines.map((l) => l.L.name).join(' and ')}`, transform: `translate(${st.x} ${st.y})` }, gStations);
+    if (inter) el('rect', { x: -13, y: -13, width: 26, height: 26, rx: 13 }, g); else el('circle', { r: 7 }, g);
+    const [dx, dy, anchor] = LABEL[st.name] || [0, 24, 'middle'];
+    const t = el('text', { x: dx, y: dy, 'text-anchor': anchor }, g); t.textContent = st.name;
+    st.g = g;
+    const show = () => showStation(st);
+    g.addEventListener('mouseenter', show); g.addEventListener('focus', show); g.addEventListener('click', show);
+    g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); show(); } });
+  }
+
+  // ---------- legend / toggles ----------
+  const legend = document.getElementById('legend');
+  for (const L of LINES) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'line-toggle'; b.setAttribute('aria-pressed', 'true'); b.dataset.line = L.id;
+    b.innerHTML = `<i style="background:${L.color}"></i>${L.name}`;
+    b.addEventListener('click', () => {
+      const on = b.getAttribute('aria-pressed') !== 'true';
+      b.setAttribute('aria-pressed', String(on)); L.hidden = !on;
+      svg.querySelectorAll(`[data-line="${L.id}"]`).forEach((n) => n.classList.toggle('hidden', !on));
+      if (current) showStation(current);
+    });
+    legend.appendChild(b);
+  }
+
+  // ---------- tooltip ----------
+  const tip = document.getElementById('tooltip');
+  let current = null, simT = 0;
+  function showStation(st) {
+    current = st;
+    const rows = st.lines.filter(({ L }) => !L.hidden).map(({ L, i }) => {
+      const arr = nextArrivals(L, i, simT);
+      return `<li><i style="background:${L.color}"></i><div><b>${L.name}</b><span>${arr.map((a) => `${fmt(a.t)} → ${a.towards}`).join('<br>')}</span></div></li>`;
+    }).join('');
+    tip.innerHTML = `<h2>${st.name}</h2>${rows ? `<ul>${rows}</ul>` : '<p class="hint">All lines serving this station are hidden.</p>'}`;
+  }
+
+  // ---------- pan & zoom via viewBox ----------
+  const vb = { x: 20, y: 20, w: 960, h: 600 };
+  const applyVB = () => svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+  function zoom(f, cx = vb.x + vb.w / 2, cy = vb.y + vb.h / 2) {
+    const nw = Math.max(240, Math.min(1400, vb.w * f)), k = nw / vb.w;
+    vb.x = cx - (cx - vb.x) * k; vb.y = cy - (cy - vb.y) * k; vb.w = nw; vb.h = vb.h * k;
+    clampVB(); applyVB();
+  }
+  function clampVB() { vb.x = Math.max(-200, Math.min(1000 - vb.w * 0.3, vb.x)); vb.y = Math.max(-200, Math.min(640 - vb.h * 0.3, vb.y)); }
+  const toSvg = (cx, cy) => { const r = svg.getBoundingClientRect(); const s = Math.max(vb.w / r.width, vb.h / r.height); return { x: vb.x + (cx - r.left - (r.width - vb.w / s) / 2) * s, y: vb.y + (cy - r.top - (r.height - vb.h / s) / 2) * s, s }; };
+  svg.addEventListener('wheel', (e) => { e.preventDefault(); const p = toSvg(e.clientX, e.clientY); zoom(Math.exp(e.deltaY * 0.0015), p.x, p.y); }, { passive: false });
+  const ptrs = new Map(); let pinch = 0;
+  svg.addEventListener('pointerdown', (e) => { if (e.target.closest('.station')) return; svg.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]); });
+  svg.addEventListener('pointermove', (e) => {
+    const p = ptrs.get(e.pointerId); if (!p) return;
+    if (ptrs.size === 2) { ptrs.set(e.pointerId, [e.clientX, e.clientY]); const [a, b] = [...ptrs.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinch) zoom(pinch / d); pinch = d; return; }
+    const s = toSvg(0, 0).s; vb.x -= (e.clientX - p[0]) * s; vb.y -= (e.clientY - p[1]) * s; clampVB(); applyVB();
+    ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+  });
+  const up = (e) => { ptrs.delete(e.pointerId); pinch = 0; };
+  svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
+  document.getElementById('zoom-in').addEventListener('click', () => zoom(0.8));
+  document.getElementById('zoom-out').addEventListener('click', () => zoom(1.25));
+  function fitMobile() { if (innerWidth < 640) { vb.x = 0; vb.y = 20; vb.w = 1000; vb.h = 600; applyVB(); } }
+
+  // ---------- loop ----------
+  const speedSel = document.getElementById('speed');
+  let rate = 60, last = performance.now(), lastMinute = -1;
+  speedSel.addEventListener('change', () => { rate = +speedSel.value; });
+  function frame(now) {
+    simT += Math.min(0.1, (now - last) / 1000) * rate; last = now;
+    for (const L of LINES) L.trainEls.forEach((g, k) => {
+      const s = trainAt(L, k, simT), p = pointAt(L, s.pos);
+      const ang = p.ang + (s.dir < 0 ? Math.PI : 0);
+      g.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${(ang * 180 / Math.PI).toFixed(1)})`);
+    });
+    const minute = Math.floor(simT / 60);
+    if (minute !== lastMinute) { lastMinute = minute; document.getElementById('clock').textContent = fmt(simT); if (current) showStation(current); }
+    requestAnimationFrame(frame);
+  }
+  window.__wbDebug = { simT: () => simT, nextArrivals: (line, station) => { const L = LINES.find((l) => l.id === line); return nextArrivals(L, L.stations.findIndex((s) => s[0] === station), simT).map((a) => fmt(a.t)); } };
+  fitMobile();
+  requestAnimationFrame((t) => { last = t; frame(t); });
+})();
+</script>
+</body>
+</html>

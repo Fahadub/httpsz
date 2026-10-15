@@ -59,7 +59,7 @@ $headVars = [
   <?php endif; ?>
 
   <div class="kpi-row vs-kpis">
-    <?= ui_stat(fmt_num($counts['awaiting_verify']), __('verifier.station.kpi_queue'), 'clock', __('verifier.station.kpi_queue_hint', ['n' => fmt_num($counts['verifying'])])) ?>
+    <div class="stat"><span class="stat-icon"><?= ui_icon('clock', 20) ?></span><span class="stat-value t-num" data-vs-stat="queue" data-initial="<?= (int) $counts['awaiting_verify'] ?>"><?= e(fmt_num($counts['awaiting_verify'])) ?></span><span class="stat-label"><?= _e('verifier.station.kpi_queue') ?></span><span class="stat-hint"><?= _e('verifier.station.kpi_queue_hint', ['n' => fmt_num($counts['verifying'])]) ?></span></div>
     <div class="stat"><span class="stat-icon"><?= ui_icon('check', 20) ?></span><span class="stat-value t-num" data-vs-stat="processed">0</span><span class="stat-label"><?= _e('verifier.station.kpi_processed') ?></span><span class="stat-hint"><?= _e('verifier.station.kpi_processed_hint') ?></span></div>
     <div class="stat"><span class="stat-icon"><?= ui_icon('target', 20) ?></span><span class="stat-value t-num" data-vs-stat="pass_rate">—</span><span class="stat-label"><?= _e('verifier.station.kpi_pass') ?></span><span class="stat-hint"><?= _e('verifier.station.kpi_tests') ?> <span class="t-num" data-vs-stat="tests">—</span></span></div>
     <div class="stat"><span class="stat-icon"><?= ui_icon('timer', 20) ?></span><span class="stat-value t-num" data-vs-stat="avg">—</span><span class="stat-label"><?= _e('verifier.station.kpi_avg') ?></span><span class="stat-hint"><?= _e('verifier.station.kpi_avg_hint') ?></span></div>
@@ -138,8 +138,9 @@ $headVars = [
           </thead>
           <tbody>
             <?php foreach ($recent as $r):
-                $total = (int) $r['checks_total'];
-                $passed = (int) $r['checks_passed'];
+                $isTests = (int) $r['checks_total'] === 0 && (int) $r['tests_total'] > 0;
+                $total = $isTests ? (int) $r['tests_total'] : (int) $r['checks_total'];
+                $passed = $isTests ? (int) $r['tests_passed'] : (int) $r['checks_passed'];
                 $pct = $total > 0 ? $passed / $total * 100 : null;
                 $shot = upload_url($r['screenshot'] ?? null);
             ?>
@@ -160,7 +161,7 @@ $headVars = [
                   <?php if ($pct === null): ?>
                     <span class="t-muted">—</span>
                   <?php else: ?>
-                    <span class="t-num"><?= $passed ?>/<?= $total ?></span>
+                    <span class="t-num"><?= $passed ?>/<?= $total ?></span><?php if ($isTests): ?> <span class="t-xs t-muted"><?= _e('verifier.station.unit_tests') ?></span><?php endif; ?>
                     <?= ui_scorebar($pct, 100, $pct >= 99.5 ? 'var(--green)' : ($pct >= 50 ? 'var(--gold)' : 'var(--red)')) ?>
                   <?php endif; ?>
                 </td>
@@ -174,4 +175,4 @@ $headVars = [
     <?php endif; ?>
   </section>
 </div>
-<script type="application/json" id="vs-i18n"><?= js_json(I18n::forJs(['verifier.js.'])) ?></script>
+<script type="application/json" id="vs-i18n"><?= js_json($js_strings ?? I18n::forJs(['verifier.js.', 'status.'])) ?></script>

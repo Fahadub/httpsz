@@ -63,7 +63,7 @@ These match `assets/js/harness.js` (module verifier), which documents the same c
   across cases (fresh `Function` per case). This only matters for solutions that pollute globals —
   they may fail more cases in the browser, never fewer.
 * Large inputs are generated inside scripts with an inline LCG (`Math.imul` + `>>> 0`), identical
-  in every engine, so the JSON stays small (the largest seed file is ~120 KB).
+  in every engine, so the JSON stays small (12–240 KB per pretty-printed seed file).
 
 ## Track design
 

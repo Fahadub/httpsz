@@ -1,0 +1,229 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NRDL — price chart</title>
+<style>
+  :root { --bg: #0b0e13; --panel: #11151c; --ink: #e8ecf1; --muted: #8b95a3; --grid: #1e252f; --up: #22c3a6; --down: #f0586a; --sma: #f5b942; --cross: #5d6b7c; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { width: min(1180px, 100% - 24px); margin: 0 auto; padding: 22px 0 30px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 10px; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: .02em; }
+  h1 small { color: var(--muted); font-weight: 500; font-size: 13px; margin-inline-start: 8px; }
+  .price { font: 700 22px ui-monospace, "SF Mono", Menlo, monospace; }
+  .chg { font: 600 14px ui-monospace, Menlo, monospace; }
+  .up { color: var(--up); } .down { color: var(--down); }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 8px; }
+  .ranges { display: inline-flex; background: var(--panel); border: 1px solid var(--grid); border-radius: 10px; padding: 3px; }
+  .range-btn { font: inherit; font-weight: 700; color: var(--muted); background: none; border: 0; border-radius: 7px; padding: 6px 14px; cursor: pointer; min-height: 34px; }
+  .range-btn[aria-pressed="true"] { background: #222a35; color: var(--ink); }
+  #stats { display: flex; gap: 14px; flex-wrap: wrap; font: 600 13px ui-monospace, "SF Mono", Menlo, monospace; color: var(--muted); }
+  #stats b { color: var(--ink); font-weight: 700; }
+  #readout { font: 12px ui-monospace, "SF Mono", Menlo, monospace; color: var(--muted); min-height: 18px; margin-inline-start: auto; }
+  #readout b { color: var(--ink); font-weight: 600; }
+  #chart { position: relative; background: var(--panel); border: 1px solid var(--grid); border-radius: 14px; overflow: hidden; }
+  #chart svg { display: block; width: 100%; height: auto; touch-action: none; cursor: crosshair; outline: none; }
+  .grid line { stroke: var(--grid); }
+  .ax text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; font-family: ui-monospace, Menlo, monospace; }
+  .wick { stroke-width: 1.2; }
+  .sma { fill: none; stroke: var(--sma); stroke-width: 1.6; }
+  .cross line { stroke: var(--cross); stroke-dasharray: 3 3; }
+  .tag rect { fill: #222a35; } .tag text { fill: var(--ink); font: 600 11px ui-monospace, Menlo, monospace; }
+  .last rect { fill: var(--up); } .last text { fill: #04130f; font: 700 11px ui-monospace, Menlo, monospace; }
+  .legend { color: var(--muted); font-size: 12px; margin-top: 8px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-inline-end: 6px; }
+  :focus-visible { outline: 2px solid var(--sma); outline-offset: 2px; }
+  @media (max-width: 600px) { #readout { margin-inline-start: 0; width: 100%; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>NRDL <small>Nordal Instruments · synthetic data</small></h1>
+    <span class="price" id="last-price"></span><span class="chg" id="last-chg"></span>
+  </header>
+  <div class="bar">
+    <div class="ranges" role="group" aria-label="Range">
+      <button type="button" class="range-btn" data-n="20" aria-pressed="false">1M</button>
+      <button type="button" class="range-btn" data-n="40" aria-pressed="false">2M</button>
+      <button type="button" class="range-btn" data-n="60" aria-pressed="true">All</button>
+    </div>
+    <div id="stats" aria-live="polite"></div>
+    <div id="readout" aria-live="off"></div>
+  </div>
+  <div id="chart"><svg id="svg" tabindex="0" role="img" aria-label="Candlestick chart of NRDL daily prices with 10-day moving average and volume. Drag to pan, scroll or pinch to zoom, arrow keys move the crosshair."></svg></div>
+  <div class="legend"><span><i style="background:var(--up)"></i>Up day (close ≥ open, hollow)</span><span><i style="background:var(--down)"></i>Down day (filled)</span><span><i style="background:var(--sma)"></i>SMA 10</span></div>
+</div>
+<script>
+(() => {
+  'use strict';
+  const CSV = `2026-03-02,84.72,85.75,84.68,85.32,1081739
+2026-03-03,85.42,86.36,85.26,85.79,1762520
+2026-03-04,85.85,86.27,84.80,85.58,2062920
+2026-03-05,85.26,85.66,83.22,83.26,2159816
+2026-03-06,83.50,84.46,82.35,82.56,2156161
+2026-03-09,82.58,84.67,82.34,84.67,3289988
+2026-03-10,84.60,85.76,83.92,85.23,2227927
+2026-03-11,84.53,85.87,83.85,85.35,2372015
+2026-03-12,85.60,86.71,84.35,85.64,2558913
+2026-03-13,85.90,87.67,85.80,87.61,1638126
+2026-03-16,87.76,88.57,85.68,85.71,2907410
+2026-03-17,85.62,87.44,85.53,87.09,2276118
+2026-03-18,87.07,87.46,86.36,87.04,902934
+2026-03-19,86.70,88.34,86.62,87.49,1734864
+2026-03-20,87.20,90.12,86.40,89.76,2672825
+2026-03-23,90.09,90.30,89.37,89.82,2070719
+2026-03-24,90.20,91.32,89.62,90.90,1289516
+2026-03-25,91.35,91.80,89.98,90.09,929446
+2026-03-26,89.41,89.54,86.71,87.06,3165231
+2026-03-27,86.53,86.95,84.82,85.10,2288161
+2026-03-30,85.16,85.47,82.77,84.08,2551809
+2026-03-31,83.78,84.31,83.15,83.56,885270
+2026-04-01,83.64,84.95,82.80,84.11,2407981
+2026-04-02,84.18,85.37,83.69,84.68,1212964
+2026-04-03,84.46,85.09,84.25,85.03,1191994
+2026-04-06,84.63,84.82,84.05,84.07,2238933
+2026-04-07,84.14,84.59,81.86,82.72,1067380
+2026-04-08,82.79,84.36,81.83,84.22,2573399
+2026-04-09,84.66,87.14,83.98,86.66,2333816
+2026-04-10,86.49,86.63,85.44,85.59,975087
+2026-04-13,85.65,87.28,84.58,87.12,1078051
+2026-04-14,87.76,88.55,87.74,88.24,1579417
+2026-04-15,88.41,89.99,84.94,86.50,1359748
+2026-04-16,86.01,86.03,84.49,84.74,1264987
+2026-04-17,84.84,85.41,83.64,83.66,2340791
+2026-04-20,83.40,84.31,83.07,84.04,1340520
+2026-04-21,83.47,84.69,80.60,82.34,2212594
+2026-04-22,82.22,83.51,81.56,82.33,1402149
+2026-04-23,83.00,84.01,82.82,83.98,1723538
+2026-04-24,83.43,83.99,83.09,83.45,1175765
+2026-04-27,83.52,85.54,82.87,84.24,1060442
+2026-04-28,83.95,85.45,82.66,83.27,1969411
+2026-04-29,83.62,84.46,83.45,83.99,1460685
+2026-04-30,83.79,85.68,83.29,84.98,1180212
+2026-05-01,85.01,85.93,84.87,85.89,2410714
+2026-05-04,85.78,87.20,85.65,86.82,2123654
+2026-05-05,86.59,87.26,85.89,86.18,1633152
+2026-05-06,86.17,87.98,86.13,87.55,1594555
+2026-05-07,87.69,88.80,86.97,88.43,1282049
+2026-05-08,88.04,88.66,87.89,88.13,2384052
+2026-05-11,87.98,89.08,87.65,89.00,1347211
+2026-05-12,89.23,89.72,87.83,88.76,1377977
+2026-05-13,89.14,89.82,87.34,87.99,2219073
+2026-05-14,87.37,87.39,87.05,87.07,1248705
+2026-05-15,86.54,87.24,84.46,84.81,1929779
+2026-05-18,85.14,87.24,83.84,86.16,1620859
+2026-05-19,85.75,87.93,85.52,87.77,2089645
+2026-05-20,87.88,90.03,86.81,89.61,2436529
+2026-05-21,89.88,93.42,89.74,93.22,2260021
+2026-05-22,93.43,97.07,92.91,96.51,2985696`;
+  const DAYS = CSV.split('\n').map((l) => { const [d, o, h, lo, c, v] = l.split(','); return { d: new Date(d + 'T00:00:00Z'), o: +o, h: +h, l: +lo, c: +c, v: +v }; });
+  const N = DAYS.length, MIN_VISIBLE = 10;
+  // simple moving average of closes (null until 10 values exist)
+  DAYS.forEach((day, i) => { day.sma = i >= 9 ? DAYS.slice(i - 9, i + 1).reduce((a, x) => a + x.c, 0) / 10 : null; });
+  const NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('svg');
+  const mk = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dateLabel = (d) => `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+  const vol = (v) => (v / 1e6).toFixed(2) + 'M';
+  let view = { start: 0, end: N - 1 }, hover = N - 1, G;
+
+  function niceStep(range, count) { const raw = range / count, mag = Math.pow(10, Math.floor(Math.log10(raw))); return [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw); }
+  function render() {
+    const W = svg.parentElement.clientWidth, narrow = W < 600, H = narrow ? 420 : 520;
+    const m = { l: 10, r: 62, t: 14, b: 26 }, volH = H * 0.2, gap = 12;
+    const priceH = H - m.t - m.b - volH - gap;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = '';
+    const vis = DAYS.slice(view.start, view.end + 1);
+    const lo = Math.min(...vis.map((d) => d.l)), hi = Math.max(...vis.map((d) => d.h));
+    const step = niceStep(hi - lo, narrow ? 4 : 6), y0 = Math.floor(lo / step) * step, y1 = Math.ceil(hi / step) * step;
+    const n = view.end - view.start + 1, slot = (W - m.l - m.r) / n;
+    const x = (i) => m.l + (i - view.start + 0.5) * slot;
+    const y = (v) => m.t + (1 - (v - y0) / (y1 - y0)) * priceH;
+    const vmax = Math.max(...vis.map((d) => d.v));
+    const vy = (v) => H - m.b - v / vmax * volH;
+    G = { W, H, m, x, y, slot, priceH };
+    const grid = mk('g', { class: 'grid' }, svg), ax = mk('g', { class: 'ax' }, svg);
+    for (let v = y0; v <= y1 + 1e-9; v += step) { mk('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v) }, grid); mk('text', { x: W - m.r + 6, y: y(v) + 4 }, ax).textContent = v.toFixed(step < 1 ? 2 : 0); }
+    const every = Math.max(1, Math.round(n / (narrow ? 4 : 8)));
+    for (let i = view.start; i <= view.end; i++) if ((i - view.start) % every === 0) { mk('line', { x1: x(i), x2: x(i), y1: m.t, y2: H - m.b }, grid); mk('text', { x: x(i), y: H - 8, 'text-anchor': 'middle' }, ax).textContent = dateLabel(DAYS[i].d); }
+    const bw = Math.max(1.5, Math.min(14, slot * 0.66));
+    const candles = mk('g', {}, svg);
+    for (let i = view.start; i <= view.end; i++) {
+      const d = DAYS[i], up = d.c >= d.o, col = up ? 'var(--up)' : 'var(--down)';
+      const g = mk('g', { class: 'candle' }, candles);
+      mk('rect', { x: x(i) - bw / 2, y: vy(d.v), width: bw, height: H - m.b - vy(d.v), fill: col, opacity: 0.35 }, g);
+      mk('line', { class: 'wick', x1: x(i), x2: x(i), y1: y(d.h), y2: y(d.l), stroke: col }, g);
+      const top = y(Math.max(d.o, d.c)), h = Math.max(1, Math.abs(y(d.o) - y(d.c)));
+      mk('rect', { x: x(i) - bw / 2, y: top, width: bw, height: h, fill: up ? 'var(--panel)' : col, stroke: col, 'stroke-width': 1.2 }, g);
+    }
+    let path = '';
+    for (let i = view.start; i <= view.end; i++) if (DAYS[i].sma !== null) path += `${path ? 'L' : 'M'}${x(i).toFixed(1)},${y(DAYS[i].sma).toFixed(1)}`;
+    mk('path', { class: 'sma', d: path }, svg);
+    // last price tag on the axis
+    const last = DAYS[view.end], tag = mk('g', { class: 'last' }, svg);
+    mk('rect', { x: W - m.r + 2, y: y(last.c) - 9, width: m.r - 4, height: 18, rx: 4 }, tag);
+    mk('text', { x: W - m.r + 6, y: y(last.c) + 4 }, tag).textContent = last.c.toFixed(2);
+    G.cross = mk('g', { class: 'cross' }, svg);
+    drawCross();
+    updateStats();
+  }
+  function drawCross() {
+    const g = G.cross; g.innerHTML = '';
+    const i = Math.max(view.start, Math.min(view.end, hover)), d = DAYS[i];
+    mk('line', { x1: G.x(i), x2: G.x(i), y1: G.m.t, y2: G.H - G.m.b }, g);
+    mk('line', { x1: G.m.l, x2: G.W - G.m.r, y1: G.y(d.c), y2: G.y(d.c) }, g);
+    const t = mk('g', { class: 'tag' }, g);
+    mk('rect', { x: G.x(i) - 30, y: G.H - G.m.b + 2, width: 60, height: 18, rx: 4 }, t);
+    mk('text', { x: G.x(i), y: G.H - G.m.b + 15, 'text-anchor': 'middle' }, t).textContent = dateLabel(d.d);
+    const chg = (d.c - d.o) / d.o * 100;
+    document.getElementById('readout').innerHTML = `${dateLabel(d.d)} · O <b>${d.o.toFixed(2)}</b> H <b>${d.h.toFixed(2)}</b> L <b>${d.l.toFixed(2)}</b> C <b class="${chg >= 0 ? 'up' : 'down'}">${d.c.toFixed(2)}</b> · Vol <b>${vol(d.v)}</b>${d.sma ? ` · SMA10 <b>${d.sma.toFixed(2)}</b>` : ''}`;
+  }
+  function updateStats() {
+    const vis = DAYS.slice(view.start, view.end + 1);
+    const hi = Math.max(...vis.map((d) => d.h)), lo = Math.min(...vis.map((d) => d.l));
+    const chg = (vis[vis.length - 1].c - vis[0].o) / vis[0].o * 100;
+    document.getElementById('stats').innerHTML = `<span>High <b>${hi.toFixed(2)}</b></span><span>Low <b>${lo.toFixed(2)}</b></span><span>Change <b class="${chg >= 0 ? 'up' : 'down'}">${chg >= 0 ? '+' : '−'}${Math.abs(chg).toFixed(2)}%</b></span>`;
+    document.querySelectorAll('.range-btn').forEach((b) => b.setAttribute('aria-pressed', String(view.end === N - 1 && view.end - view.start + 1 === +b.dataset.n)));
+  }
+  function setView(start, end) {
+    let n = Math.max(MIN_VISIBLE, Math.min(N, end - start + 1));
+    start = Math.round(start); start = Math.max(0, Math.min(N - n, start));
+    view = { start, end: start + n - 1 };
+    render();
+  }
+  function zoomAt(factor, anchorIdx) {
+    const n = view.end - view.start + 1, nn = Math.max(MIN_VISIBLE, Math.min(N, Math.round(n * factor)));
+    const k = (anchorIdx - view.start) / n;
+    setView(anchorIdx - k * nn, anchorIdx - k * nn + nn - 1);
+  }
+  const idxAt = (clientX) => { const r = svg.getBoundingClientRect(); const px = (clientX - r.left) / r.width * G.W; return Math.round(view.start + (px - G.m.l) / G.slot - 0.5); };
+  document.querySelectorAll('.range-btn').forEach((b) => b.addEventListener('click', () => { setView(N - +b.dataset.n, N - 1); hover = N - 1; drawCross(); }));
+  svg.addEventListener('wheel', (e) => { e.preventDefault(); zoomAt(Math.exp(e.deltaY * 0.0015), Math.max(view.start, Math.min(view.end, idxAt(e.clientX)))); }, { passive: false });
+  const ptrs = new Map(); let pan = null, pinch = 0;
+  svg.addEventListener('pointerdown', (e) => { svg.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, e.clientX); pan = { x: e.clientX, start: view.start }; });
+  svg.addEventListener('pointermove', (e) => {
+    if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, e.clientX);
+    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()], d = Math.abs(a - b); if (pinch) zoomAt(pinch / d, Math.round((view.start + view.end) / 2)); pinch = d; return; }
+    if (pan && ptrs.size === 1) { const r = svg.getBoundingClientRect(); const di = (e.clientX - pan.x) / r.width * G.W / G.slot; const n = view.end - view.start + 1; const s = Math.round(pan.start - di); if (s !== view.start) setView(s, s + n - 1); }
+    hover = Math.max(view.start, Math.min(view.end, idxAt(e.clientX))); drawCross();
+  });
+  const up = (e) => { ptrs.delete(e.pointerId); pinch = 0; if (!ptrs.size) pan = null; };
+  svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
+  svg.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); hover = Math.max(view.start, Math.min(view.end, hover + (e.key === 'ArrowRight' ? 1 : -1))); drawCross(); }
+    if (e.key === '+' || e.key === '=') zoomAt(0.8, hover); if (e.key === '-') zoomAt(1.25, hover);
+  });
+  const last = DAYS[N - 1], prev = DAYS[N - 2], dc = (last.c - prev.c) / prev.c * 100;
+  document.getElementById('last-price').textContent = last.c.toFixed(2);
+  const lc = document.getElementById('last-chg'); lc.textContent = `${dc >= 0 ? '+' : '−'}${Math.abs(dc).toFixed(2)}% today`; lc.className = 'chg ' + (dc >= 0 ? 'up' : 'down');
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 100); });
+  render();
+})();
+</script>
+</body>
+</html>

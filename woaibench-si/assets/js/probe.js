@@ -66,7 +66,7 @@
   var CHECKS_BUDGET = 3500;
   CHECKS.forEach(function (c) {
     if (LIGHT && !LIGHT_TYPES[c.type]) { return; }
-    if (c.type === 'animates' || c.type === 'fps') { CHECKS_BUDGET += 900; }
+    if (c.type === 'animates' || c.type === 'fps') { CHECKS_BUDGET += 2600; }
     if (c.type === 'keyboard') { CHECKS_BUDGET += 900 + Math.min(12, (c.keys || DEFAULT_KEYS).length) * 620; }
     if (c.type === 'click') { CHECKS_BUDGET += 1800; }
   });
@@ -183,7 +183,7 @@
   addO.call(W, 'submit', function (ev) { if (synthetic > 0) { ev.preventDefault(); } }, true);
 
   /* ------------------------------------------------------------ visibility (station throttling) */
-  var flags = { hidden: D.visibilityState === 'hidden', offscreen: false };
+  var flags = { hidden: D.visibilityState === 'hidden', offscreen: false, starved: false };
   addO.call(D, 'visibilitychange', function () { if (D.visibilityState === 'hidden') { flags.hidden = true; } });
   var inView = true;
   function watchViewport() {
@@ -197,6 +197,19 @@
     } catch (e) { /* ignore */ }
   }
   function noteOffscreen() { if (!inView) { flags.offscreen = true; } }
+
+  /* ------------------------------------------------------------ long tasks (page busy vs. machine starved) */
+  var longTasks = [];
+  try {
+    new W.PerformanceObserver(function (list) {
+      list.getEntries().forEach(function (e) { if (longTasks.length < 1000) { longTasks.push([e.startTime, e.startTime + e.duration]); } });
+    }).observe({ type: 'longtask', buffered: true });
+  } catch (e) { /* unsupported */ }
+  function longTaskMs(t0, t1) {
+    var sum = 0;
+    for (var i = 0; i < longTasks.length; i++) { sum += Math.max(0, Math.min(t1, longTasks[i][1]) - Math.max(t0, longTasks[i][0])); }
+    return sum;
+  }
 
   /* ------------------------------------------------------------ load tracking */
   var times = { dom: null, load: null };
@@ -356,9 +369,9 @@
   /* ------------------------------------------------------------ observation window (animates + fps) */
   var observation = null;
   var lastFps = null;
-  function observe(ms) {
-    if (observation) { return observation; }
-    observation = new Promise(function (resolve) {
+  /** One observation window: DOM mutations, running animations, pixel/style changes, frame rate. */
+  function observeOnce(ms) {
+    return new Promise(function (resolve) {
       var mut = 0;
       var mo = null;
       try {
@@ -394,13 +407,38 @@
           if (k.charAt(0) === 'c') { canvasChanged = true; }
           if (k.charAt(0) === 'e') { styleChanged = true; }
         }
-        lastFps = round(ts.length / sec, 1);
         resolve({
           ms: t1 - t0, mutations: mut, anims: anims, canvasChanged: canvasChanged, styleChanged: styleChanged,
-          fps: ts.length / sec, pageLoop: usePage, p95: gaps.length ? gaps[Math.min(gaps.length - 1, Math.floor(gaps.length * 0.95))] : null
+          fps: ts.length / sec, pageLoop: usePage, p95: gaps.length ? gaps[Math.min(gaps.length - 1, Math.floor(gaps.length * 0.95))] : null,
+          probeFps: frames.length / sec, longFrac: longTaskMs(t0, t1) / Math.max(1, t1 - t0)
         });
       }, ms);
     });
+  }
+  /**
+   * Shared observation for animates + fps. When the browser itself produces almost no frames while the
+   * page is not busy (no long tasks) the machine is starved (e.g. a loaded host): retry up to twice and
+   * keep the best window, so external load is not blamed on the model.
+   */
+  function observe(ms) {
+    if (observation) { return observation; }
+    var attempt = function (n, best) {
+      return observeOnce(ms).then(function (o) {
+        var m = best ? {
+          ms: best.ms + o.ms, mutations: best.mutations + o.mutations, anims: Math.max(best.anims, o.anims),
+          canvasChanged: best.canvasChanged || o.canvasChanged, styleChanged: best.styleChanged || o.styleChanged,
+          fps: Math.max(best.fps, o.fps), pageLoop: o.fps >= best.fps ? o.pageLoop : best.pageLoop,
+          p95: o.fps >= best.fps ? o.p95 : best.p95, probeFps: Math.max(best.probeFps, o.probeFps), longFrac: o.longFrac
+        } : o;
+        var starved = o.probeFps < 10 && o.longFrac < 0.3;
+        if (starved && n < 2 && !finalized) { return sleep(800).then(function () { return attempt(n + 1, m); }); }
+        m.starved = starved;
+        flags.starved = starved;
+        lastFps = round(m.fps, 1);
+        return m;
+      });
+    };
+    observation = attempt(0, null);
     return observation;
   }
 
@@ -674,14 +712,14 @@
         if (o.mutations > 0) { sig.push(o.mutations + ' DOM mutations'); }
         if (o.anims > 0) { sig.push(o.anims + ' running CSS/Web animations'); }
         var pass = sig.length > 0;
-        return res(c, pass, pass ? 1 : 0, pass ? sig.join(' · ') : 'nothing changed over ' + round(o.ms / 1000, 1) + ' s');
+        return res(c, pass, pass ? 1 : 0, pass ? sig.join(' · ') : 'nothing changed over ' + round(o.ms / 1000, 1) + ' s' + (o.starved ? ' (browser produced few frames)' : ''));
       });
     },
     fps: function (c) {
       var min = Math.max(1, Number(c.min) || 30);
       return observe(1500).then(function (o) {
         var fps = round(o.fps, 1);
-        return res(c, fps >= min, Math.min(1, fps / min), fps + ' fps (' + (o.pageLoop ? 'page rAF loop' : 'browser frames') + (o.p95 ? ', p95 frame ' + Math.round(o.p95) + ' ms' : '') + ', min ' + min + ')', { value: fps });
+        return res(c, fps >= min, Math.min(1, fps / min), fps + ' fps (' + (o.pageLoop ? 'page rAF loop' : 'browser frames') + (o.p95 ? ', p95 frame ' + Math.round(o.p95) + ' ms' : '') + ', min ' + min + (o.starved ? ', host starved' : '') + ')', { value: fps });
       });
     },
     keyboard: function (c) {
@@ -892,6 +930,7 @@
         finished: reason,
         hidden: flags.hidden,
         offscreen: flags.offscreen,
+        starved: flags.starved,
         harness: harnessMode
       }
     };
@@ -945,22 +984,66 @@
     g.fillRect(0, 0, w, h);
     return cv;
   }
+  /**
+   * DOM → SVG <foreignObject> → <img> → canvas. Works inside an opaque-origin sandbox, where html2canvas
+   * cannot (it clones the page into a child iframe, which a sandboxed document may not script).
+   * Scripts are dropped, form values copied; canvases are drawn on top afterwards by compose().
+   */
+  function svgCapture(w, h, bg) {
+    var root = D.documentElement.cloneNode(true);
+    qsa('script,noscript,iframe,object,embed,[data-wb-probe]', root).forEach(function (n) { if (n.parentNode) { n.parentNode.removeChild(n); } });
+    var live = qsa('input,textarea,select');
+    var copy = qsa('input,textarea,select', root);
+    for (var i = 0; i < live.length && i < copy.length; i++) {
+      var a = live[i];
+      var b = copy[i];
+      if (a.tagName === 'TEXTAREA') { b.textContent = a.value; continue; }
+      if (a.tagName === 'SELECT') {
+        Array.prototype.forEach.call(b.options, function (o, k) { if (k === a.selectedIndex) { o.setAttribute('selected', ''); } else { o.removeAttribute('selected'); } });
+        continue;
+      }
+      if (a.type === 'checkbox' || a.type === 'radio') { if (a.checked) { b.setAttribute('checked', ''); } else { b.removeAttribute('checked'); } continue; }
+      if (a.type !== 'file' && a.type !== 'password') { b.setAttribute('value', a.value); }
+    }
+    root.style.width = W.innerWidth + 'px';
+    root.style.minHeight = W.innerHeight + 'px';
+    var xml = new XMLSerializer().serializeToString(root);
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '"><foreignObject x="0" y="0" width="' + W.innerWidth + '" height="' + Math.max(h, W.innerHeight) + '">' + xml + '</foreignObject></svg>';
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var cv = blankCanvas(w, h, bg);
+          var g = cv.getContext('2d');
+          g.drawImage(img, 0, 0);
+          g.getImageData(0, 0, 1, 1); // throws when the browser tainted the canvas
+          resolve(cv);
+        } catch (e) { reject(e); }
+      };
+      img.onerror = function () { reject(new Error('SVG snapshot could not be rendered')); };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    });
+  }
   function capture() {
-    var w = Math.max(1, Math.min(W.innerWidth, 1600));
-    var h = Math.max(1, Math.min(W.innerHeight, 1400));
+    try { W.scrollTo(0, 0); } catch (e) { /* ignore */ }
+    var w = Math.max(16, Math.min(W.innerWidth, 1600));
+    var h = Math.max(16, Math.min(W.innerHeight, 1400));
     var bg = pageBackground();
-    var fallback = function () { var cv = blankCanvas(w, h, bg); compose(cv); return encode(cv); };
-    var h2c = H2C || W.html2canvas;
-    if (typeof h2c !== 'function') { return Promise.resolve().then(fallback); }
-    return withTimeout(h2c(D.body || D.documentElement, {
-      scale: 1, useCORS: false, allowTaint: false, logging: false, backgroundColor: bg,
-      x: W.scrollX, y: W.scrollY, width: w, height: h, windowWidth: W.innerWidth, windowHeight: W.innerHeight,
-      imageTimeout: 1500, removeContainer: true,
-      ignoreElements: function (el) { return ownEl(el) || el === SC; }
-    }), 9000, 'screenshot').then(function (cv) {
-      compose(cv);
-      try { return encode(cv); } catch (e) { return fallback(); }
-    }, fallback);
+    var finish = function (cv) { compose(cv); return encode(cv); };
+    var fallback = function () { return finish(blankCanvas(w, h, bg)); };
+    var viaH2c = function () {
+      var h2c = H2C || W.html2canvas;
+      if (typeof h2c !== 'function') { return fallback(); }
+      return withTimeout(h2c(D.body || D.documentElement, {
+        scale: 1, useCORS: false, allowTaint: false, logging: false, backgroundColor: bg,
+        x: 0, y: 0, width: w, height: h, windowWidth: W.innerWidth, windowHeight: W.innerHeight,
+        imageTimeout: 1500, removeContainer: true,
+        ignoreElements: function (el) { return ownEl(el) || el === SC; }
+      }), 9000, 'screenshot').then(finish, fallback);
+    };
+    return withTimeout(svgCapture(w, h, bg), 8000, 'snapshot').then(function (cv) {
+      try { return finish(cv); } catch (e) { return viaH2c(); }
+    }, viaH2c);
   }
   var shooting = false;
   addO.call(W, 'message', function (ev) {

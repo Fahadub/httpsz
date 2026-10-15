@@ -1,0 +1,202 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Museum visitors 2024–2025</title>
+<style>
+  :root { --bg: #0f1216; --panel: #161b21; --ink: #eef1f4; --muted: #98a2ad; --grid: #262d36; --c0: #4cc9f0; --c1: #f4a259; --c2: #c77dff; --c3: #80ed99; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { width: min(1080px, 100% - 28px); margin: 0 auto; padding: 32px 0 40px; }
+  h1 { margin: 0 0 4px; font-size: clamp(22px, 3.2vw, 30px); letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 0 0 18px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 10px; }
+  #legend { display: flex; flex-wrap: wrap; gap: 8px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-weight: 600; font-size: 13px; color: var(--ink); background: var(--panel); border: 1px solid var(--grid); border-radius: 999px; padding: 6px 12px; cursor: pointer; min-height: 36px; }
+  .legend-item i { width: 14px; height: 4px; border-radius: 2px; }
+  .legend-item[aria-pressed="false"] { opacity: .45; }
+  .legend-item[aria-pressed="false"] i { background: var(--muted) !important; }
+  #mode { margin-inline-start: auto; font: inherit; font-weight: 600; font-size: 13px; color: var(--ink); background: var(--panel); border: 1px solid var(--grid); border-radius: 10px; padding: 7px 12px; cursor: pointer; min-height: 36px; }
+  #mode[aria-pressed="true"] { border-color: var(--c0); color: var(--c0); }
+  .card { background: var(--panel); border: 1px solid var(--grid); border-radius: 16px; padding: 12px 8px 8px; position: relative; }
+  #chart { width: 100%; height: auto; display: block; touch-action: pan-y; }
+  .axis text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .axis line { stroke: var(--grid); }
+  .axis .base { stroke: #3b4652; }
+  .series-line { fill: none; stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; transition: opacity .2s; }
+  .end-label { font-size: 12px; font-weight: 700; }
+  .annot text { fill: var(--muted); font-size: 11px; }
+  .annot rect { fill: rgba(199,125,255,.08); }
+  .cross line { stroke: #56616e; stroke-dasharray: 3 3; }
+  #tooltip { position: absolute; top: 12px; pointer-events: none; background: rgba(10,13,16,.94); border: 1px solid var(--grid); border-radius: 10px; padding: 8px 10px; font-size: 12px; min-width: 190px; opacity: 0; transition: opacity .12s; }
+  #tooltip b { display: block; margin-bottom: 4px; font-size: 13px; }
+  #tooltip div { display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: center; font-variant-numeric: tabular-nums; }
+  #tooltip i { width: 10px; height: 3px; border-radius: 2px; }
+  .note { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  :focus-visible { outline: 2px solid var(--c0); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Average daily visitors at four city museums</h1>
+  <p class="sub">Thousands of visitors per day, monthly averages, January 2024 – December 2025. Synthetic data for benchmark purposes.</p>
+  <div class="controls">
+    <div id="legend" role="group" aria-label="Show or hide museums"></div>
+    <button type="button" id="mode" aria-pressed="false">Indexed (Jan 2024 = 100)</button>
+  </div>
+  <div class="card">
+    <svg id="chart" role="img" aria-labelledby="chart-desc"><desc id="chart-desc">Line chart of average daily visitors for four museums over 24 months.</desc></svg>
+    <div id="tooltip" role="status" aria-live="polite"></div>
+  </div>
+  <p class="note">Gaps mean the museum was closed (Riverside Museum, July–August 2025, renovation). Hover or touch the chart to compare all museums for a month; use ← → when the chart has focus.</p>
+</div>
+<script>
+(() => {
+  'use strict';
+  const CSV = `Jan 2024,2.9,10.8,4.1,3.1
+Feb 2024,3.2,10.6,4.4,3.0
+Mar 2024,4.7,10.1,5.6,2.7
+Apr 2024,5.9,9.5,5.5,2.3
+May 2024,7.9,8.2,5.9,2.6
+Jun 2024,9.0,7.8,6.1,3.2
+Jul 2024,9.3,7.6,5.2,3.3
+Aug 2024,9.3,7.8,4.9,4.2
+Sep 2024,7.9,8.8,4.0,4.5
+Oct 2024,6.6,9.7,4.0,4.7
+Nov 2024,4.7,10.9,3.9,4.7
+Dec 2024,3.6,11.9,4.0,4.9
+Jan 2025,3.4,12.7,4.7,4.0
+Feb 2025,4.2,12.4,5.1,3.6
+Mar 2025,5.0,11.5,6.1,3.4
+Apr 2025,6.9,10.7,6.6,3.6
+May 2025,9.0,9.5,6.9,3.3
+Jun 2025,10.7,8.6,6.6,4.1
+Jul 2025,11.0,8.7,null,4.9
+Aug 2025,10.5,9.1,null,5.9
+Sep 2025,9.6,9.7,4.8,6.5
+Oct 2025,7.2,11.3,4.4,6.8
+Nov 2025,5.9,12.7,3.9,6.4
+Dec 2025,4.2,14.0,4.6,6.1`;
+  const NAMES = ['Harbour Maritime Museum', 'Science Hall', 'Riverside Museum', 'Gallery of Light'];
+  const COLORS = ['var(--c0)', 'var(--c1)', 'var(--c2)', 'var(--c3)'];
+  const rows = CSV.split('\n').map((l) => l.split(','));
+  const MONTHS = rows.map((r) => r[0]);
+  const SERIES = NAMES.map((name, s) => ({ name, color: COLORS[s], visible: true, raw: rows.map((r) => (r[s + 1] === 'null' ? null : +r[s + 1])) }));
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('chart'), tip = document.getElementById('tooltip');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let indexed = false, hover = null, yMaxShown = null, anim = null;
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const values = (s) => indexed ? s.raw.map((v) => v === null ? null : v / s.raw[0] * 100) : s.raw;
+  /** "Nice" tick step (1, 2, 2.5 or 5 × 10^k) for about `count` ticks. */
+  function niceTicks(lo, hi, count = 5) {
+    const raw = (hi - lo) / count, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw);
+    const start = Math.floor(lo / step) * step, end = Math.ceil(hi / step) * step, out = [];
+    for (let v = start; v <= end + step / 2; v += step) out.push(+v.toFixed(6));
+    return out;
+  }
+  function domain() {
+    const vis = SERIES.filter((s) => s.visible);
+    const all = vis.flatMap((s) => values(s).filter((v) => v !== null));
+    if (!all.length) return { lo: 0, hi: 1 };
+    const lo = indexed ? Math.min(...all) : 0;
+    return { lo: indexed ? Math.min(lo, 100) : 0, hi: Math.max(...all) };
+  }
+  let geom;
+  function draw(yLo, yHi) {
+    const W = svg.clientWidth || 800, narrow = W < 560;
+    const H = narrow ? 360 : 420, m = { l: 44, r: narrow ? 16 : 150, t: 16, b: 34 };
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = '<desc id="chart-desc">Line chart of average daily visitors for four museums over 24 months.</desc>';
+    const ticks = niceTicks(yLo, yHi, narrow ? 4 : 6);
+    const y0 = ticks[0], y1 = ticks[ticks.length - 1];
+    const x = (i) => m.l + i / (MONTHS.length - 1) * (W - m.l - m.r);
+    const y = (v) => H - m.b - (v - y0) / (y1 - y0) * (H - m.t - m.b);
+    geom = { x, y, m, W, H };
+    const axis = mk('g', { class: 'axis' }, svg);
+    ticks.forEach((t) => { mk('line', { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), class: t === (indexed ? 100 : 0) ? 'base' : '' }, axis); const tx = mk('text', { x: m.l - 8, y: y(t) + 4, 'text-anchor': 'end' }, axis); tx.textContent = String(t); });
+    MONTHS.forEach((mo, i) => {
+      if (i % 3) return;
+      const [mon, yr] = mo.split(' ');
+      const tx = mk('text', { x: x(i), y: H - m.b + 16, 'text-anchor': 'middle' }, axis);
+      tx.textContent = mon === 'Jan' ? `${mon} ${yr}` : mon;
+      mk('line', { x1: x(i), x2: x(i), y1: H - m.b, y2: H - m.b + 4 }, axis);
+    });
+    const unit = mk('text', { x: m.l - 8, y: m.t - 4 + 0, 'text-anchor': 'start' }, axis); unit.textContent = indexed ? 'Index (Jan 2024 = 100)' : 'Visitors per day (thousands)'; unit.setAttribute('x', m.l); unit.setAttribute('y', 10);
+    // closure annotation
+    const ann = mk('g', { class: 'annot' }, svg);
+    mk('rect', { x: x(18) - 6, y: m.t, width: x(19) - x(18) + 12, height: H - m.t - m.b }, ann);
+    const at = mk('text', { x: x(18) + (x(19) - x(18)) / 2, y: m.t + 24, 'text-anchor': 'middle' }, ann); at.textContent = 'Riverside closed';
+    // lines with gaps for nulls
+    const labels = [];
+    SERIES.forEach((s, si) => {
+      if (!s.visible) return;
+      const v = values(s);
+      let d = '', pen = false;
+      v.forEach((val, i) => { if (val === null) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(val).toFixed(1)}`; pen = true; });
+      mk('path', { class: 'series-line', d, stroke: s.color, 'data-series': si }, svg);
+      const last = v.length - 1;
+      labels.push({ s, y: y(v[last]), x: x(last) });
+    });
+    if (!narrow) {
+      labels.sort((a, b) => a.y - b.y);
+      for (let i = 1; i < labels.length; i++) if (labels[i].y - labels[i - 1].y < 15) labels[i].y = labels[i - 1].y + 15; // collision avoidance
+      labels.forEach((l) => { const t = mk('text', { class: 'end-label', x: l.x + 8, y: l.y + 4, fill: l.s.color }, svg); t.textContent = l.s.name; });
+    }
+    const cross = mk('g', { class: 'cross', id: 'cross' }, svg);
+    if (hover !== null) drawCross(hover);
+  }
+  function drawCross(i) {
+    const { x, y, m, H } = geom, g = svg.querySelector('#cross'); g.innerHTML = '';
+    mk('line', { x1: x(i), x2: x(i), y1: m.t, y2: H - m.b }, g);
+    const items = SERIES.map((s, si) => ({ s, v: values(s)[i], si })).filter((o) => o.s.visible);
+    items.forEach((o) => { if (o.v !== null) mk('circle', { cx: x(i), cy: y(o.v), r: 4.5, fill: o.s.color, stroke: '#0f1216', 'stroke-width': 2 }, g); });
+    items.sort((a, b) => (b.v ?? -Infinity) - (a.v ?? -Infinity));
+    tip.innerHTML = `<b>${MONTHS[i]}</b>` + items.map((o) => `<div><i style="background:${o.s.color}"></i><span>${o.s.name}</span><strong>${o.v === null ? 'closed' : indexed ? o.v.toFixed(0) : o.v.toFixed(1) + 'k'}</strong></div>`).join('');
+    const left = x(i) / geom.W * svg.clientWidth;
+    tip.style.left = Math.max(8, Math.min(svg.clientWidth - 200, left + (left > svg.clientWidth / 2 ? -214 : 14))) + 'px';
+    tip.style.opacity = '1';
+  }
+  function render(animate) {
+    const d = domain();
+    if (!animate || reduced || yMaxShown === null) { yMaxShown = d; draw(d.lo, d.hi); return; }
+    const from = { ...yMaxShown }, to = d, t0 = performance.now(), dur = 450;
+    cancelAnimationFrame(anim);
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      yMaxShown = { lo: from.lo + (to.lo - from.lo) * e, hi: from.hi + (to.hi - from.hi) * e };
+      draw(yMaxShown.lo, yMaxShown.hi);
+      if (k < 1) anim = requestAnimationFrame(step);
+    };
+    anim = requestAnimationFrame(step);
+  }
+  // legend
+  const legend = document.getElementById('legend');
+  SERIES.forEach((s) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'legend-item'; b.setAttribute('aria-pressed', 'true');
+    b.innerHTML = `<i style="background:${s.color}"></i>${s.name}`;
+    b.addEventListener('click', () => { s.visible = !s.visible; b.setAttribute('aria-pressed', String(s.visible)); render(true); });
+    legend.appendChild(b);
+  });
+  const modeBtn = document.getElementById('mode');
+  modeBtn.addEventListener('click', () => { indexed = !indexed; modeBtn.setAttribute('aria-pressed', String(indexed)); render(true); });
+  // crosshair (mouse, touch, keyboard)
+  const nearest = (clientX) => { const r = svg.getBoundingClientRect(); const px = (clientX - r.left) / r.width * geom.W; return Math.max(0, Math.min(MONTHS.length - 1, Math.round((px - geom.m.l) / (geom.W - geom.m.l - geom.m.r) * (MONTHS.length - 1)))); };
+  svg.addEventListener('pointermove', (e) => { hover = nearest(e.clientX); drawCross(hover); });
+  svg.addEventListener('pointerdown', (e) => { hover = nearest(e.clientX); drawCross(hover); });
+  svg.addEventListener('pointerleave', () => { hover = null; svg.querySelector('#cross').innerHTML = ''; tip.style.opacity = '0'; });
+  svg.setAttribute('tabindex', '0');
+  svg.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault(); hover = Math.max(0, Math.min(MONTHS.length - 1, (hover ?? MONTHS.length - 1) + (e.key === 'ArrowRight' ? 1 : -1))); drawCross(hover);
+  });
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => render(false), 100); });
+  render(false);
+})();
+</script>
+</body>
+</html>

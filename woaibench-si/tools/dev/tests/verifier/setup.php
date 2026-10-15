@@ -62,6 +62,11 @@ $defs = [
     'vt-wide' => ['wide.html', 'html', 'public', [$b('responsive', 'responsive'), $b('nonblank', 'nonblank')], null],
     'vt-rtl' => ['rtl.html', 'html', 'public', [$b('rtl', 'rtl'), $b('a11y', 'a11y_basic'), $b('greeting', 'text', ['contains' => 'مرحبا']), $b('responsive', 'responsive')], null],
     'vt-js' => ['solution.js', 'js', 'public', [], $jsTests],
+    'vt-cheat' => ['cheat.js', 'js', 'public', [], ['entry' => 'solve', 'timeout_ms' => 1000, 'cases' => [
+        ['name' => 'forge-1', 'args' => [[3, 1, 2]], 'expect' => [1, 2, 3]],
+        ['name' => 'forge-2', 'args' => [[9]], 'expect' => [9]],
+        ['name' => 'clean-script', 'script' => 'return 6 * 7;', 'expect' => 42],
+    ]]],
     'vt-sandbox' => ['sandbox.html', 'html', 'public', [$b('loads', 'loads')], null],
     'vt-forge' => ['forge.html', 'html', 'public', [$b('nonblank', 'nonblank')], null],
     'vt-holdout' => ['good.html', 'html', 'holdout', [$b('nonblank', 'nonblank')], null],

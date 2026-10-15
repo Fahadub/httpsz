@@ -1,8 +1,9 @@
 /*!
  * WOAIBench.si JS test harness (module: verifier).
  * Runs model-written JavaScript against task test cases inside a Worker created from a Blob (within the
- * sandboxed render document). Each case has a hard timeout: a runaway case terminates the worker, which
- * is recreated for the next case. Comparison semantics match tools/dev/validate-tasks.mjs:
+ * sandboxed render document). Every case gets a fresh Worker and a hard timeout (a runaway case is
+ * terminated); results return over a private MessageChannel and are compared outside the worker, so model
+ * code cannot forge a verdict. Comparison semantics match tools/dev/validate-tasks.mjs:
  *   deep (structural, NaN-aware, -0 == 0) · approx (absolute tol, recursive) · set / sorted
  *   (order-insensitive multiset at the top level) · truthy.
  * API: window.WBHarness.run(code, tests, {budgetMs}) → Promise<[{name, pass, ms, got?, error?}]>,
@@ -22,7 +23,16 @@
     var hasOwn = Object.prototype.hasOwnProperty;
     var quiet = function () {};
     var QUIET_CONSOLE = { log: quiet, info: quiet, warn: quiet, error: quiet, debug: quiet, table: quiet, dir: quiet, trace: quiet, group: quiet, groupEnd: quiet, time: quiet, timeEnd: quiet, assert: quiet, count: quiet };
-    var clock = (typeof performance !== 'undefined' && performance.now) ? function () { return performance.now(); } : function () { return Date.now(); };
+    // Captured before any model code runs in this realm (a fresh Worker per case).
+    var clock = (typeof performance !== 'undefined' && performance.now) ? performance.now.bind(performance) : Date.now;
+    var rApply = Reflect.apply;
+    var pThen = Promise.prototype.then;
+    var pResolve = Promise.resolve.bind(Promise);
+    var setT = setTimeout;
+    var clearT = clearTimeout;
+    var jsonParse = JSON.parse;
+    var jsonStr = JSON.stringify;
+    var makeFn = Function;
 
     function canon(v) {
       if (v === undefined) { return 'u'; }
@@ -98,14 +108,17 @@
     }
     function validEntry(entry) { return /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/.test(String(entry || '')); }
 
-    /** Run one case. Resolves to {name, pass, ms, got?, error?}. */
-    function runCase(code, entry, c, timeoutMs) {
-      var name = String(c && c.name != null ? c.name : 'case');
+    /**
+     * Execute one case (worker side) and call done(outcome) once: {ms, value} | {ms, error} — the verdict
+     * is computed by finalize() outside the worker. Uses only built-ins captured above.
+     */
+    function execCase(code, entry, c, timeoutMs, done) {
       var prep = prepare(code);
       var params = prep.cjs ? ['console', '__wb_args', 'module', 'exports'] : ['console', '__wb_args'];
       var mod = { exports: {} };
       var t0 = clock();
       var value;
+      var then = null;
       try {
         var body;
         if (typeof c.script === 'string') {
@@ -119,50 +132,77 @@
           }
           body = prep.code + '\n;var __wb_f = ' + lookup + ";\nif (!__wb_f) { throw new ReferenceError('entry function " + entry + " not defined'); }\nreturn __wb_f.apply(null, __wb_args);";
         }
-        var fn = Function.apply(null, params.concat([body]));
-        var args = Array.isArray(c.args) ? JSON.parse(JSON.stringify(c.args)) : [];
+        var fn = rApply(makeFn, null, params.concat([body]));
+        var args = Array.isArray(c.args) ? jsonParse(jsonStr(c.args)) : [];
         value = prep.cjs ? fn(QUIET_CONSOLE, args, mod, mod.exports) : fn(QUIET_CONSOLE, args);
+        then = value && (typeof value === 'object' || typeof value === 'function') ? value.then : null;
       } catch (e) {
-        return Promise.resolve({ name: name, pass: false, ms: round(clock() - t0), error: errText(e) });
+        done({ ms: clock() - t0, error: errText(e) });
+        return;
       }
-      var finish = function (v) {
-        var ms = clock() - t0;
-        var pass = compare(v, c.expect, c.cmp || 'deep', typeof c.tol === 'number' ? c.tol : 1e-6) && ms <= timeoutMs;
-        var r = { name: name, pass: pass, ms: round(ms) };
-        if (!pass) { r.got = preview(v); }
-        if (ms > timeoutMs) { r.error = 'timeout'; }
-        return r;
-      };
-      if (value && typeof value.then === 'function') {
-        var left = Math.max(1, timeoutMs - (clock() - t0));
-        return new Promise(function (resolve) {
-          var timer = setTimeout(function () { resolve({ name: name, pass: false, ms: round(clock() - t0), error: 'timeout (async)' }); }, left);
-          Promise.resolve(value).then(function (v) { clearTimeout(timer); resolve(finish(v)); }, function (e) {
-            clearTimeout(timer);
-            resolve({ name: name, pass: false, ms: round(clock() - t0), error: errText(e) });
-          });
-        });
+      if (typeof then !== 'function') {
+        done({ ms: clock() - t0, value: value });
+        return;
       }
-      return Promise.resolve(finish(value));
+      var settled = false;
+      var once = function (out) { if (!settled) { settled = true; clearT(timer); done(out); } };
+      var timer = setT(function () { once({ ms: clock() - t0, error: 'timeout (async)' }); }, Math.max(1, timeoutMs - (clock() - t0)));
+      try {
+        rApply(pThen, pResolve(value), [
+          function (v) { once({ ms: clock() - t0, value: v }); },
+          function (e) { once({ ms: clock() - t0, error: errText(e) }); }
+        ]);
+      } catch (e) {
+        once({ ms: clock() - t0, error: errText(e) });
+      }
+    }
+    /** Verdict for a raw outcome: {name, pass, ms, got?, error?} (same rules as the task validator). */
+    function finalize(out, c, timeoutMs) {
+      var r = { name: String(c && c.name != null ? c.name : 'case'), pass: false, ms: round(out.ms || 0) };
+      if (out.error !== undefined) { r.error = String(out.error); return r; }
+      var pass;
+      if (out.uncloneable) {
+        pass = (c.cmp === 'truthy') && out.truthy === Boolean(c.expect === undefined ? true : c.expect);
+        if (!pass) { r.got = String(out.preview); }
+      } else {
+        pass = compare(out.value, c.expect, c.cmp || 'deep', typeof c.tol === 'number' ? c.tol : 1e-6);
+        if (!pass) { r.got = preview(out.value); }
+      }
+      r.pass = pass && out.ms <= timeoutMs;
+      if (out.ms > timeoutMs) { r.error = 'timeout'; }
+      return r;
     }
     function round(ms) { return Math.round(ms * 100) / 100; }
 
-    /** Worker message loop. */
+    /**
+     * Worker entry. Built-ins are captured before any model code runs, and the outcome goes back through
+     * a private MessageChannel port: model code can neither forge a result nor tamper with the reply.
+     */
     function listen(scope) {
+      var portPost = MessagePort.prototype.postMessage;
+      var selfPost = scope.postMessage;
       scope.onmessage = function (ev) {
         var d = ev.data || {};
-        if (d.type !== 'case') { return; }
-        runCase(d.code, d.entry, d.c || {}, d.timeout).then(function (r) {
-          scope.postMessage({ type: 'result', id: d.id, r: r });
+        var port = ev.ports && ev.ports[0];
+        if (d.type !== 'case' || !port) { return; }
+        scope.onmessage = null;
+        execCase(d.code, d.entry, d.c || {}, d.timeout, function (out) {
+          try {
+            rApply(portPost, port, [out]);
+          } catch (e) {
+            var pv = 'uncloneable value';
+            try { pv = preview(out.value); } catch (x) { /* keep */ }
+            rApply(portPost, port, [{ ms: out.ms, uncloneable: true, truthy: !!out.value, preview: String(pv) }]);
+          }
         });
       };
-      scope.postMessage({ type: 'ready' });
+      rApply(selfPost, scope, [{ type: 'ready' }]);
     }
-    return { runCase: runCase, compare: compare, listen: listen };
+    return { execCase: execCase, finalize: finalize, compare: compare, listen: listen };
   }
 
   var WORKER_SRC = '(' + harnessCore.toString() + ')().listen(self);';
-  var core = null;
+  var core = harnessCore();
 
   /* ------------------------------------------------------------ worker management */
   var methods = ['blob', 'data', 'main'];
@@ -183,7 +223,7 @@
     try { w.terminate(); } catch (e) { /* ignore */ }
     if (w.__wbUrl) { try { URL.revokeObjectURL(w.__wbUrl); } catch (e) { /* ignore */ } }
   }
-  /** Resolve to a ready Worker, or null when only main-thread execution is possible. */
+  /** Resolve to a fresh, ready Worker, or null when only main-thread execution is possible. */
   function spawn() {
     return new Promise(function (resolve) {
       var tryNext = function () {
@@ -205,6 +245,7 @@
           if (ev.data && ev.data.type === 'ready' && !settled) {
             settled = true;
             clearTimeout(timer);
+            w.onmessage = null;
             api.mode = method === 'blob' ? 'worker' : 'worker-data';
             resolve(w);
           }
@@ -214,38 +255,49 @@
     });
   }
 
-  var seq = 0;
-  function runInWorker(w, code, entry, c, timeoutMs, graceMs) {
+  /** One case in its own Worker; the worker is always terminated afterwards (hard timeout included). */
+  function runInWorker(w, code, entry, c, timeoutMs) {
     return new Promise(function (resolve) {
-      var id = ++seq;
       var done = false;
       var t0 = Date.now();
-      var finish = function (r, dead) { if (done) { return; } done = true; clearTimeout(timer); resolve({ r: r, dead: dead }); };
+      var ch = new MessageChannel();
+      var finish = function (r) {
+        if (done) { return; }
+        done = true;
+        clearTimeout(timer);
+        try { ch.port1.close(); } catch (e) { /* ignore */ }
+        killWorker(w);
+        resolve(r);
+      };
       var timer = setTimeout(function () {
-        finish({ name: String(c.name != null ? c.name : 'case'), pass: false, ms: timeoutMs, error: 'timeout (exceeded ' + timeoutMs + ' ms, worker terminated)' }, true);
-      }, timeoutMs + graceMs);
-      w.onmessage = function (ev) { if (ev.data && ev.data.type === 'result' && ev.data.id === id) { finish(ev.data.r, false); } };
+        finish({ name: String(c.name != null ? c.name : 'case'), pass: false, ms: timeoutMs, error: 'timeout (exceeded ' + timeoutMs + ' ms, worker terminated)' });
+      }, timeoutMs + 250);
+      ch.port1.onmessage = function (ev) {
+        var out = ev.data && typeof ev.data === 'object' ? ev.data : { ms: Date.now() - t0, error: 'invalid worker reply' };
+        finish(core.finalize(out, c, timeoutMs));
+      };
       w.onerror = function (ev) {
         if (ev && ev.preventDefault) { ev.preventDefault(); }
-        finish({ name: String(c.name != null ? c.name : 'case'), pass: false, ms: Date.now() - t0, error: 'worker error: ' + (ev && ev.message ? ev.message : 'crashed') }, true);
+        finish({ name: String(c.name != null ? c.name : 'case'), pass: false, ms: Date.now() - t0, error: 'worker error: ' + (ev && ev.message ? ev.message : 'crashed') });
       };
       try {
-        w.postMessage({ type: 'case', id: id, code: code, entry: entry, c: c, timeout: timeoutMs });
+        w.postMessage({ type: 'case', code: code, entry: entry, c: c, timeout: timeoutMs }, [ch.port2]);
       } catch (e) {
-        finish({ name: String(c.name != null ? c.name : 'case'), pass: false, ms: 0, error: 'could not send case: ' + (e && e.message) }, true);
+        finish({ name: String(c.name != null ? c.name : 'case'), pass: false, ms: 0, error: 'could not send case: ' + (e && e.message) });
       }
     });
   }
+  /** Last resort without Workers: runs on this thread (an infinite loop cannot be interrupted here). */
   function runOnMain(code, entry, c, timeoutMs) {
-    core = core || harnessCore();
-    return new Promise(function (resolve) { setTimeout(resolve, 0); }).then(function () {
-      return core.runCase(code, entry, c, timeoutMs);
-    });
+    return new Promise(function (resolve) {
+      setTimeout(function () { core.execCase(code, entry, c, timeoutMs, resolve); }, 0);
+    }).then(function (out) { return core.finalize(out, c, timeoutMs); });
   }
 
   /**
-   * Run every case of a test suite. tests = {entry, timeout_ms, cases:[…]}; opts.budgetMs caps the total
-   * time (cases not reached fail with "not run: time budget exhausted").
+   * Run every case of a test suite, each in a fresh Worker (no state or monkey-patching survives between
+   * cases). tests = {entry, timeout_ms, cases:[…]}; opts.budgetMs caps the total time (cases not reached
+   * fail with "not run: time budget exhausted").
    */
   function run(code, tests, opts) {
     opts = opts || {};
@@ -256,11 +308,9 @@
     var budget = Number(opts.budgetMs) > 0 ? Number(opts.budgetMs) : Infinity;
     var started = Date.now();
     var results = [];
-    var worker = null;
-    var fresh = true;
     var i = 0;
     var next = function () {
-      if (i >= cases.length) { killWorker(worker); return Promise.resolve(results); }
+      if (i >= cases.length) { return Promise.resolve(results); }
       var c = cases[i] && typeof cases[i] === 'object' ? cases[i] : {};
       var name = String(c.name != null ? c.name : 'case ' + (i + 1));
       i++;
@@ -269,17 +319,13 @@
         return next();
       }
       var caseTimeout = Number(c.timeout_ms) > 0 ? Math.min(30000, Number(c.timeout_ms)) : timeoutMs;
-      var ready = worker || api.mode === 'main' ? Promise.resolve(worker) : spawn().then(function (w) { worker = w; fresh = true; return w; });
+      var ready = api.mode === 'main' ? Promise.resolve(null) : spawn();
       return ready.then(function (w) {
-        if (!w) { return runOnMain(code, entry, c, caseTimeout).then(function (r) { return { r: r, dead: false }; }); }
-        var grace = fresh ? 600 : 250;
-        fresh = false;
-        return runInWorker(w, code, entry, c, caseTimeout, grace);
-      }).then(function (out) {
-        var r = out.r || {};
+        return w ? runInWorker(w, code, entry, c, caseTimeout) : runOnMain(code, entry, c, caseTimeout);
+      }).then(function (r) {
+        r = r || {};
         r.name = name;
         results.push(r);
-        if (out.dead) { killWorker(worker); worker = null; }
         return next();
       });
     };
@@ -323,7 +369,11 @@
       st.setAttribute('aria-label', r.pass ? txt(i18n.pass || 'pass') : txt(i18n.fail || 'fail'));
       tr.appendChild(st);
       tr.appendChild(el('td', '', r.name));
-      tr.appendChild(el('td', 'ms', (Math.round((Number(r.ms) || 0) * 10) / 10) + ' ms'));
+      var msCell = el('td', 'ms');
+      var msText = el('span', '', (Math.round((Number(r.ms) || 0) * 10) / 10) + ' ms');
+      msText.dir = 'ltr';
+      msCell.appendChild(msText);
+      tr.appendChild(msCell);
       var td = el('td');
       if (r.error) { td.appendChild(el('code', 'wb-bad', r.error)); }
       if (r.got !== undefined) {
@@ -367,7 +417,6 @@
       parts.forEach(function (part, idx) {
         if (idx > 0) {
           frag.appendChild(line);
-          frag.appendChild(D.createTextNode('\n'));
           line = el('span', 'l');
         }
         if (part !== '') { line.appendChild(t[0] ? el('span', t[0], part) : D.createTextNode(part)); }
@@ -398,7 +447,7 @@
 
   api.run = run;
   api.render = render;
-  api.compare = function (got, expect, cmp, tol) { core = core || harnessCore(); return core.compare(got, expect, cmp, tol); };
+  api.compare = function (got, expect, cmp, tol) { return core.compare(got, expect, cmp, tol); };
   api.highlight = highlight;
   global.WBHarness = api;
   if (D) {

@@ -176,8 +176,13 @@
   let time = 0, paused = reduced, last = performance.now(), dragging = false;
   const pauseBtn = document.getElementById('pause');
   pauseBtn.setAttribute('aria-pressed', String(paused)); pauseBtn.textContent = paused ? 'Play' : 'Pause';
+  let dirty = true;
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    requestAnimationFrame(frame);
+    const moving = !paused || dragging || Math.abs(cam.vy) > 1e-3;
+    if (!moving && !dirty) return; // paused and idle: keep the last frame, spend no GPU time
+    dirty = false;
     adapt(dt);
     if (!paused) time += dt;
     if (!dragging && !paused) cam.yaw += dt * 0.08;
@@ -187,7 +192,6 @@
     gl.uniform2f(uRes, canvas.width, canvas.height); gl.uniform1f(uTime, time);
     gl.uniform3f(uCam, cam.yaw, cam.pitch, cam.dist); gl.uniform1f(uSteps, q.steps); gl.uniform1f(uShadowQ, q.shadow);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    requestAnimationFrame(frame);
   }
   let drag = null;
   canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, t: performance.now() }; dragging = true; canvas.setPointerCapture(e.pointerId); });
@@ -199,11 +203,11 @@
   });
   const up = () => { drag = null; dragging = false; };
   canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
-  canvas.addEventListener('wheel', (e) => { e.preventDefault(); cam.dist = Math.max(3, Math.min(9, cam.dist * Math.exp(e.deltaY * 0.001))); }, { passive: false });
-  canvas.addEventListener('keydown', (e) => { const k = { ArrowLeft: -0.1, ArrowRight: 0.1 }[e.key]; if (k) { e.preventDefault(); cam.yaw += k; } });
-  pauseBtn.addEventListener('click', () => { paused = !paused; pauseBtn.setAttribute('aria-pressed', String(paused)); pauseBtn.textContent = paused ? 'Play' : 'Pause'; });
-  qualitySel.addEventListener('change', () => { quality = qualitySel.value; scale = Math.min(scale, QUALITY[quality].maxScale); resize(); });
-  window.addEventListener('resize', resize);
+  canvas.addEventListener('wheel', (e) => { e.preventDefault(); cam.dist = Math.max(3, Math.min(9, cam.dist * Math.exp(e.deltaY * 0.001))); dirty = true; }, { passive: false });
+  canvas.addEventListener('keydown', (e) => { const k = { ArrowLeft: -0.1, ArrowRight: 0.1 }[e.key]; if (k) { e.preventDefault(); cam.yaw += k; dirty = true; } });
+  pauseBtn.addEventListener('click', () => { paused = !paused; dirty = true; pauseBtn.setAttribute('aria-pressed', String(paused)); pauseBtn.textContent = paused ? 'Play' : 'Pause'; });
+  qualitySel.addEventListener('change', () => { quality = qualitySel.value; scale = Math.min(scale, QUALITY[quality].maxScale); resize(); dirty = true; });
+  window.addEventListener('resize', () => { resize(); dirty = true; });
   resize();
   requestAnimationFrame(frame);
 })();

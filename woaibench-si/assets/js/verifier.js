@@ -51,7 +51,7 @@
       if (!el) { return; }
       try {
         var o = JSON.parse(el.textContent || '{}');
-        for (var k in o) { if (Object.prototype.hasOwnProperty.call(o, k) && k.indexOf('verifier.js.') === 0) { STR[k] = o[k]; } }
+        for (var k in o) { if (Object.prototype.hasOwnProperty.call(o, k) && (k.indexOf('verifier.js.') === 0 || k.indexOf('status.') === 0)) { STR[k] = o[k]; } }
       } catch (e) { /* ignore */ }
     });
     return STR;
@@ -61,6 +61,8 @@
     if (vars) { for (var k in vars) { if (Object.prototype.hasOwnProperty.call(vars, k)) { s = s.split(':' + k).join(String(vars[k])); } } }
     return s;
   }
+
+  function statusLabel(st) { return strings()['status.' + st] || st; }
 
   /* ------------------------------------------------------------ helpers */
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
@@ -217,19 +219,25 @@
       this.mini.appendChild(this.miniLog);
       c.appendChild(this.mini);
     }
-    var self = this;
-    if ('IntersectionObserver' in window) {
-      // Off-screen cross-origin frames get throttled: dock the live previews when scrolled away.
-      this.io = new IntersectionObserver(function (entries) {
-        var e = entries[entries.length - 1];
-        var dock = self.running && e && !e.isIntersecting;
-        if (dock && !self.root.classList.contains('is-docked')) { c.style.minHeight = c.offsetHeight + 'px'; }
-        if (!dock) { c.style.minHeight = ''; }
-        self.root.classList.toggle('is-docked', dock);
-      });
-      this.io.observe(c);
-    }
+    // Picture-in-picture viewer: used when the lane's own preview is scrolled out of view, because
+    // browsers throttle off-screen cross-origin frames (that would distort FPS / animation checks).
+    this.pip = el('aside', 'vs-pip');
+    this.pip.hidden = true;
+    this.pip.setAttribute('aria-hidden', 'true');
+    this.pipLabel = el('div', 'vs-pip-label t-xs t-mono');
+    this.pipScreen = el('div', 'vs-screen vs-pip-screen');
+    this.pip.appendChild(this.pipLabel);
+    this.pip.appendChild(this.pipScreen);
+    document.body.appendChild(this.pip);
   };
+  /** True when at least ~60 % of the element is inside the viewport. */
+  function inView(node) {
+    var r = node.getBoundingClientRect();
+    if (!r.width || !r.height) { return false; }
+    var w = Math.max(0, Math.min(r.right, window.innerWidth) - Math.max(r.left, 0));
+    var h = Math.max(0, Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0));
+    return (w * h) / (r.width * r.height) >= 0.6;
+  }
   Station.prototype.acquireFrame = function () {
     var self = this;
     return new Promise(function (resolve) { self.frameQueue.push(resolve); self.pumpFrames(); });
@@ -269,6 +277,7 @@
     s.active = Object.keys(this.inflight).length;
     s.avg_ms = s.processed ? Math.round(s.total_ms / s.processed) : 0;
     s.pass_rate = s.checks_total ? Math.round(1000 * s.checks_passed / s.checks_total) / 10 : null;
+    s.queue_empty = !!this.queueEmpty;
     var copy = {};
     for (var k in s) { if (Object.prototype.hasOwnProperty.call(s, k)) { copy[k] = s[k]; } }
     if (this.opts.onStats) { try { this.opts.onStats(copy); } catch (e) { /* ignore */ } }
@@ -278,6 +287,9 @@
     }
   };
   Station.prototype.state = function (name) {
+    // While frames are measured the host page stays still: its own animations and blur effects would
+    // compete with the sandboxed page for frames and distort FPS / animation checks.
+    document.documentElement.classList.toggle('vs-quiet', name !== 'idle');
     if (this.opts.onState) { try { this.opts.onState(name); } catch (e) { /* ignore */ } }
   };
   Station.prototype.start = function () {
@@ -405,11 +417,14 @@
       self.screens[vp.name] = { fig: fig, screen: screen, vp: vp };
     });
   };
+  /** Idle lane: keeps showing its last run (title, screenshots, checks) until the next claim. */
   Slot.prototype.reset = function () {
-    this.card.className = 'vs-slot is-idle';
-    this.title.textContent = t('waiting');
-    this.sub.textContent = '—';
-    this.setPhase(t('idle'), 'muted', 0);
+    this.card.className = 'vs-slot is-idle' + (this.lastRun ? ' has-last' : '');
+    if (!this.lastRun) {
+      this.title.textContent = t('waiting');
+      this.sub.textContent = '—';
+    }
+    this.setPhase(t('idle'), 'muted', this.lastRun ? null : 0);
   };
   /** Wake a lane that is sleeping between polls (start/stop/concurrency changes). */
   Slot.prototype.kick = function () {
@@ -448,6 +463,7 @@
     api('/api/verifier/next', { agent: 'station' }).then(function (res) {
       if (!res.run) {
         self.busy = false;
+        st.queueEmpty = true;
         if (self.index === 0 && self.idle >= 12000) { st.log('info', t('log_empty', { secs: Math.round(self.idle / 1000) })); }
         self.reset();
         self.later(self.idle);
@@ -455,6 +471,7 @@
         return;
       }
       self.idle = 3000;
+      st.queueEmpty = false;
       return self.process(res.run).then(function () { self.busy = false; self.later(250); });
     }).catch(function (e) {
       self.busy = false;
@@ -477,6 +494,7 @@
     }) : DEFAULT_VPS;
     var taskTitle = (run.task && (run.task.title || run.task.slug)) || ('#' + run.id);
     st.inflight[run.id] = run;
+    this.lastRun = run.id;
     st.emitStats();
     this.card.className = 'vs-slot is-busy';
     this.title.textContent = taskTitle;
@@ -557,7 +575,7 @@
         st.log(passed === results.checks.length ? 'ok' : 'info', t('log_submitted', {
           id: run.id, task: taskTitle, passed: passed, total: results.checks.length,
           tests: results.tests.length ? ' · ' + t('tests') + ' ' + tPass + '/' + results.tests.length : '',
-          secs: (ms / 1000).toFixed(1), next: (res && res.next_status) || 'ok'
+          secs: (ms / 1000).toFixed(1), next: statusLabel((res && res.next_status) || 'ok')
         }));
         finish();
       }, function (e) {
@@ -610,15 +628,25 @@
       frame.style.width = vp.w + 'px';
       frame.style.height = vp.h + 'px';
       var screen = slot.screen;
+      var pip = !inView(screen);
+      var host = pip ? st.pipScreen : screen;
+      if (pip) {
+        st.pipLabel.textContent = t('run') + ' #' + run.id + ' · ' + vp.name;
+        st.pipScreen.style.aspectRatio = vp.w + ' / ' + vp.h;
+        st.pip.className = 'vs-pip vs-pip-' + (vp.w < 700 ? 'mobile' : 'desktop');
+        st.pip.hidden = false;
+      }
       screen.textContent = '';
       screen.classList.add('is-live');
-      screen.appendChild(frame);
+      if (pip) { screen.appendChild(el('div', 'vs-screen-empty')); }
+      host.textContent = '';
+      host.appendChild(frame);
       var fit = function () {
-        var w = screen.clientWidth || 1;
+        var w = host.clientWidth || 1;
         frame.style.transform = 'scale(' + (w / vp.w) + ')';
       };
       var ro = 'ResizeObserver' in window ? new ResizeObserver(fit) : null;
-      if (ro) { ro.observe(screen); }
+      if (ro) { ro.observe(host); }
       fit();
       var nonce = null;
       var result = null;
@@ -629,6 +657,7 @@
         window.removeEventListener('message', onMsg);
         timers.forEach(clearTimeout);
         if (ro) { ro.disconnect(); }
+        if (pip) { st.pip.hidden = true; st.pipScreen.textContent = ''; }
         screen.classList.remove('is-live');
         screen.textContent = '';
         if (shot) {
@@ -743,6 +772,10 @@
       put('released', String(s.released));
       put('active', String(s.active));
       put('tests', s.tests_total ? s.tests_passed + '/' + s.tests_total : '—');
+      if (stats.queue) {
+        var initial = Number(stats.queue.getAttribute('data-initial')) || 0;
+        put('queue', String(s.queue_empty ? 0 : Math.max(0, initial - s.processed)));
+      }
     };
     if (startBtn) {
       startBtn.addEventListener('click', function () {

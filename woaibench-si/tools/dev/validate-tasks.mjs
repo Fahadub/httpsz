@@ -252,7 +252,7 @@ export function checkAnswer(spec, response) {
 }
 
 // ───────────────────────────── structure validation ───────────────────────────────────────────────
-const AR = /[؀-ۿ]/u;
+const AR = /[\u0600-\u06FF]/u;
 function validateStructure(task, tracks, errs) {
   const need = ['slug', 'track', 'title_en', 'title_ar', 'summary_en', 'summary_ar', 'prompt', 'output_type', 'difficulty', 'visibility'];
   for (const k of need) if (task[k] === undefined || task[k] === '') errs.push(`missing field ${k}`);

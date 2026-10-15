@@ -1,0 +1,133 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ostria energy flows 2025</title>
+<style>
+  :root { --bg: #0e1116; --panel: #151a21; --ink: #edf0f3; --muted: #9aa4af; --line: #252d37; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { width: min(1120px, 100% - 28px); margin: 0 auto; padding: 32px 0 40px; }
+  h1 { margin: 0 0 4px; font-size: clamp(22px, 3.2vw, 30px); letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 0 0 14px; max-width: 72ch; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-bottom: 12px; }
+  #total { font-weight: 700; font-size: 16px; }
+  #total span { font-variant-numeric: tabular-nums; }
+  #units { margin-inline-start: auto; font: inherit; font-weight: 600; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 7px 12px; cursor: pointer; min-height: 38px; }
+  .scroller { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; position: relative; -webkit-overflow-scrolling: touch; }
+  #chart { display: block; min-width: 720px; width: 100%; height: auto; }
+  .link { mix-blend-mode: screen; transition: opacity .2s; }
+  .node { cursor: pointer; outline: none; }
+  .node:focus, .node:hover { stroke: #fff; stroke-width: 1.5; }
+  .lbl { font-size: 12px; fill: var(--ink); font-weight: 600; pointer-events: none; }
+  .lbl tspan.v { fill: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .col-title { font-size: 11px; fill: var(--muted); text-transform: uppercase; letter-spacing: .12em; }
+  .faded .link { opacity: .07 !important; }
+  .faded .link.on { opacity: .85 !important; }
+  #tip { position: absolute; pointer-events: none; background: rgba(8,10,14,.95); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 12px; opacity: 0; transition: opacity .12s; white-space: nowrap; }
+  .note { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  :focus-visible { outline: 2px solid #f6c453; outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Where Ostria’s energy comes from — and where it goes</h1>
+  <p class="sub">Primary energy sources → energy carriers → end-use sectors and conversion losses, 2025. Link widths are proportional to energy. Synthetic data for benchmark purposes; Ostria is a fictional island.</p>
+  <div class="bar">
+    <div id="total">Total primary energy <span id="total-val"></span></div>
+    <button type="button" id="units" aria-pressed="false">Show in PJ</button>
+  </div>
+  <div class="scroller" id="scroller">
+    <svg id="chart" role="img" aria-labelledby="sk-desc"><desc id="sk-desc"></desc></svg>
+    <div id="tip" role="status"></div>
+  </div>
+  <p class="note">Hover or focus a node to highlight its flows. On narrow screens, scroll the diagram sideways.</p>
+</div>
+<script>
+(() => {
+  'use strict';
+  const LINKS = [
+    ['Solar', 'Electricity', 12.4], ['Wind', 'Electricity', 21.6], ['Hydro', 'Electricity', 8.3], ['Natural gas', 'Electricity', 14.0],
+    ['Natural gas', 'Heat', 6.2], ['Natural gas', 'Fuels', 10.0], ['Oil', 'Fuels', 18.5], ['Biomass', 'Heat', 5.5], ['Biomass', 'Electricity', 3.5],
+    ['Electricity', 'Residential', 14.2], ['Electricity', 'Commercial', 11.8], ['Electricity', 'Industry', 16.9], ['Electricity', 'Transport', 3.1], ['Electricity', 'Conversion losses', 13.8],
+    ['Heat', 'Residential', 6.3], ['Heat', 'Commercial', 3.1], ['Heat', 'Industry', 1.2], ['Heat', 'Conversion losses', 1.1],
+    ['Fuels', 'Transport', 17.6], ['Fuels', 'Industry', 7.4], ['Fuels', 'Residential', 2.2], ['Fuels', 'Commercial', 1.3],
+  ];
+  const COLUMNS = [['Solar', 'Wind', 'Hydro', 'Biomass', 'Natural gas', 'Oil'], ['Electricity', 'Heat', 'Fuels'], ['Residential', 'Commercial', 'Industry', 'Transport', 'Conversion losses']];
+  const TITLES = ['Sources', 'Carriers', 'Uses'];
+  const COLOR = { Solar: '#f6c453', Wind: '#62c3e8', Hydro: '#3d8bfd', Biomass: '#7bc96f', 'Natural gas': '#e58f5b', Oil: '#b0746a', Electricity: '#9ad0ff', Heat: '#ff8f70', Fuels: '#c9a27a', Residential: '#c4b5fd', Commercial: '#a5b4fc', Industry: '#94a3b8', Transport: '#fda4af', 'Conversion losses': '#6b7280' };
+  const NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('chart'), tip = document.getElementById('tip');
+  const mk = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  let pj = false;
+  const unitVal = (v) => pj ? v * 3.6 : v;
+  const fmt = (v) => `${unitVal(v).toFixed(1)} ${pj ? 'PJ' : 'TWh'}`;
+
+  // ---- model ----
+  const nodes = new Map();
+  COLUMNS.forEach((col, c) => col.forEach((name, i) => nodes.set(name, { name, col: c, order: i, in: [], out: [] })));
+  const links = LINKS.map(([s, t, v]) => { const l = { s: nodes.get(s), t: nodes.get(t), v }; l.s.out.push(l); l.t.in.push(l); return l; });
+  nodes.forEach((n) => { n.value = Math.max(n.in.reduce((a, l) => a + l.v, 0), n.out.reduce((a, l) => a + l.v, 0)); });
+  const totalPrimary = COLUMNS[0].reduce((a, n) => a + nodes.get(n).value, 0);
+  document.getElementById('sk-desc').textContent = links.map((l) => `${l.s.name} to ${l.t.name}: ${l.v} TWh`).join('; ');
+
+  // ---- layout ----
+  function render() {
+    const W = Math.max(720, svg.parentElement.clientWidth), H = 560;
+    const m = { l: 150, r: 170, t: 36, b: 16 }, nodeW = 14, pad = 14;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = svg.querySelector('desc').outerHTML;
+    const colX = (c) => m.l + c * (W - m.l - m.r - nodeW) / 2;
+    const k = Math.min(...COLUMNS.map((col) => (H - m.t - m.b - pad * (col.length - 1)) / col.reduce((a, n) => a + nodes.get(n).value, 0)));
+    COLUMNS.forEach((col, c) => {
+      const total = col.reduce((a, n) => a + nodes.get(n).value, 0) * k + pad * (col.length - 1);
+      let y = m.t + (H - m.t - m.b - total) / 2;
+      col.forEach((name) => { const n = nodes.get(name); n.x = colX(c); n.y = y; n.h = n.value * k; y += n.h + pad; });
+      mk('text', { class: 'col-title', x: colX(c) + nodeW / 2, y: 18, 'text-anchor': c === 0 ? 'start' : c === 2 ? 'end' : 'middle' }, svg).textContent = TITLES[c];
+    });
+    // ribbon offsets: sort by the other end's position to minimise crossings
+    nodes.forEach((n) => {
+      let oy = n.y; [...n.out].sort((a, b) => a.t.y - b.t.y).forEach((l) => { l.sy = oy; oy += l.v * k; });
+      let iy = n.y; [...n.in].sort((a, b) => a.s.y - b.s.y).forEach((l) => { l.ty = iy; iy += l.v * k; });
+    });
+    const gl = mk('g', { id: 'links' }, svg);
+    links.forEach((l) => {
+      const x0 = l.s.x + nodeW, x1 = l.t.x, xm = (x0 + x1) / 2, w = l.v * k;
+      l.el = mk('path', { class: 'link', d: `M${x0},${l.sy}C${xm},${l.sy} ${xm},${l.ty} ${x1},${l.ty}L${x1},${l.ty + w}C${xm},${l.ty + w} ${xm},${l.sy + w} ${x0},${l.sy + w}Z`, fill: COLOR[l.s.name], opacity: 0.38 }, gl);
+      l.el.addEventListener('mousemove', (e) => showTip(e, `${l.s.name} → ${l.t.name}: ${fmt(l.v)} (${(l.v / totalPrimary * 100).toFixed(1)}% of primary)`));
+      l.el.addEventListener('mouseleave', hideTip);
+    });
+    const gn = mk('g', {}, svg);
+    nodes.forEach((n) => {
+      const r = mk('rect', { class: 'node', x: n.x, y: n.y, width: nodeW, height: Math.max(1, n.h), rx: 2, fill: COLOR[n.name], tabindex: '0', role: 'img', 'aria-label': `${n.name}: ${fmt(n.value)}, ${(n.value / totalPrimary * 100).toFixed(1)}% of primary energy` }, gn);
+      const left = n.col === 0, mid = n.col === 1;
+      const t = mk('text', { class: 'lbl', x: left ? n.x - 8 : n.x + nodeW + 8, y: n.y + n.h / 2 + 4, 'text-anchor': left ? 'end' : 'start' }, gn);
+      if (mid) { t.setAttribute('x', n.x + nodeW + 8); }
+      t.appendChild(document.createTextNode(n.name + ' '));
+      const v = document.createElementNS(NS, 'tspan'); v.setAttribute('class', 'v'); v.textContent = fmt(n.value); t.appendChild(v);
+      const on = (e) => { highlight(n); const b = r.getBoundingClientRect(); showTip({ clientX: b.right, clientY: b.top + b.height / 2 }, `${n.name}: ${fmt(n.value)} · ${(n.value / totalPrimary * 100).toFixed(1)}% of primary energy`); };
+      r.addEventListener('mouseenter', on); r.addEventListener('focus', on);
+      r.addEventListener('mouseleave', () => { highlight(null); hideTip(); }); r.addEventListener('blur', () => { highlight(null); hideTip(); });
+    });
+    document.getElementById('total-val').textContent = fmt(totalPrimary);
+  }
+  function highlight(n) {
+    svg.classList.toggle('faded', !!n);
+    links.forEach((l) => l.el.classList.toggle('on', !!n && (l.s === n || l.t === n)));
+  }
+  function showTip(e, text) {
+    tip.textContent = text;
+    const p = svg.parentElement.getBoundingClientRect();
+    tip.style.left = Math.min(p.width - tip.offsetWidth - 8, e.clientX - p.left + svg.parentElement.scrollLeft + 12) + 'px';
+    tip.style.top = (e.clientY - p.top - 36) + 'px'; tip.style.opacity = '1';
+  }
+  function hideTip() { tip.style.opacity = '0'; }
+  const unitsBtn = document.getElementById('units');
+  unitsBtn.addEventListener('click', () => { pj = !pj; unitsBtn.setAttribute('aria-pressed', String(pj)); unitsBtn.textContent = pj ? 'Show in TWh' : 'Show in PJ'; render(); });
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 100); });
+  render();
+})();
+</script>
+</body>
+</html>

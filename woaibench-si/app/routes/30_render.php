@@ -63,9 +63,13 @@ Router::get('/admin/verify', static function (): void {
           LIMIT 8"
     );
     foreach ($recent as &$r) {
-        $checks = (array) (json_arr($r['browser_json'])['checks'] ?? []);
+        $browser = json_arr($r['browser_json']);
+        $checks = (array) ($browser['checks'] ?? []);
+        $tests = (array) ($browser['tests'] ?? []);
         $r['checks_total'] = count($checks);
         $r['checks_passed'] = count(array_filter($checks, static fn($c) => is_array($c) && !empty($c['pass'])));
+        $r['tests_total'] = count($tests);
+        $r['tests_passed'] = count(array_filter($tests, static fn($t) => is_array($t) && !empty($t['pass'])));
         unset($r['browser_json']);
     }
     unset($r);
@@ -76,6 +80,7 @@ Router::get('/admin/verify', static function (): void {
         'robots' => 'noindex',
         'page_css' => ['css/verifier.css'],
         'page_js' => ['js/verifier.js'],
+        'js_strings' => I18n::forJs(['verifier.js.', 'status.']),
         'counts' => $counts,
         'verified_24h' => (int) DB::val("SELECT COUNT(*) FROM runs WHERE verified = 1 AND updated_at >= (UTC_TIMESTAMP() - INTERVAL 1 DAY)"),
         'recent' => $recent,

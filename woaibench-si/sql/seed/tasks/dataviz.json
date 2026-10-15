@@ -1,0 +1,1031 @@
+[
+  {
+    "slug": "dataviz-ranked-bars",
+    "track": "dataviz",
+    "title_en": "Ranked Bar Chart with Reference Line",
+    "title_ar": "مخطط أعمدة مرتّب مع خط مرجعي",
+    "summary_en": "A publication-quality horizontal bar chart from raw data: correct ranking and scale, computed average line, year-over-year deltas, animated re-sorting and accessible tooltips.",
+    "summary_ar": "مخطط أعمدة أفقي بجودة النشر من بيانات خام: ترتيب ومقياس صحيحان، وخط متوسط محسوب، وفروق سنوية، وإعادة ترتيب متحركة، وتلميحات سهلة الوصول.",
+    "prompt": "Build a horizontal bar chart that ranks the 12 regions of the (fictional) Calvera Federation by the share of electricity generated from renewable sources in 2025. The data is synthetic.\n\nData (region: 2025 %, 2024 %):\nAldmere: 38.2, 35.0\nBrisa: 64.9, 61.2\nCorvo Bay: 22.7, 23.9\nDunhallow: 55.1, 49.8\nEastmarch: 47.3, 44.1\nFennick: 71.4, 70.3\nGlenrock: 29.8, 25.6\nHalvard: 58.6, 52.0\nIsleby: 41.0, 41.4\nJuniper Coast: 33.5, 28.7\nKestow: 18.9, 16.2\nLomond Flats: 50.2, 44.9\n\nRequirements\n1. Draw everything by hand with SVG and/or canvas — no chart or visualisation libraries (no Chart.js, D3, ECharts, Highcharts, Plotly, Vega, etc.). Put the chart in a container with id=\"chart\"; each bar is an SVG <rect class=\"bar\">.\n2. Bars sorted by the 2025 value, highest at the top, on a zero-based x-axis from 0% to 100% with gridlines and tick labels every 20% (\"0%\", \"20%\", …, \"100%\").\n3. Every bar shows its region name and a value label with one decimal (\"71.4%\").\n4. A dashed vertical reference line at the federation average (the mean of the twelve 2025 values) labelled \"Average <value>%\" with one decimal.\n5. Change vs 2024 next to each value in percentage points with one decimal (\"+1.1 pp\", \"−0.4 pp\"), colour-coded with a non-colour cue too (sign and/or arrow).\n6. A button id=\"sort-toggle\" switches between \"by value\" and \"alphabetical\" order; bars glide smoothly to their new positions.\n7. Hovering or focusing a bar (bars are keyboard-focusable) shows a tooltip with the region, the 2025 value, the 2024 value and the change.\n8. Title, subtitle (what, where, when, unit) and a source line \"Synthetic data for benchmark purposes\".\n9. Emphasise the top 3 regions with a stronger colour and keep the rest neutral; all text meets WCAG AA contrast.\n10. At 390 px the chart stays readable (labels may move above the bars) and the page does not scroll horizontally.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
+    "output_type": "html",
+    "difficulty": 2,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "accuracy",
+        "label_en": "Data accuracy",
+        "label_ar": "دقة البيانات",
+        "weight": 3,
+        "guide": "Correct ranking (Fennick 71.4 first, Kestow 18.9 last), bar lengths exactly proportional on a 0–100% axis, average line at 44.3% correctly placed and labelled, deltas correct with proper signs (Isleby −0.4, Corvo Bay −1.2). Any distortion (truncated axis, wrong order, wrong maths) caps this at 3."
+      },
+      {
+        "key": "legibility",
+        "label_en": "Legibility & hierarchy",
+        "label_ar": "الوضوح والتسلسل البصري",
+        "weight": 3,
+        "guide": "Informative headline, clear subtitle and source, well-aligned labels, sensible gridlines, restrained colour with meaningful emphasis, tabular numbers, no clutter or overlapping text."
+      },
+      {
+        "key": "interaction",
+        "label_en": "Interaction & transitions",
+        "label_ar": "التفاعل والانتقالات",
+        "weight": 2,
+        "guide": "Smooth, eased re-sort animation, tooltips on hover and keyboard focus that stay on screen, toggle state exposed."
+      },
+      {
+        "key": "a11y",
+        "label_en": "Accessibility",
+        "label_ar": "إمكانية الوصول",
+        "weight": 1,
+        "guide": "Chart has an accessible name/description, bars focusable with meaningful labels, non-colour cues for change, AA contrast."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Scales computed from data, rendering driven by one data array. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 0.5,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 80000,
+          "weight": 0.5,
+          "label_en": "Under 80 KB",
+          "label_ar": "حجم الملف أقل من 80 كيلوبايت"
+        },
+        {
+          "id": "no_chart_lib",
+          "type": "not_contains",
+          "pattern": "(chart(\\.umd)?(\\.min)?\\.js|new Chart\\(|d3\\.(select|scale|min\\.js|v\\d)|echarts|highcharts|plotly|apexcharts|vega-lite|recharts|nivo|amcharts)",
+          "regex": true,
+          "ci": true,
+          "weight": 1,
+          "label_en": "Built without a chart library",
+          "label_ar": "مبني دون مكتبة رسوم بيانية"
+        },
+        {
+          "id": "has_chart",
+          "type": "selector",
+          "sel": "#chart",
+          "weight": 1,
+          "label_en": "Chart container #chart in markup",
+          "label_ar": "حاوية الرسم ‎#chart‎ موجودة"
+        },
+        {
+          "id": "has_sort",
+          "type": "selector",
+          "sel": "#sort-toggle",
+          "weight": 1,
+          "label_en": "Sort button #sort-toggle in markup",
+          "label_ar": "زر الترتيب ‎#sort-toggle‎ موجود"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "bars",
+          "type": "selector",
+          "sel": "#chart .bar",
+          "min": 12,
+          "weight": 3,
+          "label_en": "12 bars drawn",
+          "label_ar": "رسم 12 عمودًا"
+        },
+        {
+          "id": "top_region",
+          "type": "text",
+          "contains": "Fennick",
+          "weight": 1,
+          "label_en": "Region labels rendered",
+          "label_ar": "أسماء المناطق معروضة"
+        },
+        {
+          "id": "top_value",
+          "type": "text",
+          "contains": "71.4%",
+          "weight": 2,
+          "label_en": "Value labels with one decimal",
+          "label_ar": "قيم بمنزلة عشرية واحدة"
+        },
+        {
+          "id": "average",
+          "type": "text",
+          "contains": "Average 44.3%",
+          "ci": true,
+          "weight": 3,
+          "label_en": "Average line correctly computed",
+          "label_ar": "خط المتوسط محسوب بدقة"
+        },
+        {
+          "id": "axis_max",
+          "type": "text",
+          "contains": "100%",
+          "weight": 1,
+          "label_en": "Axis runs to 100%",
+          "label_ar": "المحور يمتد إلى 100%"
+        },
+        {
+          "id": "sort",
+          "type": "click",
+          "sel": "#sort-toggle",
+          "weight": 2,
+          "label_en": "Sort toggle reorders bars",
+          "label_ar": "زر الترتيب يعيد ترتيب الأعمدة"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "dataviz-multiline-explorer",
+    "track": "dataviz",
+    "title_en": "Multi-Series Line Chart Explorer",
+    "title_ar": "مستكشف مخطط خطي متعدد السلاسل",
+    "summary_en": "A hand-built multi-line chart with nice ticks, gaps for missing data, a snapping crosshair tooltip, legend toggles that rescale with animation and an indexed mode.",
+    "summary_ar": "مخطط خطي متعدد السلاسل مبني يدويًا بتدريجات أنيقة، وفجوات للبيانات المفقودة، ومؤشر متقاطع ينجذب للأشهر مع تلميح، وأزرار مفتاح تعيد ضبط المقياس بحركة، ووضع نسبي يجعل قيمة يناير 2024 تساوي 100.",
+    "prompt": "Build an interactive line chart of average daily visitors (thousands) at four (fictional) city museums, January 2024 – December 2025. The data is synthetic; \"null\" means the museum was closed that month.\n\nmonth,Harbour Maritime Museum,Science Hall,Riverside Museum,Gallery of Light\nJan 2024,2.9,10.8,4.1,3.1\nFeb 2024,3.2,10.6,4.4,3.0\nMar 2024,4.7,10.1,5.6,2.7\nApr 2024,5.9,9.5,5.5,2.3\nMay 2024,7.9,8.2,5.9,2.6\nJun 2024,9.0,7.8,6.1,3.2\nJul 2024,9.3,7.6,5.2,3.3\nAug 2024,9.3,7.8,4.9,4.2\nSep 2024,7.9,8.8,4.0,4.5\nOct 2024,6.6,9.7,4.0,4.7\nNov 2024,4.7,10.9,3.9,4.7\nDec 2024,3.6,11.9,4.0,4.9\nJan 2025,3.4,12.7,4.7,4.0\nFeb 2025,4.2,12.4,5.1,3.6\nMar 2025,5.0,11.5,6.1,3.4\nApr 2025,6.9,10.7,6.6,3.6\nMay 2025,9.0,9.5,6.9,3.3\nJun 2025,10.7,8.6,6.6,4.1\nJul 2025,11.0,8.7,null,4.9\nAug 2025,10.5,9.1,null,5.9\nSep 2025,9.6,9.7,4.8,6.5\nOct 2025,7.2,11.3,4.4,6.8\nNov 2025,5.9,12.7,3.9,6.4\nDec 2025,4.2,14.0,4.6,6.1\n\nRequirements\n1. Draw everything by hand with SVG and/or canvas — no chart or visualisation libraries (no Chart.js, D3, ECharts, Highcharts, Plotly, Vega, etc.). Use an inline <svg id=\"chart\"> with one <path class=\"series-line\"> per museum (4 paths).\n2. Axes: a y-axis with \"nice\" round ticks computed from the visible data (e.g. 0, 2, 4 … or 0, 5, 10 …) and a unit label; an x-axis with a tick every month and a label every 3 months, written as \"Jan 2024\", \"Apr\", \"Jul\", \"Oct\", \"Jan 2025\", …\n3. Missing values: draw a gap — never interpolate across null months and never drop to zero — and annotate the closure (\"Riverside closed\").\n4. Crosshair: on hover or touch, a vertical line snaps to the nearest month and a tooltip lists all visible museums sorted by value for that month (\"closed\" for nulls). Left/Right arrow keys move it when the chart has focus.\n5. Legend: a container id=\"legend\" with one button per museum (class=\"legend-item\", aria-pressed) that hides/shows that line; the y-scale rescales to the visible series with a smooth animated transition.\n6. Direct labels: name each line at its right end, nudging labels so they never overlap (on narrow screens the legend alone is enough).\n7. Mode: a button id=\"mode\" (aria-pressed) switches between absolute values and an index where each museum's January 2024 value = 100 (axis label and tooltip values change accordingly).\n8. Title, subtitle with units and period, and the note that data is synthetic. At 390 px the chart remains legible with no horizontal page scroll.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
+    "output_type": "html",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "accuracy",
+        "label_en": "Accuracy & scales",
+        "label_ar": "الدقة والمقاييس",
+        "weight": 3,
+        "guide": "Exact data plotting, nice y-ticks recomputed for visible series, correct month axis labels, real gaps for Jul–Aug 2025 (no interpolation or zero drop), correct index maths (Jan 2024 = 100 for every series)."
+      },
+      {
+        "key": "interaction",
+        "label_en": "Interaction",
+        "label_ar": "التفاعل",
+        "weight": 3,
+        "guide": "Crosshair snaps to months on mouse, touch and keyboard; tooltip sorted with \"closed\" handling and never off-screen; legend toggles with animated rescale; indexed mode switch."
+      },
+      {
+        "key": "design",
+        "label_en": "Visual design",
+        "label_ar": "التصميم البصري",
+        "weight": 2,
+        "guide": "Distinct, accessible line colours, non-overlapping direct labels, light gridlines, clear annotation, good typography."
+      },
+      {
+        "key": "a11y",
+        "label_en": "Accessibility",
+        "label_ar": "إمكانية الوصول",
+        "weight": 1,
+        "guide": "Chart described for screen readers, buttons with pressed state, keyboard-operable crosshair."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Scale and tick functions separate from drawing; one render path for every state. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 0.5,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 100000,
+          "weight": 0.5,
+          "label_en": "Under 100 KB",
+          "label_ar": "حجم الملف أقل من 100 كيلوبايت"
+        },
+        {
+          "id": "no_chart_lib",
+          "type": "not_contains",
+          "pattern": "(chart(\\.umd)?(\\.min)?\\.js|new Chart\\(|d3\\.(select|scale|min\\.js|v\\d)|echarts|highcharts|plotly|apexcharts|vega-lite|recharts|nivo|amcharts)",
+          "regex": true,
+          "ci": true,
+          "weight": 1,
+          "label_en": "Built without a chart library",
+          "label_ar": "مبني دون مكتبة رسوم بيانية"
+        },
+        {
+          "id": "has_chart",
+          "type": "selector",
+          "sel": "#chart",
+          "weight": 1,
+          "label_en": "SVG #chart in markup",
+          "label_ar": "الرسم ‎#chart‎ موجود"
+        },
+        {
+          "id": "has_legend",
+          "type": "selector",
+          "sel": "#legend",
+          "weight": 1,
+          "label_en": "Legend #legend in markup",
+          "label_ar": "مفتاح الرسم ‎#legend‎ موجود"
+        },
+        {
+          "id": "has_mode",
+          "type": "selector",
+          "sel": "#mode",
+          "weight": 1,
+          "label_en": "Mode button #mode in markup",
+          "label_ar": "زر الوضع ‎#mode‎ موجود"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "lines",
+          "type": "selector",
+          "sel": "#chart .series-line",
+          "min": 4,
+          "weight": 3,
+          "label_en": "Four series lines",
+          "label_ar": "أربعة خطوط للسلاسل"
+        },
+        {
+          "id": "legend_items",
+          "type": "selector",
+          "sel": ".legend-item",
+          "min": 4,
+          "weight": 1,
+          "label_en": "Four legend buttons",
+          "label_ar": "أربعة أزرار في المفتاح"
+        },
+        {
+          "id": "axis_label",
+          "type": "text",
+          "contains": "Jan 2024",
+          "weight": 1,
+          "label_en": "Month axis labels",
+          "label_ar": "تسميات محور الأشهر"
+        },
+        {
+          "id": "legend_toggle",
+          "type": "click",
+          "sel": ".legend-item",
+          "weight": 2,
+          "label_en": "Legend toggles a series",
+          "label_ar": "زر المفتاح يُخفي سلسلة"
+        },
+        {
+          "id": "mode_toggle",
+          "type": "click",
+          "sel": "#mode",
+          "weight": 2,
+          "label_en": "Indexed mode switch",
+          "label_ar": "التبديل إلى الوضع النسبي"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "dataviz-scatter-regression",
+    "track": "dataviz",
+    "title_en": "Scatter Plot with Live Regression & Brushing",
+    "title_ar": "مخطط انتشار مع انحدار حي وتحديد بالسحب",
+    "summary_en": "A bubble scatter plot computing ordinary least squares and r² in the browser, with brushing and group filters that recompute the statistics live.",
+    "summary_ar": "مخطط انتشار فقاعي يحسب انحدار المربعات الصغرى ومعامل التحديد داخل المتصفح، مع تحديد بالسحب وتصفية للمجموعات تعيد حساب الإحصاءات لحظيًا.",
+    "prompt": "Build an interactive scatter plot showing, for 40 (fictional) towns, protected bike-lane density against the share of commuters who cycle. The data is synthetic.\n\ntown,region,lanes_km_per_10k,cycling_share_pct,population_k\nDunwick,North,5.0,6.6,34\nHarmere,Coast,6.1,15.8,115\nSelmere,Valley,8.2,19.4,158\nOakford,North,0.4,0.5,28\nDunton,Coast,0.5,6.8,88\nGalton,Valley,2.7,5.9,99\nMorfield,North,5.1,13.5,150\nRoswick,Coast,3.0,10.8,44\nSelwick,Valley,0.6,2.8,116\nCorton,North,8.6,16.5,149\nPenby,Coast,4.3,14.0,133\nMormere,Valley,2.8,3.3,115\nSelton,North,5.1,12.6,41\nBelfield,Coast,5.2,11.3,179\nDunfield,Valley,6.1,11.9,66\nOakfield,North,4.7,11.3,147\nIvesmere,Coast,4.1,15.0,173\nQuenfield,Valley,4.8,11.9,110\nNorford,North,3.1,7.4,175\nTorton,Coast,7.8,20.2,133\nLinford,Valley,2.8,5.0,135\nNormere,North,6.5,14.7,16\nJorwick,Coast,4.6,14.0,139\nIveston,Valley,8.9,18.0,54\nNorfield,North,4.8,12.7,135\nLinby,Coast,2.2,8.9,113\nElmton,Valley,8.8,22.3,147\nCormere,North,7.7,18.3,71\nDunmere,Coast,0.8,3.4,170\nAshwick,Valley,6.5,14.9,155\nPenfield,North,7.0,16.6,158\nElmmere,Coast,8.5,22.3,137\nJorby,Valley,4.2,11.4,158\nJormere,North,4.2,10.8,46\nQuenford,Coast,3.9,13.9,26\nBelwick,Valley,6.3,14.4,14\nAshmere,North,4.8,9.9,39\nPenton,Coast,5.7,12.9,51\nKelton,Valley,5.9,13.8,110\nBelford,North,6.4,13.4,52\n\nRequirements\n1. Draw everything by hand with SVG and/or canvas — no chart or visualisation libraries (no Chart.js, D3, ECharts, Highcharts, Plotly, Vega, etc.). Use an inline <svg id=\"chart\"> with one <circle class=\"dot\"> per town (40), positioned by lanes_km_per_10k (x) and cycling_share_pct (y), area proportional to population, colour by region with a legend.\n2. Axes with ticks, gridlines and titles: \"Protected bike lanes (km per 10,000 residents)\" and \"Commuters cycling (%)\".\n3. Regression: compute an ordinary least-squares line in JavaScript and draw it as an element with id=\"fit-line\" across the x-range of the points used. Show the statistics in an element id=\"stats\" using exactly this format (example values): \"y = 1.50x + 3.25 · r² = 0.64 · n = 12\" — slope and intercept with 2 decimals (use \"−\" for a negative intercept, e.g. \"y = 2.40x − 0.35\"), r² with 2 decimals, n = number of points used. Compute everything from the data; never hard-code results.\n4. Brushing: dragging a rectangle on the plot selects the towns inside it; the regression line and #stats are recomputed for the selection, unselected dots are dimmed. A button id=\"clear-brush\" and the Escape key clear the selection. With fewer than 2 points, show a helpful message instead of numbers.\n5. Region filter: three toggle buttons (aria-pressed) hide/show regions; hidden towns are excluded from the regression.\n6. Tooltip on hover/focus for each dot: town, region, both values and population.\n7. Title, subtitle and a note that the data is synthetic. Works with touch (pointer events) and at 390 px without horizontal page scrolling.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
+    "output_type": "html",
+    "difficulty": 3,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "statistics",
+        "label_en": "Statistical correctness",
+        "label_ar": "الصحة الإحصائية",
+        "weight": 3,
+        "guide": "OLS slope/intercept and r² computed correctly (full data: y = 2.03x + 2.15, r² = 0.81, n = 40), recomputed for brush and filters, degenerate cases (n < 2, zero variance) handled, line drawn across the right x-range."
+      },
+      {
+        "key": "brushing",
+        "label_en": "Brushing & filtering",
+        "label_ar": "التحديد والتصفية",
+        "weight": 3,
+        "guide": "Smooth rectangle brushing on mouse and touch, correct inclusion test in data space, dimming, clear via button and Escape, filters combine with the brush."
+      },
+      {
+        "key": "encoding",
+        "label_en": "Visual encoding",
+        "label_ar": "الترميز البصري",
+        "weight": 2,
+        "guide": "Area (not radius) proportional to population, distinguishable region colours with legend, readable axes and titles, overlap handled with transparency/outlines."
+      },
+      {
+        "key": "a11y",
+        "label_en": "Accessibility",
+        "label_ar": "إمكانية الوصول",
+        "weight": 1,
+        "guide": "Dots focusable with descriptive labels, live stats announced, AA contrast."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Pure ols() function; data parsed once; rendering separated from state. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 0.5,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 100000,
+          "weight": 0.5,
+          "label_en": "Under 100 KB",
+          "label_ar": "حجم الملف أقل من 100 كيلوبايت"
+        },
+        {
+          "id": "no_chart_lib",
+          "type": "not_contains",
+          "pattern": "(chart(\\.umd)?(\\.min)?\\.js|new Chart\\(|d3\\.(select|scale|min\\.js|v\\d)|echarts|highcharts|plotly|apexcharts|vega-lite|recharts|nivo|amcharts)",
+          "regex": true,
+          "ci": true,
+          "weight": 1,
+          "label_en": "Built without a chart library",
+          "label_ar": "مبني دون مكتبة رسوم بيانية"
+        },
+        {
+          "id": "has_stats",
+          "type": "selector",
+          "sel": "#stats",
+          "weight": 1,
+          "label_en": "Stats element #stats in markup",
+          "label_ar": "عنصر الإحصاءات ‎#stats‎ موجود"
+        },
+        {
+          "id": "has_clear",
+          "type": "selector",
+          "sel": "#clear-brush",
+          "weight": 1,
+          "label_en": "Clear button #clear-brush in markup",
+          "label_ar": "زر المسح ‎#clear-brush‎ موجود"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "dots",
+          "type": "selector",
+          "sel": "#chart .dot",
+          "min": 40,
+          "weight": 3,
+          "label_en": "40 dots drawn",
+          "label_ar": "رسم 40 نقطة"
+        },
+        {
+          "id": "fit",
+          "type": "selector",
+          "sel": "#fit-line",
+          "weight": 1,
+          "label_en": "Regression line #fit-line",
+          "label_ar": "خط الانحدار ‎#fit-line‎"
+        },
+        {
+          "id": "equation",
+          "type": "text",
+          "contains": "y = 2.03x + 2.15",
+          "weight": 3,
+          "label_en": "Correct regression equation",
+          "label_ar": "معادلة انحدار صحيحة"
+        },
+        {
+          "id": "r2",
+          "type": "text",
+          "contains": "r² = 0.81",
+          "weight": 2,
+          "label_en": "Correct r²",
+          "label_ar": "معامل التحديد صحيح"
+        },
+        {
+          "id": "n",
+          "type": "text",
+          "contains": "n = 40",
+          "weight": 1,
+          "label_en": "n = 40 points",
+          "label_ar": "عدد النقاط 40"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "dataviz-sankey-energy",
+    "track": "dataviz",
+    "title_en": "Hand-Built Sankey Diagram of Energy Flows",
+    "title_ar": "مخطط سانكي لتدفقات الطاقة مبني يدويًا",
+    "summary_en": "A three-stage Sankey built without libraries: node layout, proportional ribbons, crossing-aware ordering, highlight on hover, exact totals and a TWh/PJ unit switch.",
+    "summary_ar": "مخطط سانكي من ثلاث مراحل دون مكتبات: تخطيط العقد، وأشرطة تدفق متناسبة، وترتيب يقلّل التقاطعات، وإبراز عند التمرير، ومجاميع دقيقة، ومبدّل بين وحدتي تيراواط ساعة وبيتاجول.",
+    "prompt": "Build a Sankey diagram of the energy system of Ostria, a (fictional) island, in 2025 (synthetic data, TWh): primary sources → energy carriers → end uses and losses.\n\nFlows (source → target: TWh)\nSolar → Electricity: 12.4\nWind → Electricity: 21.6\nHydro → Electricity: 8.3\nNatural gas → Electricity: 14.0\nNatural gas → Heat: 6.2\nNatural gas → Fuels: 10.0\nOil → Fuels: 18.5\nBiomass → Heat: 5.5\nBiomass → Electricity: 3.5\nElectricity → Residential: 14.2\nElectricity → Commercial: 11.8\nElectricity → Industry: 16.9\nElectricity → Transport: 3.1\nElectricity → Conversion losses: 13.8\nHeat → Residential: 6.3\nHeat → Commercial: 3.1\nHeat → Industry: 1.2\nHeat → Conversion losses: 1.1\nFuels → Transport: 17.6\nFuels → Industry: 7.4\nFuels → Residential: 2.2\nFuels → Commercial: 1.3\n\nRequirements\n1. Draw everything by hand with SVG and/or canvas — no chart or visualisation libraries (no Chart.js, D3, ECharts, Highcharts, Plotly, Vega, etc.). Build the layout yourself inside an element with id=\"chart\": three columns (6 sources, 3 carriers, 5 uses). Each node is an SVG element with class=\"node\" (14) and each flow an element with class=\"link\" (22).\n2. Node height = node value × one common scale (node value = max of its total inflow and outflow), with consistent padding; ribbon width = flow value on the same scale. Ribbons are smooth cubic Bézier bands that attach to the correct offsets at both ends (no gaps or overlaps on a node).\n3. Order nodes and ribbons to minimise crossings (e.g. sort each node's ribbons by the position of the node at the other end).\n4. Labels: every node shows its name and value, e.g. \"Solar 12.4 TWh\"; a header line shows \"Total primary energy\" with the sum of the source nodes (one decimal, unit).\n5. Interaction: hovering or focusing a node highlights all ribbons connected to it and dims the rest; a tooltip shows the value and the share of total primary energy (one decimal %). Hovering a ribbon shows \"source → target: value\".\n6. A button id=\"units\" (aria-pressed) toggles all numbers between TWh and PJ (1 TWh = 3.6 PJ).\n7. Colour ribbons by their source, with a legend or labels making colours unambiguous; title, subtitle and a \"synthetic data\" note.\n8. At 390 px: keep it usable — either switch to a vertical layout or let the diagram scroll horizontally inside its own container (the page itself must not scroll horizontally).\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
+    "output_type": "html",
+    "difficulty": 4,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "layout",
+        "label_en": "Layout correctness",
+        "label_ar": "صحة التخطيط",
+        "weight": 3,
+        "guide": "Common scale for nodes and ribbons, node values = max(in, out), ribbons attach at correct stacked offsets without gaps/overlaps, columns aligned, minimal crossings, correct totals (primary 100.0 TWh)."
+      },
+      {
+        "key": "readability",
+        "label_en": "Readability",
+        "label_ar": "سهولة القراءة",
+        "weight": 3,
+        "guide": "Clear labels with values that never collide, coherent colour logic, smooth ribbons, informative title/subtitle, mobile strategy that keeps it usable."
+      },
+      {
+        "key": "interaction",
+        "label_en": "Interaction",
+        "label_ar": "التفاعل",
+        "weight": 2,
+        "guide": "Hover/focus highlighting of connected flows, accurate tooltips with shares, unit toggle updates every number (360.0 PJ total)."
+      },
+      {
+        "key": "a11y",
+        "label_en": "Accessibility",
+        "label_ar": "إمكانية الوصول",
+        "weight": 1,
+        "guide": "Nodes focusable with descriptive labels, a text description of flows, AA contrast."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Layout computed in clear steps (values → positions → offsets → paths); no hard-coded coordinates. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 0.5,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 100000,
+          "weight": 0.5,
+          "label_en": "Under 100 KB",
+          "label_ar": "حجم الملف أقل من 100 كيلوبايت"
+        },
+        {
+          "id": "no_chart_lib",
+          "type": "not_contains",
+          "pattern": "(chart(\\.umd)?(\\.min)?\\.js|new Chart\\(|d3\\.(select|scale|min\\.js|v\\d)|echarts|highcharts|plotly|apexcharts|vega-lite|recharts|nivo|amcharts)",
+          "regex": true,
+          "ci": true,
+          "weight": 1,
+          "label_en": "Built without a chart library",
+          "label_ar": "مبني دون مكتبة رسوم بيانية"
+        },
+        {
+          "id": "has_chart",
+          "type": "selector",
+          "sel": "#chart",
+          "weight": 1,
+          "label_en": "Chart #chart in markup",
+          "label_ar": "الرسم ‎#chart‎ موجود"
+        },
+        {
+          "id": "has_units",
+          "type": "selector",
+          "sel": "#units",
+          "weight": 1,
+          "label_en": "Units button #units in markup",
+          "label_ar": "زر الوحدات ‎#units‎ موجود"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "nodes",
+          "type": "selector",
+          "sel": "#chart .node",
+          "min": 14,
+          "weight": 2,
+          "label_en": "14 nodes",
+          "label_ar": "14 عقدة"
+        },
+        {
+          "id": "links",
+          "type": "selector",
+          "sel": "#chart .link",
+          "min": 22,
+          "weight": 2,
+          "label_en": "22 flows",
+          "label_ar": "22 تدفقًا"
+        },
+        {
+          "id": "total",
+          "type": "text",
+          "contains": "100.0 TWh",
+          "weight": 3,
+          "label_en": "Total primary energy 100.0 TWh",
+          "label_ar": "إجمالي الطاقة الأولية 100.0 تيراواط ساعة"
+        },
+        {
+          "id": "node_label",
+          "type": "text",
+          "contains": "Wind",
+          "weight": 1,
+          "label_en": "Node labels rendered",
+          "label_ar": "أسماء العقد معروضة"
+        },
+        {
+          "id": "units",
+          "type": "click",
+          "sel": "#units",
+          "weight": 2,
+          "label_en": "Unit toggle changes the numbers",
+          "label_ar": "مبدّل الوحدات يغيّر الأرقام"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  },
+  {
+    "slug": "dataviz-candlestick",
+    "track": "dataviz",
+    "title_en": "Candlestick Chart with Zoom, Pan and Indicators",
+    "title_ar": "مخطط شموع يابانية مع تكبير وتحريك ومؤشرات",
+    "summary_en": "A trading-style OHLC chart from raw data: candles, volume pane, 10-day moving average, crosshair readout, zoom/pan, range buttons and exact range statistics.",
+    "summary_ar": "مخطط أسعار بأسلوب منصات التداول من بيانات خام: شموع، ولوحة أحجام تداول، ومتوسط متحرك لعشرة أيام، وقراءة بالمؤشر المتقاطع، وتكبير وتحريك، وأزرار للفترات، وإحصاءات دقيقة للفترة.",
+    "prompt": "Build a trading-style candlestick chart for the (fictional) ticker NRDL from these 60 trading days of synthetic data:\n\ndate,open,high,low,close,volume\n2026-03-02,84.72,85.75,84.68,85.32,1081739\n2026-03-03,85.42,86.36,85.26,85.79,1762520\n2026-03-04,85.85,86.27,84.80,85.58,2062920\n2026-03-05,85.26,85.66,83.22,83.26,2159816\n2026-03-06,83.50,84.46,82.35,82.56,2156161\n2026-03-09,82.58,84.67,82.34,84.67,3289988\n2026-03-10,84.60,85.76,83.92,85.23,2227927\n2026-03-11,84.53,85.87,83.85,85.35,2372015\n2026-03-12,85.60,86.71,84.35,85.64,2558913\n2026-03-13,85.90,87.67,85.80,87.61,1638126\n2026-03-16,87.76,88.57,85.68,85.71,2907410\n2026-03-17,85.62,87.44,85.53,87.09,2276118\n2026-03-18,87.07,87.46,86.36,87.04,902934\n2026-03-19,86.70,88.34,86.62,87.49,1734864\n2026-03-20,87.20,90.12,86.40,89.76,2672825\n2026-03-23,90.09,90.30,89.37,89.82,2070719\n2026-03-24,90.20,91.32,89.62,90.90,1289516\n2026-03-25,91.35,91.80,89.98,90.09,929446\n2026-03-26,89.41,89.54,86.71,87.06,3165231\n2026-03-27,86.53,86.95,84.82,85.10,2288161\n2026-03-30,85.16,85.47,82.77,84.08,2551809\n2026-03-31,83.78,84.31,83.15,83.56,885270\n2026-04-01,83.64,84.95,82.80,84.11,2407981\n2026-04-02,84.18,85.37,83.69,84.68,1212964\n2026-04-03,84.46,85.09,84.25,85.03,1191994\n2026-04-06,84.63,84.82,84.05,84.07,2238933\n2026-04-07,84.14,84.59,81.86,82.72,1067380\n2026-04-08,82.79,84.36,81.83,84.22,2573399\n2026-04-09,84.66,87.14,83.98,86.66,2333816\n2026-04-10,86.49,86.63,85.44,85.59,975087\n2026-04-13,85.65,87.28,84.58,87.12,1078051\n2026-04-14,87.76,88.55,87.74,88.24,1579417\n2026-04-15,88.41,89.99,84.94,86.50,1359748\n2026-04-16,86.01,86.03,84.49,84.74,1264987\n2026-04-17,84.84,85.41,83.64,83.66,2340791\n2026-04-20,83.40,84.31,83.07,84.04,1340520\n2026-04-21,83.47,84.69,80.60,82.34,2212594\n2026-04-22,82.22,83.51,81.56,82.33,1402149\n2026-04-23,83.00,84.01,82.82,83.98,1723538\n2026-04-24,83.43,83.99,83.09,83.45,1175765\n2026-04-27,83.52,85.54,82.87,84.24,1060442\n2026-04-28,83.95,85.45,82.66,83.27,1969411\n2026-04-29,83.62,84.46,83.45,83.99,1460685\n2026-04-30,83.79,85.68,83.29,84.98,1180212\n2026-05-01,85.01,85.93,84.87,85.89,2410714\n2026-05-04,85.78,87.20,85.65,86.82,2123654\n2026-05-05,86.59,87.26,85.89,86.18,1633152\n2026-05-06,86.17,87.98,86.13,87.55,1594555\n2026-05-07,87.69,88.80,86.97,88.43,1282049\n2026-05-08,88.04,88.66,87.89,88.13,2384052\n2026-05-11,87.98,89.08,87.65,89.00,1347211\n2026-05-12,89.23,89.72,87.83,88.76,1377977\n2026-05-13,89.14,89.82,87.34,87.99,2219073\n2026-05-14,87.37,87.39,87.05,87.07,1248705\n2026-05-15,86.54,87.24,84.46,84.81,1929779\n2026-05-18,85.14,87.24,83.84,86.16,1620859\n2026-05-19,85.75,87.93,85.52,87.77,2089645\n2026-05-20,87.88,90.03,86.81,89.61,2436529\n2026-05-21,89.88,93.42,89.74,93.22,2260021\n2026-05-22,93.43,97.07,92.91,96.51,2985696\n\nRequirements\n1. Draw everything by hand with SVG and/or canvas — no chart or visualisation libraries (no Chart.js, D3, ECharts, Highcharts, Plotly, Vega, etc.). Render inside an element with id=\"chart\" (SVG or canvas).\n2. Candles: wick from low to high, body from open to close; up days (close ≥ open) and down days use different colours and a second cue (e.g. hollow vs filled). A volume pane below the price pane shares the x-axis.\n3. A 10-day simple moving average of the close drawn as a line (starting at the 10th day).\n4. Axes: a y-axis with nice price ticks that auto-scales to the visible candles' low/high, a label with the last visible close on the axis, and date labels on the x-axis (e.g. \"Mar 20\").\n5. Crosshair: on hover/touch a crosshair snaps to the nearest candle and an element id=\"readout\" shows its date, open, high, low, close (2 decimals), volume (e.g. \"2.67M\") and the SMA value. Left/Right arrow keys move it when the chart has focus.\n6. Zoom & pan: mouse wheel and pinch zoom around the pointer, drag to pan; never fewer than 10 candles visible, never beyond the data.\n7. Range buttons with class=\"range-btn\": \"1M\" (last 20 days), \"2M\" (last 40) and \"All\" (60, the default), with aria-pressed reflecting the current range.\n8. An element id=\"stats\" shows statistics of the visible range, computed from the data: \"High <highest high>\", \"Low <lowest low>\" (2 decimals) and \"Change <±x.xx>%\" = (last close − first open) / first open × 100 with an explicit sign — for example \"High 123.45 · Low 98.70 · Change −1.25%\" (example values only).\n9. A header with the ticker, last price and the day's change. At 390 px the chart fits the width (fewer labels) with no horizontal page scrolling.\n\nEvery id named in this brief must exist in the initial HTML markup (fill or update those elements with JavaScript if you like).\n\nDelivery rules (hard requirements)\n- Return ONE complete HTML document (<!doctype html> … </html>) with all CSS and JavaScript inline, in a single ```html code block.\n- No external resources at all: no CDNs, web fonts, remote images, iframes or network requests. Use system font stacks, inline SVG, CSS and canvas.\n- The page runs inside a sandboxed iframe with an opaque origin: localStorage, sessionStorage, cookies and alert/confirm/prompt are unavailable, and form submission is blocked (the submit event never fires). Do not depend on them: wrap any storage access in try/catch, drive forms with type=\"button\" click handlers and handle the Enter key yourself.\n- No errors in the browser console. Include <html lang=\"en\"> and a viewport meta tag.\n- It must work at 1280×800 and at 390×844: no horizontal page scrolling at 390 px, comfortable touch targets.",
+    "output_type": "html",
+    "difficulty": 4,
+    "visibility": "public",
+    "auto_weight": null,
+    "rubric": [
+      {
+        "key": "accuracy",
+        "label_en": "Financial accuracy",
+        "label_ar": "الدقة المالية",
+        "weight": 3,
+        "guide": "Candles drawn exactly from OHLC (wicks, bodies, colours), correct SMA(10) values and start, range statistics correct for every range (All: High 97.07, Low 80.60, Change +13.92%; 1M: Low 82.66, +15.55%), auto-scaled axis."
+      },
+      {
+        "key": "interaction",
+        "label_en": "Zoom, pan & crosshair",
+        "label_ar": "التكبير والتحريك والمؤشر",
+        "weight": 3,
+        "guide": "Smooth zoom anchored at the pointer, drag-pan and pinch on touch, clamped limits, snapping crosshair with complete readout, keyboard support, range buttons in sync with manual zoom."
+      },
+      {
+        "key": "design",
+        "label_en": "Visual design",
+        "label_ar": "التصميم البصري",
+        "weight": 2,
+        "guide": "Professional trading-terminal look: crisp candles at any zoom, legible axes, balanced panes, clear up/down encoding beyond colour."
+      },
+      {
+        "key": "performance",
+        "label_en": "Robustness & performance",
+        "label_ar": "المتانة والأداء",
+        "weight": 1,
+        "guide": "No jank while panning/zooming, resize-aware, no errors at range edges."
+      },
+      {
+        "key": "code",
+        "label_en": "Code quality",
+        "label_ar": "جودة الشيفرة",
+        "weight": 1,
+        "guide": "Readable, well-structured code: data and configuration defined once, small named functions, no dead code or copy-pasted blocks, sensible event handling and cleanup. Data parsed once; view window as state; scales derived per render. 9-10: a senior engineer would merge it as is; 5-6: works but tangled or repetitive; 0-3: unreadable or hacky."
+      }
+    ],
+    "checks": {
+      "static": [
+        {
+          "id": "html_parses",
+          "type": "html_parses",
+          "weight": 0.5,
+          "label_en": "HTML parses cleanly",
+          "label_ar": "بنية HTML سليمة"
+        },
+        {
+          "id": "viewport",
+          "type": "viewport",
+          "weight": 1,
+          "label_en": "Viewport meta tag",
+          "label_ar": "وسم viewport موجود"
+        },
+        {
+          "id": "single_file",
+          "type": "single_file",
+          "weight": 0.5,
+          "label_en": "Single self-contained file",
+          "label_ar": "ملف واحد مكتفٍ بذاته"
+        },
+        {
+          "id": "no_external",
+          "type": "no_external",
+          "allow": [],
+          "weight": 0.5,
+          "label_en": "No external resources",
+          "label_ar": "لا موارد خارجية"
+        },
+        {
+          "id": "lang_attr",
+          "type": "lang_attr",
+          "weight": 0.5,
+          "label_en": "<html> has a lang attribute",
+          "label_ar": "وسم html يحمل السمة lang"
+        },
+        {
+          "id": "max_size",
+          "type": "max_bytes",
+          "value": 100000,
+          "weight": 0.5,
+          "label_en": "Under 100 KB",
+          "label_ar": "حجم الملف أقل من 100 كيلوبايت"
+        },
+        {
+          "id": "no_chart_lib",
+          "type": "not_contains",
+          "pattern": "(chart(\\.umd)?(\\.min)?\\.js|new Chart\\(|d3\\.(select|scale|min\\.js|v\\d)|echarts|highcharts|plotly|apexcharts|vega-lite|recharts|nivo|amcharts)",
+          "regex": true,
+          "ci": true,
+          "weight": 1,
+          "label_en": "Built without a chart library",
+          "label_ar": "مبني دون مكتبة رسوم بيانية"
+        },
+        {
+          "id": "has_chart",
+          "type": "selector",
+          "sel": "#chart",
+          "weight": 1,
+          "label_en": "Chart #chart in markup",
+          "label_ar": "الرسم ‎#chart‎ موجود"
+        },
+        {
+          "id": "has_stats",
+          "type": "selector",
+          "sel": "#stats",
+          "weight": 1,
+          "label_en": "Stats #stats in markup",
+          "label_ar": "الإحصاءات ‎#stats‎ موجودة"
+        }
+      ],
+      "browser": [
+        {
+          "id": "loads",
+          "type": "loads",
+          "weight": 1,
+          "label_en": "Page loads",
+          "label_ar": "تُحمَّل الصفحة"
+        },
+        {
+          "id": "no_errors",
+          "type": "no_errors",
+          "weight": 2,
+          "label_en": "No JavaScript errors",
+          "label_ar": "لا أخطاء JavaScript"
+        },
+        {
+          "id": "nonblank",
+          "type": "nonblank",
+          "weight": 1,
+          "label_en": "Renders visible content",
+          "label_ar": "تعرض محتوى مرئيًا"
+        },
+        {
+          "id": "ranges",
+          "type": "selector",
+          "sel": ".range-btn",
+          "min": 3,
+          "weight": 2,
+          "label_en": "Three range buttons",
+          "label_ar": "ثلاثة أزرار للفترات"
+        },
+        {
+          "id": "has_readout",
+          "type": "selector",
+          "sel": "#readout",
+          "weight": 1,
+          "label_en": "Crosshair readout #readout",
+          "label_ar": "قراءة المؤشر ‎#readout‎"
+        },
+        {
+          "id": "low",
+          "type": "text",
+          "contains": "80.60",
+          "weight": 2,
+          "label_en": "Range low 80.60 computed",
+          "label_ar": "أدنى سعر للفترة 80.60"
+        },
+        {
+          "id": "change",
+          "type": "text",
+          "contains": "+13.92%",
+          "weight": 3,
+          "label_en": "Range change +13.92% computed",
+          "label_ar": "تغيّر الفترة ‎+13.92%‎ محسوب"
+        },
+        {
+          "id": "range_click",
+          "type": "click",
+          "sel": ".range-btn",
+          "weight": 2,
+          "label_en": "Range button changes the view",
+          "label_ar": "زر الفترة يغيّر العرض"
+        },
+        {
+          "id": "responsive",
+          "type": "responsive",
+          "weight": 1,
+          "label_en": "No horizontal overflow at 390 px",
+          "label_ar": "لا تمرير أفقي عند عرض 390 بكسل"
+        },
+        {
+          "id": "a11y_basic",
+          "type": "a11y_basic",
+          "weight": 1,
+          "label_en": "Basic accessibility (labels, button names, lang)",
+          "label_ar": "أساسيات الإتاحة (تسميات الحقول وأسماء الأزرار واللغة)"
+        }
+      ]
+    }
+  }
+]

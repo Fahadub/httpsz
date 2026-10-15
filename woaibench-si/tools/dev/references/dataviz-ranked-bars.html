@@ -1,0 +1,145 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Renewable electricity by region — Calvera Federation 2025</title>
+<style>
+  :root { --bg: #fbfaf7; --ink: #1c1f24; --muted: #5f6670; --faint: #9aa1aa; --grid: #e7e4dd; --hi: #0f7b6c; --lo: #b6c6c2; --up: #0f7b6c; --down: #b2452f; --avg: #c27a12; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { width: min(980px, 100% - 32px); margin: 0 auto; padding: 36px 0 48px; }
+  .kicker { text-transform: uppercase; letter-spacing: .14em; font-size: 12px; font-weight: 700; color: var(--hi); }
+  h1 { font: 600 clamp(24px, 3.6vw, 34px)/1.15 ui-sans-serif, system-ui, sans-serif; letter-spacing: -.015em; margin: 6px 0 6px; max-width: 26ch; }
+  .sub { color: var(--muted); margin: 0 0 18px; max-width: 70ch; }
+  .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  #sort-toggle { font: inherit; font-weight: 600; font-size: 14px; border: 1px solid var(--grid); background: #fff; border-radius: 999px; padding: 8px 14px; cursor: pointer; min-height: 40px; }
+  .legend { display: flex; gap: 14px; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-inline-end: 6px; }
+  #chart { position: relative; }
+  #chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .tick text { fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .tick line { stroke: var(--grid); }
+  .row { cursor: default; outline: none; }
+  .row .label { font-size: 14px; fill: var(--ink); }
+  .row .value { font-size: 13px; font-weight: 700; fill: var(--ink); font-variant-numeric: tabular-nums; }
+  .row .delta { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .row .delta.up { fill: var(--up); } .row .delta.down { fill: var(--down); }
+  .row .bar { fill: var(--lo); transition: fill .2s; }
+  .row.top .bar { fill: var(--hi); }
+  .row:hover .bar, .row:focus .bar { fill: #0b5a4f; }
+  .row:focus .label { font-weight: 700; }
+  .avg line { stroke: var(--avg); stroke-width: 2; stroke-dasharray: 5 4; }
+  .avg text { fill: var(--avg); font-size: 12px; font-weight: 700; }
+  #tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.45; box-shadow: 0 10px 30px rgba(0,0,0,.2); opacity: 0; transition: opacity .12s; min-width: 170px; }
+  #tip b { display: block; font-size: 14px; margin-bottom: 2px; }
+  #tip span { display: flex; justify-content: space-between; gap: 14px; font-variant-numeric: tabular-nums; }
+  .source { color: var(--faint); font-size: 12px; margin-top: 14px; }
+  :focus-visible { outline: 2px solid var(--hi); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">Energy transition</div>
+  <h1>Fennick leads the federation in renewable electricity</h1>
+  <p class="sub">Share of electricity generated from renewable sources by region of the Calvera Federation, 2025, in percent. Change versus 2024 in percentage points (pp).</p>
+  <div class="toolbar">
+    <button type="button" id="sort-toggle" aria-pressed="false">Sort: by value</button>
+    <div class="legend" aria-hidden="true"><span><i style="background:var(--hi)"></i>Top 3</span><span><i style="background:var(--lo)"></i>Other regions</span><span><i style="background:none;border:2px dashed var(--avg);width:14px;height:0;border-radius:0"></i>Federation average</span></div>
+  </div>
+  <div id="chart">
+    <svg id="svg" role="img" aria-labelledby="chart-title chart-desc"><title id="chart-title">Renewable share of electricity by region, 2025</title><desc id="chart-desc"></desc></svg>
+    <div id="tip" role="status" aria-live="polite"></div>
+  </div>
+  <p class="source">Source: Synthetic data for benchmark purposes. The Calvera Federation is fictional.</p>
+</div>
+<script>
+(() => {
+  'use strict';
+  const DATA = [
+    ['Aldmere', 38.2, 35.0], ['Brisa', 64.9, 61.2], ['Corvo Bay', 22.7, 23.9], ['Dunhallow', 55.1, 49.8], ['Eastmarch', 47.3, 44.1], ['Fennick', 71.4, 70.3],
+    ['Glenrock', 29.8, 25.6], ['Halvard', 58.6, 52.0], ['Isleby', 41.0, 41.4], ['Juniper Coast', 33.5, 28.7], ['Kestow', 18.9, 16.2], ['Lomond Flats', 50.2, 44.9],
+  ].map(([name, v25, v24]) => ({ name, v25, v24, delta: Math.round((v25 - v24) * 10) / 10 }));
+  const mean = DATA.reduce((a, d) => a + d.v25, 0) / DATA.length;
+  const top3 = new Set([...DATA].sort((a, b) => b.v25 - a.v25).slice(0, 3).map((d) => d.name));
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('svg'), tip = document.getElementById('tip'), chart = document.getElementById('chart');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const pct = (v) => v.toFixed(1) + '%';
+  const pp = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(1) + ' pp';
+  let order = 'value';
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; };
+  document.getElementById('chart-desc').textContent = DATA.map((d) => `${d.name} ${pct(d.v25)}`).join(', ') + `. Average ${pct(mean)}.`;
+
+  let layout, rows = new Map();
+  function measure() {
+    const W = chart.clientWidth, narrow = W < 560;
+    return { W, narrow, left: narrow ? 8 : 132, right: narrow ? 92 : 120, top: 30, rowH: narrow ? 44 : 34, barH: narrow ? 14 : 20 };
+  }
+  function sorted() { return [...DATA].sort(order === 'value' ? (a, b) => b.v25 - a.v25 : (a, b) => a.name.localeCompare(b.name)); }
+
+  function build() {
+    layout = measure();
+    const { W, narrow, left, right, top, rowH, barH } = layout;
+    const H = top + rowH * DATA.length + 10;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    [...svg.querySelectorAll('g')].forEach((g) => g.remove());
+    const x = (v) => left + (v / 100) * (W - left - right);
+    const axis = mk('g', {}, svg);
+    for (let v = 0; v <= 100; v += 20) {
+      const g = mk('g', { class: 'tick' }, axis);
+      mk('line', { x1: x(v), x2: x(v), y1: top - 6, y2: H - 6 }, g);
+      const t = mk('text', { x: x(v), y: top - 12, 'text-anchor': 'middle' }, g); t.textContent = v + '%';
+    }
+    rows = new Map();
+    const body = mk('g', {}, svg);
+    for (const d of DATA) {
+      const g = mk('g', { class: 'row' + (top3.has(d.name) ? ' top' : ''), tabindex: '0', role: 'img', 'aria-label': `${d.name}: ${pct(d.v25)} in 2025, ${pct(d.v24)} in 2024, ${pp(d.delta)}` }, body);
+      const labelY = narrow ? -6 : barH / 2 + 5;
+      const label = mk('text', { class: 'label', x: narrow ? left : left - 10, y: labelY, 'text-anchor': narrow ? 'start' : 'end' }, g); label.textContent = d.name;
+      mk('rect', { class: 'bar', x: left, y: 0, width: Math.max(1, x(d.v25) - left), height: barH, rx: 3 }, g);
+      const vt = mk('text', { class: 'value', x: x(d.v25) + 8, y: barH / 2 + 5 }, g); vt.textContent = pct(d.v25);
+      const dt = mk('text', { class: 'delta ' + (d.delta >= 0 ? 'up' : 'down'), x: x(d.v25) + 54, y: barH / 2 + 5 }, g); dt.textContent = (d.delta >= 0 ? '▲ ' : '▼ ') + pp(d.delta);
+      g.addEventListener('mouseenter', () => showTip(d, g)); g.addEventListener('focus', () => showTip(d, g));
+      g.addEventListener('mouseleave', hideTip); g.addEventListener('blur', hideTip);
+      rows.set(d.name, { g, y: 0 });
+    }
+    const avg = mk('g', { class: 'avg' }, svg);
+    mk('line', { x1: x(mean), x2: x(mean), y1: top - 4, y2: H - 4 }, avg);
+    const at = mk('text', { x: x(mean) + 6, y: H - 8 }, avg); at.textContent = `Average ${pct(mean)}`;
+    place(false);
+  }
+  function place(animate) {
+    const { top, rowH, narrow } = layout;
+    sorted().forEach((d, i) => {
+      const r = rows.get(d.name), y = top + i * rowH + (narrow ? 18 : 6);
+      if (animate && !reduced) {
+        const from = r.y;
+        r.g.animate([{ transform: `translate(0px, ${from}px)` }, { transform: `translate(0px, ${y}px)` }], { duration: 650, easing: 'cubic-bezier(.65,0,.35,1)', delay: Math.abs(from - y) / 8 });
+      }
+      r.y = y;
+      r.g.setAttribute('transform', `translate(0 ${y})`);
+    });
+  }
+  function showTip(d, g) {
+    tip.innerHTML = `<b>${d.name}</b><span><em>2025</em>${pct(d.v25)}</span><span><em>2024</em>${pct(d.v24)}</span><span><em>Change</em>${pp(d.delta)}</span>`;
+    const r = g.getBoundingClientRect(), c = chart.getBoundingClientRect();
+    const left = Math.min(c.width - 190, Math.max(0, r.left - c.left + layout.left + 20));
+    tip.style.left = left + 'px'; tip.style.top = (r.bottom - c.top + 6) + 'px'; tip.style.opacity = '1';
+  }
+  function hideTip() { tip.style.opacity = '0'; }
+  const btn = document.getElementById('sort-toggle');
+  btn.addEventListener('click', () => {
+    order = order === 'value' ? 'alpha' : 'value';
+    btn.textContent = order === 'value' ? 'Sort: by value' : 'Sort: A–Z';
+    btn.setAttribute('aria-pressed', String(order === 'alpha'));
+    place(true);
+  });
+  let rt = 0;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(build, 120); });
+  build();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "woaibench-verifier",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Headless browser verifier for WOAIBench.si — runs the browser checks, unit tests and screenshots for queued benchmark runs with Playwright + Chromium.",
+  "type": "module",
+  "bin": {
+    "woaibench-verify": "verify.mjs"
+  },
+  "scripts": {
+    "start": "node verify.mjs",
+    "install-browser": "playwright install chromium",
+    "install-browser:deps": "playwright install --with-deps chromium"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "playwright": "1.56.1"
+  },
+  "license": "UNLICENSED"
+}

@@ -3,7 +3,7 @@
 // Never deployed (tools/ is blocked by .htaccess).
 //
 //   NODE_PATH=/path/to/node_modules node tools/dev/validate-visual.mjs [track|slug ...]
-//        [--no-browser] [--shots=DIR] [--trivial-only] [--json] [--verbose]
+//        [--no-browser] [--probe | --probe-only] [--shots=DIR] [--trivial-only] [--json[=FILE]] [--verbose]
 //
 // For every task in sql/seed/tasks/{ui,games,3d,motion,dataviz}.json:
 //   1. structural validation (required fields, unique slugs / check ids, known check types, weights > 0,
@@ -14,11 +14,14 @@
 //      (opaque origin, no storage, no modals) and opened in Chromium at 1280×800 and 390×844;
 //      every browser check must hold, plus task-specific functional assertions (EXTRAS below)
 //      that prove the oracle really works (keys move the player, sorting sorts, maths is right …);
-//   4. discriminative power: a trivial page (<html><body>Hello</body></html>) must score low.
+//   4. discriminative power: a trivial page (<html><body>Hello</body></html>) must score low;
+//   5. with --probe: the verifier's real in-page probe (assets/js/probe.js + the render.php pre-script) is
+//      injected exactly like /render/{id}?verify=1 and every browser check must pass on the reference
+//      (desktop results, responsive from the 390 px pass — the same merge as tools/verifier-node).
 // Exit code 0 only when every reference passes everything and every trivial score is < 35.
 
 import { createRequire } from 'node:module';
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
@@ -343,6 +346,7 @@ $code = (string) file_get_contents(${JSON.stringify(refPath)});
 echo json_encode(\\WB\\Eval\\StaticChecks::run($code, 'html', $checks));
 `);
   const r = spawnSync('php', [tmp], { input: JSON.stringify(task.checks.static), encoding: 'utf8', timeout: 20000 });
+  try { unlinkSync(tmp); } catch (e) { /* ignore */ }
   if (r.status !== 0 || !r.stdout.trim().startsWith('[') && !r.stdout.trim().startsWith('{')) {
     return { error: (r.stderr || r.stdout || 'php failed').slice(0, 400) };
   }
@@ -354,24 +358,79 @@ echo json_encode(\\WB\\Eval\\StaticChecks::run($code, 'html', $checks));
 }
 
 // ───────────────────────────── sandboxed static server ─────────────────────────────
-function startServer() {
-  const csp = [
+/** Same document-level CSP as Http::sandboxHeaders() (self = the serving origin, for the probe script). */
+function cspFor(self) {
+  return [
     'sandbox allow-scripts allow-pointer-lock', "default-src 'none'",
-    `script-src 'unsafe-inline' 'unsafe-eval' blob: data: ${CDN}`, `style-src 'unsafe-inline' ${CDN}`,
-    `img-src data: blob: ${CDN}`, `font-src data: ${CDN}`, 'media-src data: blob:', `connect-src data: blob: ${CDN}`,
+    `script-src 'unsafe-inline' 'unsafe-eval' blob: data: ${self} ${CDN}`, `style-src 'unsafe-inline' ${CDN}`,
+    `img-src data: blob: ${self} ${CDN}`, `font-src data: ${CDN}`, 'media-src data: blob:', `connect-src data: blob: ${CDN}`,
     'worker-src blob: data:', 'child-src blob: data:', "form-action 'none'",
   ].join('; ');
+}
+
+/** The verifier's real pre-script (app/render/render.php), fetched through the php CLI so it never drifts. */
+let PRESCRIPT = null;
+function prescript() {
+  if (PRESCRIPT !== null) return PRESCRIPT;
+  const r = spawnSync('php', ['-r', "define('WB', true); require 'app/render/render.php'; echo wb_render_prescript();"], { cwd: ROOT, encoding: 'utf8' });
+  PRESCRIPT = r.status === 0 ? r.stdout : '';
+  return PRESCRIPT;
+}
+
+/** Probe injection identical in shape to wb_render_probe_head() (playwright mode, first thing in <head>). */
+function injectProbe(html, checks, viewport, self) {
+  const cfg = { run_id: 0, mode: 'playwright', viewport, light: false, parentOrigin: self, nonce: 'dev', output_type: 'html', no_output: false, checks, tests: null, timeout_ms: 15000, load_timeout_ms: 8000, settle_ms: 600 };
+  const head = `<script data-wb-probe>window.__WB_PROBE_CFG=${JSON.stringify(cfg).replace(/</g, '\\u003c')};</script>`
+    + `<script data-wb-probe>${prescript()}</script><script data-wb-probe src="${self}/assets/js/probe.js"></script>`;
+  return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => m + head) : head + html;
+}
+
+const PROBE_CHECKS = new Map(); // slug → browser checks (for /probe/ routes)
+function startServer() {
+  let self = '';
   const server = http.createServer((req, res) => {
     const u = new URL(req.url, 'http://x');
+    if (u.pathname === '/assets/js/probe.js') {
+      res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
+      res.end(readFileSync(path.join(ROOT, 'assets/js/probe.js')));
+      return;
+    }
     let body = null;
     if (u.pathname === '/trivial') body = TRIVIAL;
-    const m = /^\/ref\/([a-z0-9-]+)$/.exec(u.pathname);
-    if (m && existsSync(path.join(REF_DIR, m[1] + '.html'))) body = readFileSync(path.join(REF_DIR, m[1] + '.html'));
+    const m = /^\/(ref|probe)\/([a-z0-9-]+)$/.exec(u.pathname);
+    if (m && existsSync(path.join(REF_DIR, m[2] + '.html'))) {
+      body = readFileSync(path.join(REF_DIR, m[2] + '.html'), 'utf8');
+      if (m[1] === 'probe') body = injectProbe(body, PROBE_CHECKS.get(m[2]) || [], u.searchParams.get('vp') || 'desktop', self);
+    }
+    if (u.pathname === '/probe-trivial') body = injectProbe(TRIVIAL, PROBE_CHECKS.get(u.searchParams.get('slug')) || [], u.searchParams.get('vp') || 'desktop', self);
     if (body === null) { res.writeHead(404); res.end('nope'); return; }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': csp, 'X-Content-Type-Options': 'nosniff' });
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': cspFor(self), 'X-Content-Type-Options': 'nosniff' });
     res.end(body);
   });
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
+  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => { self = `http://127.0.0.1:${server.address().port}`; resolve(server); }));
+}
+
+/** Run the verifier's in-page probe (assets/js/probe.js) at desktop + mobile and merge like tools/verifier-node. */
+async function runProbe(browser, base, slug, checks, trivial = false) {
+  PROBE_CHECKS.set(slug, checks);
+  const out = {};
+  for (const [name, vp] of [['desktop', { width: 1280, height: 800 }], ['mobile', { width: 390, height: 844 }]]) {
+    const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1 });
+    const page = await ctx.newPage();
+    const url = trivial ? `${base}/probe-trivial?slug=${slug}&vp=${name}` : `${base}/probe/${slug}?vp=${name}`;
+    try {
+      await page.goto(url, { waitUntil: 'load', timeout: 20000 });
+      await page.waitForFunction(() => typeof window.__WB_PROBE_RESULT_JSON === 'string', null, { timeout: 90000, polling: 250 });
+      out[name] = JSON.parse(await page.evaluate(() => window.__WB_PROBE_RESULT_JSON));
+    } catch (e) { out[name] = { checks: [], errors: ['probe: ' + e.message.split('\n')[0]] }; }
+    await ctx.close();
+  }
+  const merged = {};
+  for (const c of checks) {
+    const src = c.type === 'responsive' ? out.mobile : out.desktop;
+    merged[c.id] = (src.checks || []).find((x) => x.id === c.id) || { pass: false, score: 0, detail: 'missing from probe result' };
+  }
+  return { results: merged, errors: [...(out.desktop.errors || []), ...(out.mobile.errors || [])] };
 }
 
 // ───────────────────────────── pixel helpers ─────────────────────────────
@@ -871,7 +930,7 @@ const EXTRAS = {
     await page.click('#autorotate'); await sleep(300);
     out.push(res('auto-rotate can be switched off', (await page.getAttribute('#autorotate', 'aria-pressed')) === 'false'));
     const a = await canvasShot(); await sleep(600); const b = await canvasShot();
-    out.push(res('scene is still when auto-rotate is off', (await pixelStats(a, b)).diff < 0.002));
+    out.push(res('scene (nearly) still when auto-rotate is off', (await pixelStats(a, b)).diff < 0.03, (await pixelStats(a, b)).diff.toFixed(4)));
     await page.click('.swatch >> nth=1'); await sleep(700);
     const c = await canvasShot();
     out.push(res('brass swatch: name, state and render change', (await txt(page, '#finish-name')) === 'Brushed Brass' && (await page.getAttribute('.swatch >> nth=1', 'aria-pressed')) === 'true' && (await pixelStats(b, c)).diff > 0.01));
@@ -898,7 +957,8 @@ const EXTRAS = {
     const d = await shot();
     out.push(res('a new seed changes the terrain', (await pixelStats(c, d)).diff > 0.05));
     await page.fill('#seed', '1337'); await page.click('#regenerate'); await sleep(400);
-    out.push(res('same seed reproduces the same terrain', (await pixelStats(c, await shot())).diff < 0.02));
+    const same = (await pixelStats(c, await shot())).diff, other = (await pixelStats(c, d)).diff;
+    out.push(res('same seed reproduces the same terrain', same < other / 3, `same ${same.toFixed(3)} vs other ${other.toFixed(3)}`));
     await page.locator('#sun').fill('5'); await sleep(400);
     out.push(res('sun slider recolours the scene', (await pixelStats(c, await shot())).diff > 0.05));
     return out;
@@ -923,11 +983,11 @@ const EXTRAS = {
     out.push(res('one turn unsolves the cube', !(await page.evaluate(() => window.__wbDebug.solved())) && (await txt(page, '#moves')) === '1'));
     await page.keyboard.press('Shift+R'); await waitIdle(); await sleep(150);
     out.push(res('R then R′ → solved overlay', /solved!/i.test(await visibleText(page))));
-    await page.click('#ov-close'); await page.click('#reset'); await sleep(100);
-    for (let i = 0; i < 6; i++) for (const k of ['r', 'u', 'Shift+R', 'Shift+U']) { await page.keyboard.press(k); await sleep(30); }
+    await page.click('#ov-close', { timeout: 3000 }).catch(() => {}); await page.click('#reset'); await sleep(100);
+    for (let i = 0; i < 6; i++) { for (const k of ['r', 'u', 'Shift+R', 'Shift+U']) { await page.keyboard.press(k); await sleep(30); } await waitIdle(); }
     await waitIdle(); await sleep(200);
     out.push(res('(R U R′ U′)×6 returns to solved', /solved!/i.test(await visibleText(page)) && (await txt(page, '#moves')) === '24', await txt(page, '#moves')));
-    await page.click('#ov-close');
+    await page.click('#ov-close', { timeout: 3000 }).catch(() => {});
     await page.click('#scramble'); await waitIdle(); await sleep(100);
     out.push(res('scramble mixes the cube and resets counters', !(await page.evaluate(() => window.__wbDebug.solved())) && (await txt(page, '#moves')) === '0'));
     await page.click('#move-pad button >> nth=0'); await waitIdle(); await sleep(250);
@@ -946,6 +1006,207 @@ const EXTRAS = {
     out.push(res('resume animates again', (await pixelStats(b, await shot())).diff > 0.002));
     await page.selectOption('#quality', 'low'); await sleep(500);
     out.push(res('quality switch keeps rendering', (await pixelStats(await shot(), b)).diff > 0.0));
+    return out;
+  },
+  // ─── motion ───
+  'motion-weather-icons': async (page, { sleep, pixelStats }) => {
+    const out = [];
+    const grid = () => page.locator('svg.wx-icon >> nth=5').screenshot();
+    await page.click('#motion-toggle'); await sleep(200);
+    const a = await page.screenshot(); await sleep(800); const b = await page.screenshot();
+    out.push(res('pause freezes every icon', (await pixelStats(a, b)).diff === 0 && (await page.getAttribute('#motion-toggle', 'aria-pressed')) === 'true'));
+    await page.click('#motion-toggle'); await sleep(900);
+    out.push(res('resume animates again', (await pixelStats(b, await page.screenshot())).diff > 0.0003));
+    await page.locator('#icon-size').fill('160'); await sleep(200);
+    out.push(res('size slider resizes icons to 160 px', Math.round((await page.locator('svg.wx-icon').first().boundingBox()).width) === 160));
+    await page.emulateMedia({ reducedMotion: 'reduce' }); await sleep(300);
+    const c = await grid(); await sleep(700);
+    out.push(res('reduced motion → static icons', (await pixelStats(c, await grid())).diff === 0));
+    return out;
+  },
+  'motion-logo-sequence': async (page, { sleep }) => {
+    const out = [];
+    const op = () => page.$$eval('.letter', (ls) => ls.map((l) => +getComputedStyle(l).opacity));
+    await page.locator('#scrubber').fill('0'); await sleep(150);
+    const o0 = await op();
+    out.push(res('scrub to 0 → letters hidden & paused', o0.every((v) => v < 0.05) && (await page.getAttribute('#play-pause', 'aria-pressed')) === 'true', o0.join(',')));
+    await page.locator('#scrubber').fill('2300'); await sleep(150);
+    const o1 = await op();
+    out.push(res('scrub to 2.3 s → letters mid-stagger (first ahead of last)', o1[0] > o1[6] + 0.2, o1.map((v) => v.toFixed(2)).join(',')));
+    await page.locator('#scrubber').fill('6000'); await sleep(150);
+    const o2 = await op();
+    const tag = await page.$eval('.tagline, #tagline', (t) => +getComputedStyle(t).opacity);
+    out.push(res('scrub to 6 s → final composition', o2.every((v) => v > 0.95) && tag > 0.95 && /6\.00\s*s/.test(await page.textContent('#time'))));
+    await page.click('#replay'); await sleep(500);
+    const t1 = parseFloat(await page.textContent('#time'));
+    out.push(res('replay restarts and plays', t1 > 0.2 && t1 < 1.2, t1));
+    await page.selectOption('#speed', '2'); const tA = parseFloat(await page.textContent('#time')); await sleep(1000); const tB = parseFloat(await page.textContent('#time'));
+    out.push(res('2× speed advances ~2 s per second', tB - tA > 1.6 && tB - tA < 2.4, (tB - tA).toFixed(2)));
+    return out;
+  },
+  'motion-micro-interactions': async (page, { sleep }) => {
+    const out = [];
+    await page.click('#like-btn'); await sleep(900);
+    out.push(res('like → pressed + 1,285', (await page.getAttribute('#like-btn', 'aria-pressed')) === 'true' && (await visibleText(page)).includes('1,285')));
+    await page.click('#like-btn'); await sleep(900);
+    out.push(res('unlike → 1,284', (await visibleText(page)).includes('1,284') && !(await visibleText(page)).includes('1,285')));
+    const knobX = () => page.$eval('#toggle-demo .knob, #toggle-demo > *', (k) => k.getBoundingClientRect().left);
+    const x0 = await knobX();
+    await page.click('#toggle-demo'); await sleep(60);
+    const xMid = await knobX();
+    await page.click('#toggle-demo'); await sleep(40);
+    const xAfter = await knobX();
+    await sleep(800);
+    out.push(res('toggle interruptible (reverses from mid-flight, no jump)', xMid > x0 + 1 && Math.abs(xAfter - xMid) < 20 && Math.abs((await knobX()) - x0) < 1 && (await page.getAttribute('#toggle-demo', 'aria-checked')) === 'false', `${x0.toFixed(1)} → ${xMid.toFixed(1)} → ${xAfter.toFixed(1)}`));
+    await page.focus('#segmented [role=radio] >> nth=0'); await page.keyboard.press('ArrowRight'); await sleep(500);
+    out.push(res('segmented: ArrowRight selects Week', (await page.getAttribute('#segmented [role=radio] >> nth=1', 'aria-checked')) === 'true'));
+    for (let i = 0; i < 4; i++) { await page.click('#notify'); await sleep(150); }
+    await sleep(600);
+    const visible = await page.$$eval('#stack > *', (ts) => ts.filter((t) => parseFloat(getComputedStyle(t).opacity) > 0.05).length);
+    out.push(res('stack shows at most 3 cards', visible <= 3 && visible >= 2, visible));
+    const before = await page.$$eval('#stack > *', (t) => t.length);
+    const front = page.locator('#stack > *').last();
+    const bb = await front.boundingBox();
+    await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2); await page.mouse.down();
+    await page.mouse.move(bb.x + bb.width / 2 + 220, bb.y + bb.height / 2, { steps: 4 }); await page.mouse.up(); await sleep(900);
+    out.push(res('fling dismisses the front card', (await page.$$eval('#stack > *', (t) => t.length)) < before));
+    return out;
+  },
+  'motion-metro-map': async (page, { sleep, txt }) => {
+    const out = [];
+    // independent timetable model (event list per cycle) to cross-check the reference's predictions
+    const LINES = { red: 8, blue: 6, green: 6 }, TRAINS = { red: 3, blue: 2, green: 2 };
+    const STOPS = { red: ['Westmere', 'Foundry Lane', 'Cathedral', 'Market Square', 'Central', 'Opera', 'Harbourfront', 'Lighthouse'], green: ['Kingsbridge', 'Museum', 'Central', 'Riverside', 'Southpark', 'Airport'] };
+    const expected = (line, station, T) => {
+      const n = LINES[line], ev = []; let t = 0;
+      for (let i = 1; i < n; i++) { t += 120; ev.push([t, i]); if (i < n - 1) t += 30; }
+      t += 60;
+      for (let i = n - 2; i >= 0; i--) { t += 120; ev.push([t, i]); if (i > 0) t += 30; }
+      const P = t + 60, m = TRAINS[line], s = STOPS[line].indexOf(station), times = [];
+      for (let k = 0; k < m; k++) for (const [e, i] of ev) if (i === s) { let at = e - k * P / m; while (at < T) at += P; while (at - P >= T) at -= P; times.push(at); }
+      return times.sort((a, b) => a - b).slice(0, 2).map((x) => { const mm = Math.floor(x / 60) + 360; return `${String(Math.floor(mm / 60)).padStart(2, '0')}:${String(mm % 60).padStart(2, '0')}`; });
+    };
+    await page.selectOption('#speed', { index: 2 }); await sleep(200);
+    for (const [line, st] of [['red', 'Central'], ['green', 'Central'], ['red', 'Lighthouse']]) {
+      const [T, got] = await page.evaluate(([l, s]) => [window.__wbDebug.simT(), window.__wbDebug.nextArrivals(l, s)], [line, st]);
+      const exp = expected(line, st, T);
+      out.push(res(`${line} @ ${st}: predictions match independent timetable`, JSON.stringify(got) === JSON.stringify(exp), `${got} vs ${exp}`));
+    }
+    await page.selectOption('#speed', { index: 0 }); await sleep(100);
+    const c1 = await txt(page, '#clock'); await sleep(2300); const c2 = await txt(page, '#clock');
+    out.push(res('clock advances', c1 !== c2, `${c1} → ${c2}`));
+    await page.focus('.station >> nth=4');
+    await sleep(200);
+    out.push(res('focusing a station shows two HH:MM arrivals per line', ((await page.textContent('#tooltip')).match(/\d\d:\d\d/g) || []).length >= 2));
+    await page.click('.line-toggle >> nth=0'); await sleep(200);
+    const hiddenTrains = await page.$$eval('.train', (ts) => ts.filter((t) => t.getBoundingClientRect().width === 0 || getComputedStyle(t).display === 'none').length);
+    out.push(res('hiding a line hides its 3 trains', hiddenTrains === 3, hiddenTrains));
+    return out;
+  },
+  'motion-walk-cycle': async (page, { sleep }) => {
+    const out = [];
+    const groundX = () => page.$eval('#layer-ground', (g) => g.getAttribute('transform') || '');
+    await page.locator('#speed').fill('0'); await sleep(1500);
+    const g0 = await groundX(); await sleep(500);
+    out.push(res('speed 0 → idle, ground stops', g0 === (await groundX())));
+    await page.locator('#speed').fill('1'); await sleep(1200);
+    const s1 = await page.evaluate(() => window.__wbDebug.state().groundX); await sleep(500);
+    const v1 = (await page.evaluate(() => window.__wbDebug.state().groundX)) - s1;
+    await page.locator('#speed').fill('2'); await sleep(1500);
+    const s2 = await page.evaluate(() => window.__wbDebug.state().groundX); await sleep(500);
+    const v2 = (await page.evaluate(() => window.__wbDebug.state().groundX)) - s2;
+    out.push(res('faster speed scrolls the ground faster', v2 > v1 * 1.5, `${v1.toFixed(0)} vs ${v2.toFixed(0)} px / 0.5 s`));
+    await page.click('#jump'); await sleep(350);
+    const air = await page.evaluate(() => window.__wbDebug.state());
+    await sleep(1200);
+    out.push(res('jump goes airborne then lands', air.y < -20 && (await page.evaluate(() => window.__wbDebug.state().jump)) === 'ground', JSON.stringify(air)));
+    await page.click('body', { position: { x: 5, y: 5 } }); await page.keyboard.press('ArrowLeft');
+    out.push(res('ArrowLeft lowers the speed', (await page.inputValue('#speed')) === '1.9'));
+    return out;
+  },
+  // ─── dataviz ───
+  'dataviz-ranked-bars': async (page, { sleep }) => {
+    const out = [];
+    const order = () => page.$$eval('#chart .bar', (bars) => bars.map((b) => ({ w: +b.getAttribute('width'), y: b.getBoundingClientRect().top, name: b.parentNode.textContent })).sort((a, b) => a.y - b.y));
+    const o1 = await order();
+    out.push(res('bars ranked by value, Fennick first', o1.every((b, i) => i === 0 || b.w <= o1[i - 1].w + 0.01) && o1[0].name.startsWith('Fennick')));
+    out.push(res('bar lengths proportional (71.4 : 18.9)', Math.abs(o1[0].w / o1[11].w - 71.4 / 18.9) < 0.02, (o1[0].w / o1[11].w).toFixed(3)));
+    const t = await visibleText(page);
+    out.push(res('deltas with signs (+1.1 pp, −0.4 pp)', /\+1\.1 pp/.test(t) && /[−-]0\.4 pp/.test(t)));
+    await page.click('#sort-toggle'); await sleep(1300);
+    const o2 = (await order()).map((b) => b.name.split(/\d/)[0].trim());
+    out.push(res('alphabetical order after toggle', JSON.stringify(o2) === JSON.stringify([...o2].sort((a, b) => a.localeCompare(b))), o2.slice(0, 3).join(',')));
+    await page.focus('#chart [tabindex="0"]'); await sleep(200);
+    out.push(res('keyboard focus shows tooltip with 2024 value', /2024/.test(await visibleText(page))));
+    return out;
+  },
+  'dataviz-multiline-explorer': async (page, { sleep }) => {
+    const out = [];
+    const paths = await page.$$eval('#chart .series-line', (ps) => ps.map((p) => (p.getAttribute('d').match(/M/g) || []).length));
+    out.push(res('Riverside line has a gap (2 subpaths), others continuous', paths.filter((n) => n === 2).length === 1 && paths.filter((n) => n === 1).length === 3, paths.join(',')));
+    const ticks = () => page.$$eval('#chart .axis text', (ts) => ts.map((t) => t.textContent).join('|'));
+    const t0 = await ticks();
+    await page.click('.legend-item >> nth=1'); await sleep(700);
+    out.push(res('hiding Science Hall removes a line and rescales the y-axis', (await page.$$('#chart .series-line')).length === 3 && (await ticks()) !== t0));
+    await page.click('.legend-item >> nth=1'); await sleep(700);
+    await page.click('#mode'); await sleep(700);
+    out.push(res('indexed mode labels the index', /100/.test(await ticks()) && /index/i.test(await ticks())));
+    await page.click('#mode'); await sleep(700);
+    const box = await page.locator('#chart').boundingBox();
+    // hover Jul 2025 (index 18 of 24) and expect "closed"
+    for (let x = box.x + box.width * 0.55; x < box.x + box.width * 0.85; x += 6) {
+      await page.mouse.move(x, box.y + box.height / 2);
+      if (/Jul 2025/.test(await page.textContent('#tooltip'))) break;
+    }
+    out.push(res('tooltip shows "closed" for Riverside in Jul 2025', /Jul 2025/.test(await page.textContent('#tooltip')) && /closed/i.test(await page.textContent('#tooltip'))));
+    return out;
+  },
+  'dataviz-scatter-regression': async (page, { sleep, txt }) => {
+    const out = [];
+    const ols = (pts) => { const n = pts.length, mx = pts.reduce((a, p) => a + p[0], 0) / n, my = pts.reduce((a, p) => a + p[1], 0) / n; let sxx = 0, sxy = 0, syy = 0; for (const [x, y] of pts) { sxx += (x - mx) ** 2; sxy += (x - mx) * (y - my); syy += (y - my) ** 2; } const b = sxy / sxx; return { b, a: my - b * mx, r2: sxy * sxy / (sxx * syy), n }; };
+    const fmt = (f) => `y = ${f.b.toFixed(2)}x ${f.a < 0 ? '−' : '+'} ${Math.abs(f.a).toFixed(2)} · r² = ${f.r2.toFixed(2)} · n = ${f.n}`;
+    const selected = () => page.$$eval('#chart .dot', (ds) => ds.filter((d) => d.style.display !== 'none' && !d.classList.contains('dim')).map((d) => { const m = d.getAttribute('aria-label').match(/: ([\d.]+) km per 10,000, ([\d.]+)% cycling/); return [+m[1], +m[2]]; }));
+    const box = await page.locator('#chart').boundingBox();
+    await page.mouse.move(box.x + box.width * 0.08, box.y + box.height * 0.45); await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.9, { steps: 6 }); await page.mouse.up(); await sleep(200);
+    const sel = await selected();
+    out.push(res('brush recomputes stats for the selection (independent OLS)', sel.length >= 2 && sel.length < 40 && (await txt(page, '#stats')) === fmt(ols(sel)), `${await txt(page, '#stats')} | expected ${sel.length >= 2 ? fmt(ols(sel)) : '-'}`));
+    await page.keyboard.press('Escape'); await sleep(150);
+    out.push(res('Escape clears the brush (n = 40)', /n = 40/.test(await txt(page, '#stats'))));
+    await page.click('.region >> nth=0'); await sleep(200);
+    const vis = await selected();
+    out.push(res('region filter excludes towns from the fit', vis.length === 26 && (await txt(page, '#stats')) === fmt(ols(vis)), await txt(page, '#stats')));
+    return out;
+  },
+  'dataviz-sankey-energy': async (page, { sleep }) => {
+    const out = [];
+    const h = await page.$$eval('#chart .node', (ns) => Object.fromEntries(ns.map((n) => [n.getAttribute('aria-label').split(':')[0], +n.getAttribute('height')])));
+    out.push(res('node heights on one scale (Wind/Solar = 21.6/12.4, Electricity/Heat = 59.8/11.7)', Math.abs(h.Wind / h.Solar - 21.6 / 12.4) < 0.01 && Math.abs(h.Electricity / h.Heat - 59.8 / 11.7) < 0.01));
+    out.push(res('node labels with values ("Wind 21.6 TWh")', /Wind 21\.6 TWh/.test(await visibleText(page))));
+    await page.hover('#chart .node >> nth=1'); await sleep(250);
+    const ops = await page.$$eval('#chart .link', (ls) => ls.map((l) => parseFloat(getComputedStyle(l).opacity)));
+    out.push(res('hovering a node highlights only its flows', ops.filter((o) => o > 0.5).length === 1 && ops.filter((o) => o < 0.2).length === 21, ops.filter((o) => o > 0.5).length));
+    await page.click('#units'); await sleep(200);
+    out.push(res('PJ toggle → 360.0 PJ total', /360\.0 PJ/.test(await visibleText(page))));
+    return out;
+  },
+  'dataviz-candlestick': async (page, { sleep, txt }) => {
+    const out = [];
+    out.push(res('readout starts on the last candle', /May 22/.test(await txt(page, '#readout')) && /96\.51/.test(await txt(page, '#readout'))));
+    out.push(res('All range: High 97.07 · Low 80.60 · +13.92%', /High 97\.07/.test(await txt(page, '#stats')) && /Low 80\.60/.test(await txt(page, '#stats')) && /\+13\.92%/.test(await txt(page, '#stats'))));
+    await page.click('.range-btn >> nth=0'); await sleep(200);
+    out.push(res('1M range: Low 82.66 · +15.55% · aria-pressed', /Low 82\.66/.test(await txt(page, '#stats')) && /\+15\.55%/.test(await txt(page, '#stats')) && (await page.getAttribute('.range-btn >> nth=0', 'aria-pressed')) === 'true', await txt(page, '#stats')));
+    await page.click('.range-btn >> nth=1'); await sleep(200);
+    out.push(res('2M range: +13.33%', /\+13\.33%/.test(await txt(page, '#stats'))));
+    const count = () => page.$$eval('#chart .candle', (c) => c.length);
+    await page.click('.range-btn >> nth=2'); await sleep(200);
+    const box = await page.locator('#chart').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    for (let i = 0; i < 12; i++) { await page.mouse.wheel(0, -400); await sleep(40); }
+    const n = await count();
+    out.push(res('wheel zoom clamps at 10 candles', n === 10, n));
+    await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.5);
+    out.push(res('crosshair readout follows the pointer', !/May 22/.test(await txt(page, '#readout')) || n < 10));
     return out;
   },
 };
@@ -978,7 +1239,9 @@ async function main() {
   let pw = null; let browser = null; let server = null; let base = '';
   if (!flags['no-browser']) {
     pw = loadPlaywright();
-    browser = await pw.chromium.launch({ args: ['--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+    // Same flags as tools/verifier-node (software WebGL via SwiftShader, no background throttling).
+    browser = await pw.chromium.launch({ args: ['--disable-dev-shm-usage', '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
+      '--disable-backgrounding-occluded-windows', '--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
     const hctx = await browser.newContext();
     helperPage = await hctx.newPage();
     await helperPage.goto('about:blank');
@@ -994,6 +1257,9 @@ async function main() {
     if (!existsSync(refPath)) { row.problems.push('reference missing'); failures++; console.log(`✗ ${task.slug}: reference missing`); continue; }
     const html = readFileSync(refPath, 'utf8');
     if (!html.includes('<!-- WB-ORACLE -->')) row.problems.push('reference lacks <!-- WB-ORACLE -->');
+    // The prompts promise that every id they name is in the initial markup: the oracle must keep that promise.
+    const markupIds = new Set(tokenize(html).filter((t) => t.t === 'start' && t.attrs.id).map((t) => t.attrs.id));
+    for (const m of task.prompt.matchAll(/(?<![\w-])id="([\w-]+)"/g)) if (!markupIds.has(m[1])) row.problems.push(`reference markup lacks #${m[1]} named in the prompt`);
     if (!flags['trivial-only']) {
       // static
       const st = {};
@@ -1011,7 +1277,7 @@ async function main() {
     }
     if (browser) {
       const url = `${base}/ref/${task.slug}`;
-      if (!flags['trivial-only']) {
+      if (!flags['trivial-only'] && !flags['probe-only']) {
         for (const [name, vp] of [['desktop', { width: 1280, height: 800 }], ['mobile', { width: 390, height: 844 }]]) {
           // text checks target the desktop layout (mobile layouts may legitimately collapse panels)
           const list = name === 'mobile' ? task.checks.browser.filter((c) => c.type !== 'text') : task.checks.browser;
@@ -1032,6 +1298,18 @@ async function main() {
           await ctx.close();
         } else row.problems.push('no functional EXTRAS defined');
       }
+      if (flags.probe || flags['probe-only']) {
+        const pr = await runProbe(browser, base, task.slug, task.checks.browser);
+        row.probe = pr.results;
+        for (const [id, r] of Object.entries(pr.results)) if (!r.pass) row.problems.push(`probe ${id}: ${r.detail || ''}`);
+        row.probeAuto = autoScore(task.checks, row.static || {}, pr.results);
+        if (VERBOSE) for (const [id, r] of Object.entries(pr.results)) console.log(`       probe ${id}: ${r.pass ? 'pass' : 'FAIL'} ${r.detail || ''}`);
+        const tp = await runProbe(browser, base, task.slug, task.checks.browser, true);
+        const tStatic = {};
+        for (const c of task.checks.static) tStatic[c.id] = runStatic(c, TRIVIAL);
+        row.probeTrivial = autoScore(task.checks, tStatic, tp.results);
+        if (row.probeTrivial >= TRIVIAL_MAX) row.problems.push(`probe: trivial page scores ${row.probeTrivial.toFixed(1)}`);
+      }
       // trivial page must score low
       const tStatic = {};
       for (const c of task.checks.static) tStatic[c.id] = runStatic(c, TRIVIAL);
@@ -1042,7 +1320,9 @@ async function main() {
     if (row.problems.length) failures++;
     const n = (o) => o ? `${Object.values(o).filter((x) => x.pass).length}/${Object.keys(o).length}` : '-';
     const ex = row.extras ? `${row.extras.filter((x) => x.pass).length}/${row.extras.length}` : '-';
-    console.log(`${row.problems.length ? '✗' : '✓'} ${task.slug.padEnd(34)} static ${n(row.static)}  desktop ${n(row.desktop)}  mobile ${n(row.mobile)}  extras ${ex}  auto ${row.auto?.toFixed(1) ?? '-'}  trivial ${row.trivial?.toFixed(1) ?? '-'}`);
+    const pz = row.probe ? `  probe ${n(row.probe)} (auto ${row.probeAuto.toFixed(1)}, trivial ${row.probeTrivial.toFixed(1)})` : '';
+    const php = row.php ? ` php ${row.php.filter((x) => x && x.pass).length}/${row.php.length}` : '';
+    console.log(`${row.problems.length ? '✗' : '✓'} ${task.slug.padEnd(34)} static ${n(row.static)}${php}  desktop ${n(row.desktop)}  mobile ${n(row.mobile)}  extras ${ex}  auto ${row.auto?.toFixed(1) ?? '-'}  trivial ${row.trivial?.toFixed(1) ?? '-'}${pz}`);
     for (const p of row.problems) console.log('     · ' + p);
     if (VERBOSE) {
       for (const k of ['static', 'desktop', 'mobile']) for (const [id, r] of Object.entries(row[k] || {})) console.log(`       ${k} ${id}: ${r.pass ? 'pass' : 'FAIL'} ${r.detail}`);

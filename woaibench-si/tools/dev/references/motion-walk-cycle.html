@@ -1,0 +1,208 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pip — walk cycle</title>
+<style>
+  :root { --ui: rgba(255,255,255,.82); --ink: #22303c; --muted: #5d6b78; --accent: #ff7a45; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: #bfe3f2; color: var(--ink); font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; display: flex; flex-direction: column; }
+  #scene { flex: 1; min-height: 0; width: 100%; display: block; }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 16px; background: var(--ui); backdrop-filter: blur(8px); border-top: 1px solid rgba(0,0,0,.06); }
+  .bar strong { font-size: 15px; }
+  .bar label { display: flex; align-items: center; gap: 10px; color: var(--muted); font-weight: 600; }
+  #speed { width: min(260px, 50vw); accent-color: var(--accent); }
+  #speed-val { font: 700 13px ui-monospace, Menlo, monospace; color: var(--ink); min-width: 46px; }
+  #jump { font: inherit; font-weight: 700; color: #fff; background: var(--accent); border: 0; border-radius: 12px; padding: 10px 18px; min-height: 44px; cursor: pointer; margin-inline-start: auto; }
+  .keys { color: var(--muted); font-size: 12px; }
+  kbd { font: 600 11px ui-monospace, Menlo, monospace; border: 1px solid rgba(0,0,0,.15); border-radius: 4px; padding: 0 4px; background: #fff; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  @media (max-width: 600px) { .keys { display: none; } #jump { margin-inline-start: 0; } }
+</style>
+</head>
+<body>
+<svg id="scene" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMax slice" role="img" aria-labelledby="scene-title">
+  <title id="scene-title">Pip the courier robot walking through hills</title>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fd0ec"/><stop offset=".7" stop-color="#d9f0f5"/><stop offset="1" stop-color="#fbe9cf"/></linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cfd9e2"/></linearGradient>
+    <g id="far-tile"><path d="M0 470 C120 380 220 360 330 420 S540 330 700 400 S900 440 1000 380 L1000 700 L0 700Z" fill="#a9cfdc"/><path d="M0 500 C140 440 260 450 380 480 S620 430 760 470 S920 500 1000 470 L1000 700 L0 700Z" fill="#94c2cf"/></g>
+    <g id="mid-tile">
+      <path d="M0 540 C150 500 300 520 450 535 S700 505 850 525 S960 545 1000 540 L1000 700 L0 700Z" fill="#7fb07a"/>
+      <g fill="#4f8a5b"><path d="M120 545 l22-70 22 70z"/><path d="M150 548 l16-50 16 50z"/><path d="M560 530 l26-84 26 84z"/><path d="M600 534 l18-56 18 56z"/><path d="M820 532 l20-62 20 62z"/></g>
+      <g fill="#6b4e3a"><rect x="138" y="544" width="8" height="12"/><rect x="582" y="528" width="8" height="12"/><rect x="836" y="530" width="8" height="12"/></g>
+    </g>
+    <g id="ground-tile">
+      <rect x="0" y="600" width="400" height="100" fill="#d9b98a"/>
+      <rect x="0" y="600" width="400" height="10" fill="#c9a776"/>
+      <g fill="#bf9a68"><rect x="20" y="630" width="60" height="6" rx="3"/><rect x="170" y="660" width="80" height="6" rx="3"/><rect x="300" y="640" width="50" height="6" rx="3"/></g>
+      <g fill="#7a5a3f"><rect x="96" y="548" width="8" height="54"/><rect x="296" y="548" width="8" height="54"/><rect x="90" y="560" width="220" height="6" rx="2"/></g>
+    </g>
+  </defs>
+  <rect width="1200" height="700" fill="url(#sky)"/>
+  <circle cx="980" cy="140" r="54" fill="#fff4cf" opacity=".9"/>
+  <g id="layer-far"><use href="#far-tile"/><use href="#far-tile" x="1000"/><use href="#far-tile" x="2000"/></g>
+  <g id="layer-mid"><use href="#mid-tile"/><use href="#mid-tile" x="1000"/><use href="#mid-tile" x="2000"/></g>
+  <g id="layer-ground"><use href="#ground-tile"/><use href="#ground-tile" x="400"/><use href="#ground-tile" x="800"/><use href="#ground-tile" x="1200"/><use href="#ground-tile" x="1600"/></g>
+  <ellipse id="shadow" cx="520" cy="604" rx="62" ry="9" fill="rgba(60,40,20,.25)"/>
+  <!-- Pip: every limb is a nested group rotated at its joint -->
+  <g id="character" transform="translate(520 0)">
+    <g id="body">
+      <g id="leg-back" transform="translate(-10 0)">
+        <g class="thigh"><rect x="-9" y="0" width="18" height="62" rx="9" fill="#8a99a8"/>
+          <g class="shin" transform="translate(0 58)"><rect x="-8" y="0" width="16" height="58" rx="8" fill="#7d8c9b"/>
+            <g class="foot" transform="translate(0 56)"><rect x="-12" y="-4" width="34" height="14" rx="7" fill="#33424f"/></g>
+          </g>
+        </g>
+      </g>
+      <g id="arm-back" transform="translate(-6 -98)">
+        <g class="upper"><rect x="-7" y="0" width="14" height="46" rx="7" fill="#8a99a8"/>
+          <g class="fore" transform="translate(0 42)"><rect x="-6" y="0" width="12" height="42" rx="6" fill="#7d8c9b"/><circle cx="0" cy="44" r="8" fill="#33424f"/></g>
+        </g>
+      </g>
+      <g id="torso" transform="translate(0 -60)">
+        <rect x="-42" y="-80" width="84" height="88" rx="22" fill="url(#metal)" stroke="#9fb0bf" stroke-width="2"/>
+        <rect x="-26" y="-56" width="52" height="30" rx="8" fill="#ffd36e"/>
+        <text x="0" y="-35" text-anchor="middle" font-size="14" font-weight="800" fill="#7a4b00" font-family="ui-monospace, monospace">POST</text>
+        <g id="satchel" transform="translate(30 -40)">
+          <path d="M-40 -40 L 6 6" stroke="#8a4b2a" stroke-width="5" fill="none"/>
+          <rect x="-6" y="0" width="34" height="30" rx="6" fill="#b5633a"/><rect x="-6" y="0" width="34" height="11" rx="5" fill="#9c5230"/>
+        </g>
+        <g id="head" transform="translate(0 -84)">
+          <g id="antenna"><path id="antenna-stem" d="M0 -58 Q0 -72 0 -86" stroke="#5d6b78" stroke-width="4" fill="none" stroke-linecap="round"/><circle id="antenna-tip" cx="0" cy="-90" r="7" fill="#ff7a45"/></g>
+          <rect x="-40" y="-60" width="80" height="62" rx="20" fill="url(#metal)" stroke="#9fb0bf" stroke-width="2"/>
+          <rect x="-30" y="-46" width="60" height="30" rx="14" fill="#22303c"/>
+          <g id="eyes" fill="#7ff0e0"><rect x="-18" y="-38" width="10" height="14" rx="5"/><rect x="10" y="-38" width="10" height="14" rx="5"/></g>
+        </g>
+      </g>
+      <g id="leg-front" transform="translate(10 0)">
+        <g class="thigh"><rect x="-9" y="0" width="18" height="62" rx="9" fill="#b3c0cc"/>
+          <g class="shin" transform="translate(0 58)"><rect x="-8" y="0" width="16" height="58" rx="8" fill="#a6b4c1"/>
+            <g class="foot" transform="translate(0 56)"><rect x="-12" y="-4" width="34" height="14" rx="7" fill="#3c4c5a"/></g>
+          </g>
+        </g>
+      </g>
+      <g id="arm-front" transform="translate(6 -98)">
+        <g class="upper"><rect x="-7" y="0" width="14" height="46" rx="7" fill="#b3c0cc"/>
+          <g class="fore" transform="translate(0 42)"><rect x="-6" y="0" width="12" height="42" rx="6" fill="#a6b4c1"/><circle cx="0" cy="44" r="8" fill="#3c4c5a"/></g>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>
+<div class="bar">
+  <strong>Pip</strong>
+  <label for="speed">Speed <input type="range" id="speed" min="0" max="2" step="0.1" value="1"><output id="speed-val" for="speed">1.0×</output></label>
+  <span class="keys"><kbd>←</kbd>/<kbd>→</kbd> speed · <kbd>Space</kbd> jump</span>
+  <button type="button" id="jump">Jump</button>
+</div>
+<script>
+(() => {
+  'use strict';
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = (s) => document.querySelector(s);
+  const speedInput = $('#speed'), speedVal = $('#speed-val');
+  if (reduced) speedInput.value = '0';
+  const GROUND_Y = 604, THIGH = 58, SHIN = 56, HIP_REST = GROUND_Y - THIGH - SHIN - 8;
+  const legs = ['back', 'front'].map((id, i) => ({ g: $(`#leg-${id}`), thigh: $(`#leg-${id} .thigh`), shin: $(`#leg-${id} .shin`), foot: $(`#leg-${id} .foot`), offset: i * 0.5 }));
+  const arms = ['back', 'front'].map((id) => ({ upper: $(`#arm-${id} .upper`), fore: $(`#arm-${id} .fore`) }));
+  const layers = [{ g: $('#layer-far'), rate: 0.15, tile: 1000 }, { g: $('#layer-mid'), rate: 0.45, tile: 1000 }, { g: $('#layer-ground'), rate: 1, tile: 400 }];
+  const deg = (r) => r * 180 / Math.PI;
+
+  // ---------- smoothed parameters & springs ----------
+  let target = +speedInput.value, speed = target, phase = 0, groundX = 0, time = 0;
+  const spring = (k, c) => ({ x: 0, v: 0, step(goal, dt) { const a = -k * (this.x - goal) - c * this.v; this.v += a * dt; this.x += this.v * dt; } });
+  const antenna = spring(90, 7), satchel = spring(60, 5);
+  let prevHead = { x: 0, y: 0 };
+  const jump = { state: 'ground', t: 0, y: 0, vy: 0, squash: 0 };
+  let blink = 0, nextBlink = 2;
+
+  /** Two-bone IK in the leg's local frame (hip at 0,0, y down). Returns thigh and knee angles. */
+  function ik(fx, fy) {
+    const d = Math.min(THIGH + SHIN - 0.01, Math.hypot(fx, fy));
+    const a = Math.atan2(fy, fx);
+    const cosK = (THIGH * THIGH + SHIN * SHIN - d * d) / (2 * THIGH * SHIN);
+    const knee = Math.PI - Math.acos(Math.max(-1, Math.min(1, cosK)));
+    const cosH = (THIGH * THIGH + d * d - SHIN * SHIN) / (2 * THIGH * d);
+    const hip = a - Math.acos(Math.max(-1, Math.min(1, cosH)));
+    return { thigh: hip - Math.PI / 2, knee };   // knee bends forward (positive x)
+  }
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now; time += dt;
+    speed += (target - speed) * Math.min(1, dt * 3);                 // blend speeds, no popping
+    const s = Math.max(0, speed);
+    const stride = 70 + 45 * Math.max(0, s - 1);                     // half-stride length (px)
+    const groundSpeed = s * 150;                                     // px / s, equals planted-foot speed
+    const cycleLen = stride * 4;                                     // 2 steps per cycle
+    if (s > 0.01) { phase = (phase + groundSpeed * dt / cycleLen) % 1; groundX += groundSpeed * dt; }
+    const walk = Math.min(1, s * 3);                                  // 0 idle → 1 walking
+    // hips: lowest at the down pose (twice per cycle), breathing when idle
+    const bob = walk * (6 + 4 * Math.max(0, s - 1)) * Math.cos(phase * 4 * Math.PI);
+    const breathe = (1 - walk) * Math.sin(time * 2.2) * 2.5;
+    // jump state machine
+    if (jump.state === 'crouch') { jump.t += dt; jump.squash = Math.sin(Math.min(1, jump.t / 0.14) * Math.PI / 2) * 14; if (jump.t >= 0.14) { jump.state = 'air'; jump.vy = -620; } }
+    else if (jump.state === 'air') { jump.vy += 1800 * dt; jump.y += jump.vy * dt; jump.squash *= Math.pow(0.001, dt); if (jump.y >= 0) { jump.y = 0; jump.state = 'land'; jump.t = 0; } }
+    else if (jump.state === 'land') { jump.t += dt; jump.squash = Math.sin(Math.max(0, 1 - jump.t / 0.18) * Math.PI / 2) * 12; if (jump.t >= 0.18) { jump.state = 'ground'; jump.squash = 0; } }
+    const airborne = jump.state === 'air';
+    const hipY = HIP_REST - bob + breathe + jump.y + jump.squash;
+    const lean = walk * (0.04 + 0.08 * Math.max(0, s - 1)) + (airborne ? -0.05 : 0);
+    $('#body').setAttribute('transform', `translate(0 ${hipY.toFixed(2)}) rotate(${deg(lean).toFixed(2)})`);
+    // legs via IK: stance foot moves back at exactly ground speed (no sliding), swing foot arcs forward
+    legs.forEach((leg) => {
+      const p = (phase + leg.offset) % 1;
+      let fx, fy;
+      if (airborne) { fx = 18 + (leg.offset ? -14 : 10); fy = THIGH + SHIN - 46; }
+      else if (walk < 0.01) { fx = leg.offset ? -10 : 12; fy = GROUND_Y - hipY - 8; }
+      else if (p < 0.5) { fx = stride - (p / 0.5) * 2 * stride; fy = GROUND_Y - hipY - 8; }
+      else { const q = (p - 0.5) / 0.5, e = q * q * (3 - 2 * q); fx = -stride + e * 2 * stride; fy = GROUND_Y - hipY - 8 - Math.sin(q * Math.PI) * (22 + 14 * Math.max(0, s - 1)); }
+      fx = fx * walk + (1 - walk) * (leg.offset ? -10 : 12);
+      const sol = ik(fx * Math.cos(-lean) - fy * Math.sin(-lean), fx * Math.sin(-lean) + fy * Math.cos(-lean));
+      leg.thigh.setAttribute('transform', `rotate(${deg(sol.thigh).toFixed(2)})`);
+      leg.shin.setAttribute('transform', `translate(0 58) rotate(${deg(sol.knee).toFixed(2)})`);
+      const footAngle = -(sol.thigh + sol.knee) - lean + (p >= 0.5 && walk > 0 ? Math.sin(((p - 0.5) / 0.5) * Math.PI) * 0.35 : 0);
+      leg.foot.setAttribute('transform', `translate(0 56) rotate(${deg(footAngle).toFixed(2)})`);
+    });
+    // arms counter-swing (front arm with back leg)
+    arms.forEach((arm, i) => {
+      const swing = airborne ? (i ? -2.2 : -2.6) : walk * Math.sin((phase + (i ? 0 : 0.5)) * 2 * Math.PI) * (0.45 + 0.25 * Math.max(0, s - 1));
+      arm.upper.setAttribute('transform', `rotate(${deg(-swing + (1 - walk) * Math.sin(time * 2.2 + i) * 0.03).toFixed(2)})`);
+      arm.fore.setAttribute('transform', `translate(0 42) rotate(${deg(-0.25 - Math.max(0, swing) * 0.6 - walk * 0.15).toFixed(2)})`);
+    });
+    // secondary motion: antenna and satchel lag behind head acceleration
+    const head = { x: lean * 140, y: hipY };
+    const hv = { x: (head.x - prevHead.x) / Math.max(dt, 1e-3), y: (head.y - prevHead.y) / Math.max(dt, 1e-3) }; prevHead = head;
+    antenna.step(-hv.x * 0.004 - hv.y * 0.002 - walk * 0.08, dt);
+    satchel.step(-hv.y * 0.003 + walk * 0.1, dt);
+    $('#antenna').setAttribute('transform', `rotate(${deg(antenna.x).toFixed(2)} 0 -58)`);
+    $('#satchel').setAttribute('transform', `translate(30 -40) rotate(${deg(satchel.x).toFixed(2)} -40 -40)`);
+    // blink
+    nextBlink -= dt; if (nextBlink <= 0) { blink = 0.14; nextBlink = 2 + Math.random() * 3; }
+    blink = Math.max(0, blink - dt);
+    $('#eyes').setAttribute('transform', `translate(0 -31) scale(1 ${blink > 0 ? 0.15 : 1}) translate(0 31)`);
+    // parallax (ground layer moves exactly with the planted foot)
+    layers.forEach((L) => { const x = -((groundX * L.rate) % L.tile); L.g.setAttribute('transform', `translate(${x.toFixed(2)} 0)`); });
+    const sh = $('#shadow'); sh.setAttribute('rx', String(62 - Math.min(30, -jump.y * 0.12))); sh.setAttribute('opacity', String(1 - Math.min(0.6, -jump.y / 400)));
+    requestAnimationFrame(frame);
+  }
+
+  function setSpeed(v) { target = Math.max(0, Math.min(2, Math.round(v * 10) / 10)); speedInput.value = String(target); speedVal.textContent = target.toFixed(1) + '×'; }
+  function doJump() { if (jump.state === 'ground') { jump.state = 'crouch'; jump.t = 0; } }
+  speedInput.addEventListener('input', () => setSpeed(+speedInput.value));
+  $('#jump').addEventListener('click', doJump);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === ' ' && e.target.tagName !== 'BUTTON') { e.preventDefault(); doJump(); }
+    else if (e.key === 'ArrowRight' && e.target !== speedInput) { e.preventDefault(); setSpeed(target + 0.1); }
+    else if (e.key === 'ArrowLeft' && e.target !== speedInput) { e.preventDefault(); setSpeed(target - 0.1); }
+  });
+  window.__wbDebug = { state: () => ({ speed, phase, groundX, jump: jump.state, y: jump.y }) };
+  setSpeed(+speedInput.value);
+  let last = performance.now();
+  requestAnimationFrame((t) => { last = t; frame(t); });
+})();
+</script>
+</body>
+</html>

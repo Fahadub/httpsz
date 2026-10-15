@@ -71,6 +71,12 @@ function assertRun(prefix, slug, result) {
     const c = byId(result.checks, id);
     (isSoft ? soft : ok)(`${prefix} ${slug}: ${id} ${want ? 'passes' : 'fails'}`, !!c && c.pass === want, c ? `${c.pass} (${c.detail})` : 'missing');
   }
+  if (slug === 'vt-cheat') {
+    for (const [name, want] of [['forge-1', false], ['forge-2', false], ['clean-script', true]]) {
+      const t = (result.tests || []).find((x) => x.name === name);
+      ok(`${prefix} vt-cheat: "${name}" ${want ? 'passes' : 'cannot be forged'}`, !!t && t.pass === want, t ? JSON.stringify(t) : 'missing');
+    }
+  }
   if (slug === 'vt-js') {
     for (const [name, want] of Object.entries(TESTS_EXPECT)) {
       const t = (result.tests || []).find((x) => x.name === name);
@@ -139,7 +145,7 @@ async function probeOnce(browser, url, vp = { width: 1280, height: 800 }, budget
 async function phaseProbe(browser) {
   console.log('\n== probe: every check type (top-level / Playwright mode)');
   const S = setup(false);
-  for (const slug of Object.keys(EXPECT).concat(['vt-js'])) {
+  for (const slug of Object.keys(EXPECT).concat(['vt-js', 'vt-cheat'])) {
     if (slug === 'vt-hang') continue;
     const run = S.runs[slug];
     const p = await probeOnce(browser, run.verify_url + '&mode=playwright');
@@ -260,6 +266,7 @@ async function stationRun(browser) {
   await page.evaluate(() => { window.__adminErrors = []; window.addEventListener('error', (e) => window.__adminErrors.push(e.message)); window.addEventListener('unhandledrejection', (e) => window.__adminErrors.push(String(e.reason))); });
   ok('station page renders', (await page.$('[data-verifier-station]')) !== null);
   if (SHOTS) await within(page.screenshot({ path: path.join(SHOTS, 'station-idle-en.png'), fullPage: true }), 15_000);
+  if (argv.includes('--calm')) await page.addStyleTag({ content: '*,*::before,*::after{animation:none!important;transition:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}' });
   await page.selectOption('[data-vs-concurrency]', '2');
   await page.click('[data-vs-start]');
   const t0 = Date.now();
@@ -285,7 +292,7 @@ async function stationRun(browser) {
   for (const [slug, r] of Object.entries(d)) {
     if (!r.verified && slug !== 'vt-answer') { ok(`station ${slug}: verified`, false, r.status + ' ' + (r.error || '')); continue; }
     ok(`station ${slug}: verified_by station`, r.verified_by === 'station' || slug === 'vt-answer', r.verified_by);
-    if (EXPECT[slug] || slug === 'vt-js') assertRun('station', slug, r.browser);
+    if (EXPECT[slug] || slug === 'vt-js' || slug === 'vt-cheat') assertRun('station', slug, r.browser);
   }
   ok('station: desktop + mobile screenshots stored (good)', d['vt-good'].screenshot_bytes > 5000 && d['vt-good'].screenshot_mobile_bytes > 2000, `${d['vt-good'].screenshot_bytes}/${d['vt-good'].screenshot_mobile_bytes}`);
   ok('station: WebGL screenshot captured (preserveDrawingBuffer)', d['vt-webgl'].screenshot_bytes > 3000, String(d['vt-webgl'].screenshot_bytes));
@@ -320,7 +327,7 @@ async function phaseNode() {
   for (const [slug, r] of Object.entries(d)) {
     if (slug === 'vt-answer') continue;
     ok(`node ${slug}: verified_by playwright`, r.verified_by === 'playwright', r.verified_by + ' ' + r.status);
-    if (EXPECT[slug] || slug === 'vt-js') assertRun('node', slug, r.browser);
+    if (EXPECT[slug] || slug === 'vt-js' || slug === 'vt-cheat') assertRun('node', slug, r.browser);
   }
   ok('node: real screenshots stored', d['vt-good'].screenshot_bytes > 5000 && d['vt-webgl'].screenshot_bytes > 3000);
   // Bad token → exit code 3 without touching the queue.

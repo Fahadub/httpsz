@@ -1,0 +1,199 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bike lanes vs cycling commuters — 40 towns</title>
+<style>
+  :root { --bg: #f7f7f4; --card: #fff; --ink: #1b1e23; --muted: #626a73; --grid: #e8e8e2; --north: #2b6cb0; --coast: #d97706; --valley: #2f855a; --fit: #1b1e23; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { width: min(1000px, 100% - 28px); margin: 0 auto; padding: 32px 0 40px; }
+  h1 { margin: 0 0 4px; font-size: clamp(22px, 3.2vw, 30px); letter-spacing: -.01em; max-width: 30ch; }
+  .sub { color: var(--muted); margin: 0 0 16px; max-width: 70ch; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-bottom: 10px; }
+  .regions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .region { display: inline-flex; gap: 8px; align-items: center; font: inherit; font-weight: 600; font-size: 13px; background: #fff; border: 1px solid var(--grid); border-radius: 999px; padding: 6px 12px; cursor: pointer; min-height: 36px; }
+  .region i { width: 10px; height: 10px; border-radius: 50%; }
+  .region[aria-pressed="false"] { opacity: .45; }
+  #clear-brush { font: inherit; font-weight: 600; font-size: 13px; background: var(--ink); color: #fff; border: 0; border-radius: 10px; padding: 8px 12px; cursor: pointer; min-height: 36px; }
+  #clear-brush[disabled] { opacity: .35; cursor: default; }
+  #stats { margin-inline-start: auto; font: 600 14px ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: #fff; border: 1px solid var(--grid); border-radius: 10px; padding: 8px 12px; }
+  .card { background: var(--card); border: 1px solid var(--grid); border-radius: 16px; padding: 10px; position: relative; }
+  #chart { display: block; width: 100%; height: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .axis text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .axis line { stroke: var(--grid); }
+  .axis .title { fill: var(--ink); font-size: 12px; font-weight: 600; }
+  .dot { stroke: #fff; stroke-width: 1.5; fill-opacity: .82; transition: opacity .2s; cursor: pointer; outline: none; }
+  .dot.dim { opacity: .18; }
+  .dot:focus { stroke: var(--ink); stroke-width: 2.5; }
+  #fit-line { stroke: var(--fit); stroke-width: 2; stroke-dasharray: 6 4; }
+  .brush { fill: rgba(43,108,176,.08); stroke: #2b6cb0; stroke-width: 1; stroke-dasharray: 4 3; }
+  #tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; padding: 8px 10px; border-radius: 8px; font-size: 12px; opacity: 0; transition: opacity .1s; white-space: nowrap; }
+  .note { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  :focus-visible { outline: 2px solid var(--north); outline-offset: 2px; }
+  @media (max-width: 600px) { #stats { margin-inline-start: 0; width: 100%; font-size: 12px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Towns with more protected bike lanes have more cycling commuters</h1>
+  <p class="sub">40 towns of a fictional province. Each circle is a town, sized by population and coloured by region. Synthetic data for benchmark purposes.</p>
+  <div class="bar">
+    <div class="regions" role="group" aria-label="Regions" id="regions"></div>
+    <button type="button" id="clear-brush" disabled>Clear selection</button>
+    <output id="stats" aria-live="polite"></output>
+  </div>
+  <div class="card">
+    <svg id="chart" role="img" aria-labelledby="chart-title"><title id="chart-title">Scatter plot of bike-lane density against cycling share with a least-squares fit line</title><line id="fit-line"/></svg>
+    <div id="tip" role="status"></div>
+  </div>
+  <p class="note">Drag on the chart to select towns — the fit and statistics update for the selection. Press Esc or “Clear selection” to reset. Toggle regions with the buttons above.</p>
+</div>
+<script>
+(() => {
+  'use strict';
+  const CSV = `Dunwick,North,5.0,6.6,34
+Harmere,Coast,6.1,15.8,115
+Selmere,Valley,8.2,19.4,158
+Oakford,North,0.4,0.5,28
+Dunton,Coast,0.5,6.8,88
+Galton,Valley,2.7,5.9,99
+Morfield,North,5.1,13.5,150
+Roswick,Coast,3.0,10.8,44
+Selwick,Valley,0.6,2.8,116
+Corton,North,8.6,16.5,149
+Penby,Coast,4.3,14.0,133
+Mormere,Valley,2.8,3.3,115
+Selton,North,5.1,12.6,41
+Belfield,Coast,5.2,11.3,179
+Dunfield,Valley,6.1,11.9,66
+Oakfield,North,4.7,11.3,147
+Ivesmere,Coast,4.1,15.0,173
+Quenfield,Valley,4.8,11.9,110
+Norford,North,3.1,7.4,175
+Torton,Coast,7.8,20.2,133
+Linford,Valley,2.8,5.0,135
+Normere,North,6.5,14.7,16
+Jorwick,Coast,4.6,14.0,139
+Iveston,Valley,8.9,18.0,54
+Norfield,North,4.8,12.7,135
+Linby,Coast,2.2,8.9,113
+Elmton,Valley,8.8,22.3,147
+Cormere,North,7.7,18.3,71
+Dunmere,Coast,0.8,3.4,170
+Ashwick,Valley,6.5,14.9,155
+Penfield,North,7.0,16.6,158
+Elmmere,Coast,8.5,22.3,137
+Jorby,Valley,4.2,11.4,158
+Jormere,North,4.2,10.8,46
+Quenford,Coast,3.9,13.9,26
+Belwick,Valley,6.3,14.4,14
+Ashmere,North,4.8,9.9,39
+Penton,Coast,5.7,12.9,51
+Kelton,Valley,5.9,13.8,110
+Belford,North,6.4,13.4,52`;
+  const TOWNS = CSV.split('\n').map((l) => { const [name, region, x, y, pop] = l.split(','); return { name, region, x: +x, y: +y, pop: +pop }; });
+  const REGIONS = { North: 'var(--north)', Coast: 'var(--coast)', Valley: 'var(--valley)' };
+  const visibleRegions = new Set(Object.keys(REGIONS));
+  let brush = null; // {x0,x1,y0,y1} in data units
+  const NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('chart'), tip = document.getElementById('tip');
+  const mk = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+
+  /** Ordinary least squares on [{x,y}] → {slope, intercept, r2, n} (null when undefined). */
+  function ols(pts) {
+    const n = pts.length; if (n < 2) return null;
+    const mx = pts.reduce((a, p) => a + p.x, 0) / n, my = pts.reduce((a, p) => a + p.y, 0) / n;
+    let sxx = 0, sxy = 0, syy = 0;
+    for (const p of pts) { sxx += (p.x - mx) ** 2; sxy += (p.x - mx) * (p.y - my); syy += (p.y - my) ** 2; }
+    if (sxx === 0 || syy === 0) return null;
+    const slope = sxy / sxx;
+    return { slope, intercept: my - slope * mx, r2: (sxy * sxy) / (sxx * syy), n, minX: Math.min(...pts.map((p) => p.x)), maxX: Math.max(...pts.map((p) => p.x)) };
+  }
+  const fmtEq = (f) => `y = ${f.slope.toFixed(2)}x ${f.intercept < 0 ? '−' : '+'} ${Math.abs(f.intercept).toFixed(2)}`;
+  const visible = () => TOWNS.filter((t) => visibleRegions.has(t.region));
+  const inBrush = (t) => !brush || (t.x >= brush.x0 && t.x <= brush.x1 && t.y >= brush.y0 && t.y <= brush.y1);
+
+  let G;
+  const fitLine = document.getElementById('fit-line');
+  function layout() {
+    const W = svg.clientWidth || 900, narrow = W < 560, H = narrow ? 380 : 480;
+    const m = { l: 52, r: 18, t: 16, b: 46 };
+    const x = (v) => m.l + v / 10 * (W - m.l - m.r), y = (v) => H - m.b - v / 25 * (H - m.t - m.b);
+    G = { W, H, m, x, y, ix: (px) => (px - m.l) / (W - m.l - m.r) * 10, iy: (py) => (H - m.b - py) / (H - m.t - m.b) * 25 };
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = '<title id="chart-title">Scatter plot of bike-lane density against cycling share with a least-squares fit line</title>';
+    const axis = mk('g', { class: 'axis' }, svg);
+    for (let v = 0; v <= 10; v += 2) { mk('line', { x1: x(v), x2: x(v), y1: m.t, y2: H - m.b }, axis); mk('text', { x: x(v), y: H - m.b + 16, 'text-anchor': 'middle' }, axis).textContent = v; }
+    for (let v = 0; v <= 25; v += 5) { mk('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v) }, axis); mk('text', { x: m.l - 8, y: y(v) + 4, 'text-anchor': 'end' }, axis).textContent = v + '%'; }
+    mk('text', { class: 'title', x: (m.l + W - m.r) / 2, y: H - 8, 'text-anchor': 'middle' }, axis).textContent = 'Protected bike lanes (km per 10,000 residents)';
+    mk('text', { class: 'title', x: -(m.t + H - m.b) / 2, y: 14, transform: 'rotate(-90)', 'text-anchor': 'middle' }, axis).textContent = 'Commuters cycling (%)';
+    G.fit = svg.appendChild(fitLine);
+    G.brushRect = mk('rect', { class: 'brush', visibility: 'hidden' }, svg);
+    const dots = mk('g', {}, svg);
+    G.dots = TOWNS.map((t) => {
+      const c = mk('circle', { class: 'dot', cx: x(t.x), cy: y(t.y), r: (3 + Math.sqrt(t.pop) * 0.75).toFixed(1), fill: REGIONS[t.region], tabindex: '0', role: 'img', 'aria-label': `${t.name}, ${t.region}: ${t.x} km per 10,000, ${t.y}% cycling, population ${t.pop},000` }, dots);
+      c.addEventListener('mouseenter', () => showTip(t, c)); c.addEventListener('focus', () => showTip(t, c));
+      c.addEventListener('mouseleave', hideTip); c.addEventListener('blur', hideTip);
+      return c;
+    });
+    update();
+  }
+  function update() {
+    const pts = visible().filter(inBrush);
+    TOWNS.forEach((t, i) => {
+      const c = G.dots[i], shown = visibleRegions.has(t.region);
+      c.style.display = shown ? '' : 'none';
+      c.classList.toggle('dim', shown && !inBrush(t));
+    });
+    const f = ols(pts), out = document.getElementById('stats');
+    if (f) {
+      out.textContent = `${fmtEq(f)} · r² = ${f.r2.toFixed(2)} · n = ${f.n}`;
+      G.fit.setAttribute('x1', G.x(f.minX)); G.fit.setAttribute('x2', G.x(f.maxX));
+      G.fit.setAttribute('y1', G.y(f.intercept + f.slope * f.minX)); G.fit.setAttribute('y2', G.y(f.intercept + f.slope * f.maxX));
+      G.fit.style.display = '';
+    } else { out.textContent = `Select at least 2 towns · n = ${pts.length}`; G.fit.style.display = 'none'; }
+    if (brush) {
+      const x0 = G.x(brush.x0), x1 = G.x(brush.x1), y0 = G.y(brush.y1), y1 = G.y(brush.y0);
+      Object.entries({ x: x0, y: y0, width: x1 - x0, height: y1 - y0, visibility: 'visible' }).forEach(([k, v]) => G.brushRect.setAttribute(k, v));
+    } else G.brushRect.setAttribute('visibility', 'hidden');
+    document.getElementById('clear-brush').disabled = !brush;
+  }
+  function showTip(t, c) {
+    tip.textContent = `${t.name} (${t.region}) · ${t.x} km/10k · ${t.y}% · pop ${t.pop}k`;
+    const r = c.getBoundingClientRect(), p = svg.parentElement.getBoundingClientRect();
+    tip.style.left = Math.max(4, Math.min(p.width - 260, r.left - p.left + 12)) + 'px'; tip.style.top = (r.top - p.top - 34) + 'px'; tip.style.opacity = '1';
+  }
+  function hideTip() { tip.style.opacity = '0'; }
+  // brushing
+  let drag = null;
+  const local = (e) => { const r = svg.getBoundingClientRect(); return { px: (e.clientX - r.left) / r.width * G.W, py: (e.clientY - r.top) / r.height * G.H }; };
+  svg.addEventListener('pointerdown', (e) => { if (e.button !== 0) return; drag = local(e); svg.setPointerCapture(e.pointerId); });
+  svg.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const p = local(e);
+    if (Math.hypot(p.px - drag.px, p.py - drag.py) < 4) return;
+    const xs = [G.ix(drag.px), G.ix(p.px)].sort((a, b) => a - b), ys = [G.iy(drag.py), G.iy(p.py)].sort((a, b) => a - b);
+    brush = { x0: xs[0], x1: xs[1], y0: ys[0], y1: ys[1] };
+    update();
+  });
+  svg.addEventListener('pointerup', () => { drag = null; });
+  const clear = () => { brush = null; update(); };
+  document.getElementById('clear-brush').addEventListener('click', clear);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') clear(); });
+  // region toggles
+  const box = document.getElementById('regions');
+  Object.entries(REGIONS).forEach(([name, color]) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'region'; b.setAttribute('aria-pressed', 'true');
+    b.innerHTML = `<i style="background:${color}"></i>${name}`;
+    b.addEventListener('click', () => { if (visibleRegions.has(name)) visibleRegions.delete(name); else visibleRegions.add(name); b.setAttribute('aria-pressed', String(visibleRegions.has(name))); update(); });
+    box.appendChild(b);
+  });
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(layout, 100); });
+  layout();
+})();
+</script>
+</body>
+</html>
