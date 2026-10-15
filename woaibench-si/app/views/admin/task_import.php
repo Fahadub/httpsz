@@ -52,3 +52,4 @@ $example = [[
   </div>
   <div class="form-actions"><button class="btn btn-primary" type="submit"><?= ui_icon('upload', 16) ?><span><?= _e('admin.tasks.import_go') ?></span></button></div>
 </form>
+<script type="application/json" id="task-spec"><?= js_json(\WB\Admin\TaskValidator::spec()) ?></script>

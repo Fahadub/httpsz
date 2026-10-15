@@ -12,7 +12,7 @@
   var GIB = 1073741824;
   var COMFORT = 0.85;           // "fits comfortably" below 85 % of usable memory
   var EFF_LO = 0.55, EFF_HI = 0.70; // achieved share of peak memory bandwidth while decoding
-  var PREFILL_EFF = 0.35;       // achieved share of peak FP16 throughput while reading the prompt
+  var PREFILL_EFF = 0.6;        // achieved share of peak FP16 matrix throughput while reading the prompt
   var TP_EFF = 0.85;            // tensor-parallel communication overhead
   var PROMPT = 4096;            // prompt length for the time-to-first-token estimate
   var KV_BYTES = { f16: 2, q8: 1.0625, q4: 0.5625 };
@@ -27,9 +27,9 @@
     if (rep) Object.keys(rep).forEach(function (r) { s = s.split(':' + r).join('\u2068' + rep[r] + '\u2069'); });
     return s;
   }
-  var models = {};
+  var models = Object.create(null);
   (D.models || []).forEach(function (m) { models[m.slug] = m; });
-  var devices = {};
+  var devices = Object.create(null);
   (D.gpus || []).forEach(function (g) { devices[g.name] = g; });
   var $ = function (id) { return document.getElementById(id); };
 
@@ -431,8 +431,8 @@
         : r.name + '*' + r.count;
     }).join('|'));
     var split = form.querySelector('input[name="split"]:checked');
-    if (split && split.value !== 'layer') q.set('split', split.value);
-    if ($('hw-offload').checked) { q.set('off', '1'); q.set('ram', $('hw-ram').value); }
+    if (split && split.value !== 'layer' && !$('hw-split-field').hidden) q.set('split', split.value);
+    if ($('hw-offload').checked && !$('hw-offload-box').hidden) { q.set('off', '1'); q.set('ram', $('hw-ram').value); }
     try { history.replaceState(null, '', location.pathname + '?' + q.toString()); } catch (e) { /* ignore */ }
   }
 

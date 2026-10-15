@@ -119,7 +119,11 @@
     return list.slice(0, 500).map(function (r) {
       r = r && typeof r === 'object' ? r : {};
       var o = { name: trunc(r.name, 200), pass: r.pass === true, ms: Math.max(0, num(r.ms, 0)) };
-      if (r.got !== undefined) { o.got = trunc(typeof r.got === 'string' ? r.got : JSON.stringify(r.got), 300); }
+      if (r.got !== undefined) {
+        // The probe sends a JSON preview string: send the parsed value when it is complete JSON.
+        var g = trunc(typeof r.got === 'string' ? r.got : JSON.stringify(r.got), 300);
+        try { o.got = JSON.parse(g); } catch (e) { o.got = g; }
+      }
       if (r.error) { o.error = trunc(r.error, 300); }
       return o;
     });

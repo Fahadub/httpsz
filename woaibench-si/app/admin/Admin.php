@@ -170,6 +170,12 @@ final class Admin
         ];
     }
 
+    /** Wrap a value in Unicode bidi isolates so "$1.20" or ids render correctly inside Arabic sentences. */
+    public static function iso(string $value): string
+    {
+        return "\u{2066}" . $value . "\u{2069}";
+    }
+
     /** Mask a secret: "••••abcd". */
     public static function mask(?string $secret): string
     {

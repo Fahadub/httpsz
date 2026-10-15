@@ -284,11 +284,14 @@ final class CampaignsController
         \redirect_back('/admin/campaigns/' . $id);
     }
 
-    /** POST /admin/api/campaigns — progress of running/paused campaigns (console fallback polling). */
+    /** POST /admin/api/campaigns {ids?} — progress of the given campaigns, or of all running/paused ones. */
     public static function apiProgress(): void
     {
         Admin::guardPost();
-        $rows = DB::all("SELECT * FROM campaigns WHERE status IN ('running','paused') ORDER BY id DESC LIMIT 12");
+        $ids = array_slice(array_values(array_filter(array_map('intval', (array) (\json_body()['ids'] ?? [])), static fn($x) => $x > 0)), 0, 20);
+        $rows = $ids
+            ? DB::all('SELECT * FROM campaigns WHERE id IN (' . DB::in($ids) . ') ORDER BY id DESC', $ids)
+            : DB::all("SELECT * FROM campaigns WHERE status IN ('running','paused') ORDER BY id DESC LIMIT 12");
         \json_out(['ok' => true, 'counts' => Admin::statusCounts(), 'campaigns' => array_map([Admin::class, 'progress'], $rows), 'spent_usd' => Admin::spend()]);
     }
 }

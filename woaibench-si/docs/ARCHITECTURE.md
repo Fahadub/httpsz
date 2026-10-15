@@ -291,6 +291,17 @@ case-insensitive substring over contents → paths; `http_get(url)` only from `e
 safe arithmetic (+ − × ÷ ^ parentheses, decimals) — **no eval**; `finish(answer)` ends the episode.
 Transcript stored in `runs.agent_json`. auto_score = weighted goal checks (auto_weight 1.0).
 
+**Constraint gate** (setting `agent_constraint_gate`, default 1): a goal is a *constraint* if it has
+`"constraint": true`, or (unless `"constraint": false`) if it already passes on the untouched initial
+workspace (fallback by type: `tool_not_called`, `no_write_outside`, `max_steps`, `email_count` with only
+`max`). When at least one non-constraint goal exists and none scores above 0, constraint goals get
+pass=false/score=0 — an agent that does nothing scores 0. Extra result keys: goal_results items add
+`label_en, label_ar, constraint`; the AgentSim result adds `turns, end_reason (finish|max_steps|wall_time|
+no_tool_calls|api_error), protocol (native|json), provider, gen_id`; the Generator result adds `note`.
+Agent options: `checks.agent.wall_s` (default 150, clamped 0–600), `max_steps` clamped 1–60; generation
+params whose key starts with `_` are runner options never sent to the API (`_timeout, _wall_s, _retries,
+_retry_sleep_ms`).
+
 ### 5.7 Worker & entry points (engine owns these routes in app/routes/engine.php)
 
 * `WB\Eval\Worker::step(float $budgetSeconds = 25.0): array` — loops: claim & process one unit at a
@@ -390,6 +401,15 @@ JSON), `WB.toast(msg, type)`, `WB.t(key)` (strings from `<script type="applicati
 `[data-theme-toggle]`, `[data-copy="text"]`, `table[data-sortable]`, `[data-filter-input="#tableId"]`,
 `[data-tabs]`, `[data-countup]`, `.reveal`, `[data-confirm="message"]` (forms & buttons),
 `[data-nav-toggle]`, `[data-autosubmit]` (select change submits form).
+Additions (implemented): `WB.chart(canvas, config | (colors) => config)` — pass a factory so colours
+re-theme on `wb:themechange`; `WB.palette(i ≥ 8)` returns a neutral colour (fold extra series into
+"Other"); `WB.fetchJSON` rejects non-2xx with an Error carrying `.status` and `.data`; extra helpers
+`WB.csrf() isRTL() lang() theme() setTheme() reducedMotion() on() copy() icon() sortTable()`; declarative
+`[data-copy-from="#sel"]`, `[data-dismiss]`, `.device-toggle [data-device]`, `canvas[data-hero-art]`,
+`th[data-sort-initial]`, `tr[data-sort-fixed]`, `[data-filter-item]`, `[data-filter-empty]`; events
+`wb:themechange`, `wb:sorted`, `wb:filtered`, `wb:tab`. Extra PHP UI helpers: `ui_logo_mark`, `ui_brand`,
+`ui_em` (*word* → gold italic), `ui_heat_mini`, `ui_section_head`, `ui_live_dot`. `/` and `/styleguide`
+live in `app/routes/10_home.php`.
 
 **Icons:** sprite `assets/img/icons.svg`, `<symbol id="i-<name>">`, 24×24, stroke `currentColor`.
 Required names: trophy chart arena cpu compass book flask code eye check x alert arrow-up
@@ -444,3 +464,22 @@ loop **and** embeds the Verification Station so one open tab drives everything) 
 (filter, retry failed, view details) · settings (site, season, judging, verification, arena, API key
 update → `Config::write`) · Brand Studio (image generation via OpenRouter, gallery, set active logo/
 hero/og) · requests · changelog · API tokens (create/revoke verifier tokens) · recompute scores.
+
+## 11. Setup, upgrades and route ownership (implemented)
+
+* Installer `install/index.php` → `WB\Setup\Wizard` / `Installer`; refuses when `install/install.lock`
+  or a working `config/config.local.php` exists. Writes config via `Config::write` (fresh `app_secret`,
+  `cron_key`), runs `WB\Setup\Migrator::run()` (sql/schema.sql, sql/schema-*.sql, then
+  `sql/migrations/NNN_*.sql` once each) and `WB\Setup\Seeder::run($updateExisting = false)`
+  (tracks, `sql/seed/tasks/*.json`, `sql/seed/gpus.json`; idempotent upserts by slug/name; admin-edited
+  rows are kept unless `$updateExisting`).
+* Admin JSON (module setup, `app/routes/80_setup.php`): `POST /admin/api/migrate`,
+  `POST /admin/api/seed-sync {update_existing}`, `GET /admin/api/setup-status`.
+  Settings written: `schema_version` (object), `seed_hashes`, `seed_last_sync`, `installed_at`,
+  `installed_version`.
+* `app/routes/70_tools.php` owns every `/api/v1/*` route including an OPTIONS catch-all and a GET 404
+  catch-all — any future `/api/v1` route must live there (or in a route file that sorts before it).
+* Stateless paths (no session cookie): `/api/v1/*`, `/badge/*`, `/embed/*`, `/export/*`, `/sitemap.xml`,
+  `/robots.txt`, `/healthz`, `/site.webmanifest` (see bootstrap).
+* Arena settings: `arena_last_recompute`, `arena_votes_at_recompute`; `Arena::maybeRecompute()` is
+  called by the Worker on each step and after votes.

@@ -13,6 +13,6 @@ $link = $link ?? true;
   <div class="admin-progress-meta t-xs t-muted">
     <span data-done><?= _e('admin.progress.done_of', ['d' => fmt_num($p['done']), 't' => fmt_num($p['total'])]) ?></span>
     <?php if ($p['failed'] > 0): ?><span class="t-red" data-failed><?= _e('admin.progress.failed', ['n' => fmt_num($p['failed'])]) ?></span><?php endif; ?>
-    <span data-spent><?= _e('admin.progress.spent', ['s' => fmt_money($p['spent'])]) ?><?= $p['est'] !== null ? ' / ' . e(fmt_money($p['est'])) : '' ?></span>
+    <span data-spent><?= _e('admin.progress.spent', ['s' => \WB\Admin\Admin::iso(fmt_money($p['spent']))]) ?><?= $p['est'] !== null ? ' / ' . e(\WB\Admin\Admin::iso(fmt_money($p['est']))) : '' ?></span>
   </div>
 </div>

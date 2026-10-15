@@ -84,6 +84,7 @@ final class DashboardController
             'spend_total' => Admin::engine('Campaign') && method_exists('WB\\Eval\\Campaign', 'totalSpent') ? \WB\Eval\Campaign::totalSpent() : Admin::spend(),
             'verifier_js' => $verifierJs,
             'heartbeat_age' => Admin::heartbeatAge(),
+            'page_css' => is_file(WB_ROOT . '/assets/css/verifier.css') ? ['css/verifier.css'] : [],
             'page_js' => array_values(array_filter([$verifierJs ? 'js/verifier.js' : null, 'js/console.js'])),
         ]);
     }

@@ -143,7 +143,7 @@ Router::get('/leaderboard', static function (): void {
 function pub_dataset_ld(array $rows, array $stats, string $canonical): array
 {
     $name = (string) setting('site_name', 'WOAIBench');
-    return [
+    return array_filter([
         '@context' => 'https://schema.org',
         '@type' => 'Dataset',
         'name' => __('pub.lb.ld_name', ['site' => $name]),
@@ -160,7 +160,7 @@ function pub_dataset_ld(array $rows, array $stats, string $canonical): array
             ['@type' => 'DataDownload', 'encodingFormat' => 'text/csv', 'contentUrl' => url('/export/leaderboard.csv', [], true)],
             ['@type' => 'DataDownload', 'encodingFormat' => 'application/json', 'contentUrl' => url('/api/v1/leaderboard', [], true)],
         ],
-    ];
+    ], static fn($v) => $v !== null);
 }
 
 Router::get('/model/{slug}', static function (string $slug): void {
@@ -225,11 +225,7 @@ function pub_compare_h2h(array $sel, string $season): array
 {
     $ids = array_map(static fn($r) => (int) $r['id'], $sel);
     $matrix = Models::taskMatrix($ids, $season);
-    if (!$matrix) {
-        return ['tasks' => [], 'pairs' => []];
-    }
-    $tasks = Tasks::listPublic();
-    $tasks = array_values(array_filter($tasks, static fn($t) => isset($matrix[(int) $t['id']])));
+    $tasks = $matrix ? array_values(array_filter(Tasks::listPublic(), static fn($t) => isset($matrix[(int) $t['id']]))) : [];
     $pairs = [];
     for ($i = 0; $i < count($ids); $i++) {
         for ($j = $i + 1; $j < count($ids); $j++) {

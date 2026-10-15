@@ -243,8 +243,8 @@ final class SettingsController
             $d = $r['json']['data'];
             \json_out(['ok' => true, 'message' => \__('admin.settings.key_ok_info', [
                 'label' => (string) ($d['label'] ?? '—'),
-                'usage' => \fmt_money($d['usage'] ?? 0),
-                'limit' => isset($d['limit']) && $d['limit'] !== null ? \fmt_money($d['limit']) : '∞',
+                'usage' => Admin::iso(\fmt_money($d['usage'] ?? 0)),
+                'limit' => isset($d['limit']) && $d['limit'] !== null ? Admin::iso(\fmt_money($d['limit'])) : '∞',
             ]), 'ms' => $r['ms']]);
         }
         if (in_array($r['status'], [401, 403], true)) {

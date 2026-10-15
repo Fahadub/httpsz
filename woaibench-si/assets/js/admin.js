@@ -138,7 +138,7 @@
       if (typeof c.id !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(c.id)) out.push([p + '.id', 'id_format']);
       else if (ids[c.id]) out.push([p + '.id', 'duplicate', { v: c.id }]);
       else ids[c.id] = 1;
-      if (typeof c.type !== 'string' || !(c.type in types)) { out.push([p + '.type', 'unknown_type', { v: String(c.type) }]); return; }
+      if (typeof c.type !== 'string' || (Object.keys(types).length && !(c.type in types))) { out.push([p + '.type', 'unknown_type', { v: String(c.type) }]); return; }
       (types[c.type] || []).forEach((f) => { if (c[f] === undefined || c[f] === null || c[f] === '') out.push([p + '.' + f, 'required']); });
       if ('weight' in c && (!isNum(c.weight) || c.weight <= 0)) out.push([p + '.weight', 'weight']);
     });
@@ -176,8 +176,8 @@
     if (c.answer !== undefined) {
       const a = c.answer;
       if (!isObj(a)) out.push(['checks.answer', 'object']);
-      else if (!(a.type in S.answer)) out.push(['checks.answer.type', 'unknown_type', { v: String(a.type) }]);
-      else S.answer[a.type].forEach((f) => { if (!(f in a)) out.push(['checks.answer.' + f, 'required']); });
+      else if (Object.keys(S.answer).length && !(a.type in S.answer)) out.push(['checks.answer.type', 'unknown_type', { v: String(a.type) }]);
+      else (S.answer[a.type] || []).forEach((f) => { if (!(f in a)) out.push(['checks.answer.' + f, 'required']); });
     }
     if (c.agent !== undefined) {
       const ag = c.agent;
@@ -189,8 +189,8 @@
         else ag.goal_checks.forEach((g, i) => {
           const p = 'checks.agent.goal_checks[' + i + ']';
           if (!isObj(g)) { out.push([p, 'object']); return; }
-          if (!(g.type in S.goals)) { out.push([p + '.type', 'unknown_type', { v: String(g.type) }]); return; }
-          S.goals[g.type].forEach((f) => { if (!(f in g)) out.push([p + '.' + f, 'required']); });
+          if (Object.keys(S.goals).length && !(g.type in S.goals)) { out.push([p + '.type', 'unknown_type', { v: String(g.type) }]); return; }
+          (S.goals[g.type] || []).forEach((f) => { if (!(f in g)) out.push([p + '.' + f, 'required']); });
           if ('weight' in g && (!isNum(g.weight) || g.weight <= 0)) out.push([p + '.weight', 'weight']);
         });
       }

@@ -286,13 +286,13 @@ curl <?= e(url('/api/v1/leaderboard', [], true)) ?>
     <div class="sg-section" id="sg-admin">
       <h2 class="t-h2"><?= _e('design.sg_admin') ?></h2>
       <div class="admin-shell" style="min-height:0;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden">
-        <aside class="admin-sidebar" style="position:static;height:auto">
+        <div class="admin-sidebar" style="position:static;height:auto">
           <?= ui_brand(28) ?>
           <span class="admin-nav-group">admin-nav-group</span>
           <a class="admin-nav-link active" href="#sg-admin"><?= ui_icon('gauge', 18) ?>admin-nav-link.active</a>
           <a class="admin-nav-link" href="#sg-admin"><?= ui_icon('cpu', 18) ?>admin-nav-link <?= ui_badge('3', 'gold') ?></a>
           <a class="admin-nav-link" href="#sg-admin"><?= ui_icon('settings', 18) ?>admin-nav-link</a>
-        </aside>
+        </div>
         <div class="admin-main">
           <div class="admin-topbar" style="position:static"><h1>admin-topbar</h1><button class="btn btn-primary btn-sm" type="button"><?= ui_icon('play', 15) ?>btn</button></div>
           <div class="admin-content"><div class="kpi-row"><?= ui_stat('128', 'queued', 'clock') ?><?= ui_stat('$4.21', 'spent', 'coin') ?></div></div>

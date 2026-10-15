@@ -1,0 +1,370 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Halo Desk Lamp — configurator</title>
+<style>
+  :root { --bg: #ece8e1; --ink: #1c1b19; --muted: #6f6a61; --line: #d9d2c6; --card: #f7f4ef; --accent: #1c1b19; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; height: 100%; }
+  .stage { position: relative; min-height: 0; }
+  #view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; outline: none; }
+  #view:active { cursor: grabbing; }
+  #view:focus-visible { box-shadow: inset 0 0 0 3px rgba(28,27,25,.35); }
+  .hint { position: absolute; bottom: 16px; inset-inline-start: 50%; transform: translateX(-50%); background: rgba(247,244,239,.82); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-size: 12px; color: var(--muted); backdrop-filter: blur(6px); white-space: nowrap; pointer-events: none; }
+  .brand { position: absolute; top: 18px; inset-inline-start: 22px; font-weight: 700; letter-spacing: .2em; font-size: 12px; text-transform: uppercase; }
+  aside { background: var(--card); border-inline-start: 1px solid var(--line); padding: 40px 34px; display: flex; flex-direction: column; gap: 22px; overflow-y: auto; }
+  .eyebrow { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 400 40px/1.05 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; margin: 6px 0 8px; letter-spacing: -.01em; }
+  .price { font-size: 22px; font-weight: 600; }
+  .desc { color: var(--muted); margin: 0; }
+  .label { font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; margin-bottom: 10px; }
+  .label span { color: var(--muted); font-weight: 500; }
+  .swatches { display: flex; gap: 12px; }
+  .swatch { width: 46px; height: 46px; border-radius: 50%; border: 2px solid transparent; padding: 3px; background: none; cursor: pointer; }
+  .swatch i { display: block; width: 100%; height: 100%; border-radius: 50%; box-shadow: inset 0 -6px 12px rgba(0,0,0,.25), inset 0 4px 8px rgba(255,255,255,.35); }
+  .swatch[aria-pressed="true"] { border-color: var(--ink); }
+  .toggles { display: grid; gap: 10px; }
+  .tog { display: flex; align-items: center; justify-content: space-between; width: 100%; border: 1px solid var(--line); background: #fff; border-radius: 14px; padding: 12px 14px; font: inherit; cursor: pointer; color: var(--ink); min-height: 50px; }
+  .tog .sw { width: 42px; height: 24px; border-radius: 999px; background: #cfc8bb; position: relative; transition: background .2s; flex: none; }
+  .tog .sw::after { content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .tog[aria-pressed="true"] .sw { background: var(--ink); }
+  .tog[aria-pressed="true"] .sw::after { transform: translateX(18px); }
+  .cta { margin-top: auto; display: block; width: 100%; padding: 16px; border-radius: 14px; border: 0; background: var(--ink); color: #f7f4ef; font: inherit; font-weight: 650; cursor: pointer; }
+  .specs { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; margin: 0; }
+  .specs dt { color: var(--muted); } .specs dd { margin: 0; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; grid-template-rows: 56vh auto; height: auto; }
+    aside { border-inline-start: 0; border-top: 1px solid var(--line); padding: 24px 18px 32px; }
+    h1 { font-size: 32px; }
+    .hint { font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <div class="stage">
+    <canvas id="view" tabindex="0" role="img" aria-label="Interactive 3D view of the Halo desk lamp. Drag to rotate, scroll or pinch to zoom, arrow keys rotate, double-click resets."></canvas>
+    <div class="brand">Orrin Studio</div>
+    <div class="hint">Drag to rotate · Scroll / pinch to zoom · Double-click to reset</div>
+  </div>
+  <aside>
+    <div>
+      <div class="eyebrow">Task lighting · No. 07</div>
+      <h1>Halo Desk Lamp</h1>
+      <div class="price">$289</div>
+    </div>
+    <p class="desc">A balanced, two-arm lamp with a warm 2700 K LED and a spun-metal shade. Hand-finished in three colourways.</p>
+    <div>
+      <div class="label">Finish <span id="finish-name">Matte Black</span></div>
+      <div class="swatches" role="group" aria-label="Finish">
+        <button type="button" class="swatch" data-finish="0" aria-pressed="true" aria-label="Matte Black"><i style="background:#1f1f21"></i></button>
+        <button type="button" class="swatch" data-finish="1" aria-pressed="false" aria-label="Brushed Brass"><i style="background:linear-gradient(135deg,#d8b97a,#9a7638)"></i></button>
+        <button type="button" class="swatch" data-finish="2" aria-pressed="false" aria-label="Glacier White"><i style="background:#eceef0"></i></button>
+      </div>
+    </div>
+    <div class="toggles">
+      <button type="button" class="tog" id="lamp-toggle" aria-pressed="false"><span>Light on</span><span class="sw" aria-hidden="true"></span></button>
+      <button type="button" class="tog" id="autorotate" aria-pressed="true"><span>Auto-rotate</span><span class="sw" aria-hidden="true"></span></button>
+    </div>
+    <dl class="specs"><dt>Height</dt><dd>48 cm, adjustable arm</dd><dt>Light</dt><dd>8 W LED · 2700 K · CRI 95</dd><dt>Finishes</dt><dd>Matte Black, Brushed Brass, Glacier White</dd></dl>
+    <button type="button" class="cta">Add to cart</button>
+  </aside>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  // ---------- tiny math ----------
+  const M = {
+    ident: () => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+    mul(a, b) { const o = new Array(16); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3]; return o; },
+    persp(fovy, asp, n, f) { const t = 1 / Math.tan(fovy / 2); return [t / asp, 0, 0, 0, 0, t, 0, 0, 0, 0, (f + n) / (n - f), -1, 0, 0, 2 * f * n / (n - f), 0]; },
+    lookAt(e, c, u) {
+      const z = norm(sub(e, c)), x = norm(cross(u, z)), y = cross(z, x);
+      return [x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -dot(x, e), -dot(y, e), -dot(z, e), 1];
+    },
+    trans: (x, y, z) => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1],
+    scale: (x, y, z) => [x, 0, 0, 0, 0, y, 0, 0, 0, 0, z, 0, 0, 0, 0, 1],
+    rotZ: (a) => { const c = Math.cos(a), s = Math.sin(a); return [c, s, 0, 0, -s, c, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]; },
+    rotY: (a) => { const c = Math.cos(a), s = Math.sin(a); return [c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, 0, 0, 0, 1]; },
+    apply(m, p) { return [m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12], m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13], m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]]; },
+  };
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const norm = (a) => { const l = Math.hypot(...a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+
+  // ---------- geometry ----------
+  /** Lathe a 2D profile [[radius, y], ...] around the Y axis. Normals from the profile tangent. */
+  function lathe(profile, seg = 64) {
+    const pos = [], nrm = [], idx = [];
+    const n = profile.length;
+    for (let i = 0; i < n; i++) {
+      const [r, y] = profile[i];
+      const a = profile[Math.max(0, i - 1)], b = profile[Math.min(n - 1, i + 1)];
+      let tx = b[0] - a[0], ty = b[1] - a[1];
+      const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+      const nr = ty, ny = -tx; // outward normal in profile plane
+      for (let s = 0; s <= seg; s++) {
+        const th = s / seg * Math.PI * 2, c = Math.cos(th), sn = Math.sin(th);
+        pos.push(r * c, y, r * sn); nrm.push(nr * c, ny, nr * sn);
+      }
+    }
+    for (let i = 0; i < n - 1; i++) for (let s = 0; s < seg; s++) {
+      const a = i * (seg + 1) + s, b = a + seg + 1;
+      idx.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+    return { pos, nrm, idx };
+  }
+  const cylinder = (r, h, bevel = 0.02) => lathe([[0, 0], [r - bevel, 0], [r, bevel], [r, h - bevel], [r - bevel, h], [0, h]]);
+  const sphere = (r, rings = 24) => lathe(Array.from({ length: rings + 1 }, (_, i) => { const a = -Math.PI / 2 + i / rings * Math.PI; return [Math.cos(a) * r, Math.sin(a) * r]; }), 48);
+
+  // ---------- GL setup ----------
+  const canvas = document.getElementById('view');
+  const gl = canvas.getContext('webgl', { antialias: true, preserveDrawingBuffer: true, alpha: false });
+  if (!gl) { canvas.replaceWith(Object.assign(document.createElement('p'), { textContent: 'WebGL is not available in this browser.' })); return; }
+  gl.getExtension('OES_element_index_uint');
+  function program(vs, fs) {
+    const p = gl.createProgram();
+    for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
+      const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      gl.attachShader(p, s);
+    }
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    const u = {}; const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < n; i++) { const info = gl.getActiveUniform(p, i); u[info.name] = gl.getUniformLocation(p, info.name); }
+    return { p, u, a: { pos: gl.getAttribLocation(p, 'aPos'), nrm: gl.getAttribLocation(p, 'aNrm') } };
+  }
+  function mesh(g) {
+    const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(g.pos), gl.STATIC_DRAW);
+    const nb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, nb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(g.nrm), gl.STATIC_DRAW);
+    const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(g.idx), gl.STATIC_DRAW);
+    return { vb, nb, ib, count: g.idx.length };
+  }
+
+  const LIT_VS = `attribute vec3 aPos; attribute vec3 aNrm; uniform mat4 uModel, uViewProj; varying vec3 vW, vN;
+    void main(){ vec4 w = uModel * vec4(aPos,1.0); vW = w.xyz; vN = mat3(uModel) * aNrm; gl_Position = uViewProj * w; }`;
+  const LIT_FS = `precision highp float; varying vec3 vW, vN;
+    uniform vec3 uEye, uColor, uKeyDir, uLampPos, uLampDir, uEmissive; uniform float uRough, uMetal, uLamp, uTwoSided;
+    vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0); }
+    void main(){
+      vec3 N = normalize(vN); vec3 V = normalize(uEye - vW);
+      if (uTwoSided > 0.5 && dot(N,V) < 0.0) N = -N;
+      vec3 base = pow(uColor, vec3(2.2));
+      vec3 F0 = mix(vec3(0.04), base, uMetal); vec3 diff = base * (1.0 - uMetal);
+      float shin = mix(256.0, 8.0, uRough);
+      float fres = pow(1.0 - max(dot(N,V),0.0), 5.0);
+      vec3 col = diff * mix(vec3(0.20,0.19,0.18), vec3(0.42,0.44,0.48), N.y*0.5+0.5) * 0.9;
+      col += F0 * mix(vec3(0.25,0.24,0.22), vec3(0.75,0.78,0.85), clamp(reflect(-V,N).y*0.5+0.5,0.0,1.0)) * (1.0 - uRough*0.6);
+      vec3 L = normalize(uKeyDir); vec3 H = normalize(L+V);
+      float nl = max(dot(N,L),0.0);
+      col += (diff + F0 * pow(max(dot(N,H),0.0), shin) * (shin+8.0)/8.0 * 0.25) * nl * vec3(1.6,1.52,1.42);
+      vec3 L2 = normalize(vec3(-0.6,0.3,-0.7)); col += diff * max(dot(N,L2),0.0) * vec3(0.18,0.2,0.26);
+      col += (F0 + 0.04) * fres * vec3(0.35,0.37,0.42);
+      if (uLamp > 0.0) {
+        vec3 d = uLampPos - vW; float dist = length(d); vec3 Ll = d / dist;
+        float spot = smoothstep(0.35, 0.75, dot(-Ll, normalize(uLampDir)));
+        float att = uLamp * 2.2 / (1.0 + dist*dist*0.9) * (0.25 + 0.75*spot);
+        vec3 Hl = normalize(Ll+V);
+        col += (diff + F0 * pow(max(dot(N,Hl),0.0), shin) * 0.3) * max(dot(N,Ll),0.0) * att * vec3(1.0,0.78,0.5);
+      }
+      col += uEmissive;
+      gl_FragColor = vec4(pow(aces(col), vec3(1.0/2.2)), 1.0);
+    }`;
+  const GROUND_FS = `precision highp float; varying vec3 vW, vN; uniform vec3 uLampPos, uLampDir; uniform float uLamp; uniform vec2 uShadow;
+    vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0); }
+    void main(){
+      float r = length(vW.xz);
+      vec3 base = pow(vec3(0.86,0.83,0.78), vec3(2.2)) * 0.85;
+      float contact = 1.0 - 0.55 * exp(-pow(length(vW.xz - uShadow) / 0.95, 2.0)) - 0.25 * exp(-pow(length(vW.xz - uShadow*1.6 - vec2(0.3,0.2)) / 1.9, 2.0));
+      vec3 col = base * contact;
+      if (uLamp > 0.0) {
+        vec3 d = uLampPos - vW; float dist = length(d); vec3 Ll = d / dist;
+        float spot = smoothstep(0.5, 0.9, dot(-Ll, normalize(uLampDir)));
+        col += base * vec3(1.0,0.75,0.45) * spot * uLamp * 2.4 / (1.0 + dist*dist*0.8);
+      }
+      float fade = smoothstep(6.5, 2.5, r);
+      gl_FragColor = vec4(pow(aces(col*1.15), vec3(1.0/2.2)), fade);
+    }`;
+  const BG_VS = `attribute vec3 aPos; varying vec2 vUv; void main(){ vUv = aPos.xy*0.5+0.5; gl_Position = vec4(aPos.xy, 0.999, 1.0); }`;
+  const BG_FS = `precision mediump float; varying vec2 vUv; uniform float uLamp;
+    void main(){ vec3 top = vec3(0.95,0.94,0.92), bot = vec3(0.86,0.84,0.80); vec3 c = mix(bot, top, vUv.y);
+      float v = 1.0 - 0.25*length(vUv-vec2(0.5,0.55)); c *= v; c = mix(c, c*vec3(0.55,0.53,0.6), uLamp*0.55);
+      gl_FragColor = vec4(c,1.0); }`;
+  const lit = program(LIT_VS, LIT_FS);
+  const ground = program(LIT_VS, GROUND_FS);
+  const bg = program(BG_VS, BG_FS);
+
+  // ---------- the lamp ----------
+  const FINISHES = [
+    { name: 'Matte Black', color: [0.12, 0.12, 0.13], rough: 0.72, metal: 0.0 },
+    { name: 'Brushed Brass', color: [0.80, 0.63, 0.36], rough: 0.36, metal: 1.0 },
+    { name: 'Glacier White', color: [0.90, 0.91, 0.92], rough: 0.5, metal: 0.0 },
+  ];
+  const ACCENT = { color: [0.55, 0.52, 0.48], rough: 0.3, metal: 1.0 };
+  const meshes = {
+    base: mesh(lathe([[0, 0], [0.8, 0], [0.85, 0.04], [0.83, 0.12], [0.7, 0.16], [0.2, 0.18], [0, 0.18]])),
+    rod: mesh(cylinder(0.045, 1, 0.01)),
+    joint: mesh(sphere(0.1)),
+    shade: mesh(lathe([[0.14, 0.0], [0.16, -0.05], [0.3, -0.25], [0.52, -0.6], [0.56, -0.66], [0.54, -0.66], [0.5, -0.6], [0.28, -0.26], [0.13, -0.06], [0.12, -0.02]], 72)),
+    cap: mesh(cylinder(0.15, 0.12)),
+    bulb: mesh(sphere(0.13)),
+    ground: mesh({ pos: [-12, 0, -12, 12, 0, -12, 12, 0, 12, -12, 0, 12], nrm: [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], idx: [0, 2, 1, 0, 3, 2] }),
+    quad: mesh({ pos: [-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0], nrm: [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1], idx: [0, 1, 2, 0, 2, 3] }),
+  };
+  // Arm layout: base → lower arm (leaning) → elbow → upper arm (reaching forward) → head joint → shade aimed at the desk.
+  const pivot = [-0.35, 0.18, 0];
+  const lowerAngle = 0.28, lowerLen = 1.6, upperAngle = 1.2, upperLen = 1.4;
+  const elbow = [pivot[0] + Math.sin(lowerAngle) * lowerLen, pivot[1] + Math.cos(lowerAngle) * lowerLen, 0];
+  const head = [elbow[0] + Math.sin(upperAngle) * upperLen, elbow[1] + Math.cos(upperAngle) * upperLen, 0];
+  const shadeModel = M.mul(M.trans(head[0] + 0.02, head[1] - 0.04, 0), M.mul(M.rotZ(-0.38), M.scale(0.82, 0.82, 0.82)));
+  const lampPos = M.apply(shadeModel, [0, -0.32, 0]);
+  const lampDir = norm(sub(M.apply(shadeModel, [0, -1, 0]), M.apply(shadeModel, [0, 0, 0])));
+  function rodBetween(a, b) {
+    const d = sub(b, a), len = Math.hypot(...d), ang = Math.atan2(-d[0], d[1]);
+    return M.mul(M.trans(...a), M.mul(M.rotZ(ang), M.scale(1, len, 1)));
+  }
+  const parts = [
+    { m: meshes.base, model: M.trans(-0.2, 0, 0), mat: 'finish' },
+    { m: meshes.joint, model: M.mul(M.trans(...pivot), M.scale(0.9, 0.9, 0.9)), mat: 'accent' },
+    { m: meshes.rod, model: M.mul(M.trans(0, 0, 0.07), rodBetween(pivot, elbow)), mat: 'finish' },
+    { m: meshes.rod, model: M.mul(M.trans(0, 0, -0.07), rodBetween(pivot, elbow)), mat: 'finish' },
+    { m: meshes.joint, model: M.trans(...elbow), mat: 'accent' },
+    { m: meshes.rod, model: rodBetween(elbow, head), mat: 'finish' },
+    { m: meshes.joint, model: M.mul(M.trans(...head), M.scale(0.8, 0.8, 0.8)), mat: 'accent' },
+    { m: meshes.cap, model: M.mul(shadeModel, M.trans(0, -0.04, 0)), mat: 'finish' },
+    { m: meshes.shade, model: shadeModel, mat: 'finish', twoSided: true },
+    { m: meshes.bulb, model: M.mul(shadeModel, M.trans(0, -0.3, 0)), mat: 'bulb' },
+  ];
+  const center = [0.45, 1.15, 0];
+
+  // ---------- state ----------
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const cam = { yaw: 0.9, pitch: 0.32, dist: 6.2, vyaw: 0, vpitch: 0 };
+  const HOME = { yaw: 0.9, pitch: 0.32, dist: 6.2 };
+  let auto = !reduced, resumeAt = 0, finish = 0, color = FINISHES[0].color.slice(), rough = FINISHES[0].rough, metal = FINISHES[0].metal, fromC = null, tC = 1;
+  let lamp = 0, lampTarget = 0, dpr = 1;
+  const autoBtn = document.getElementById('autorotate');
+  autoBtn.setAttribute('aria-pressed', String(auto));
+
+  function resize() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    canvas.width = Math.max(1, Math.round(w * dpr)); canvas.height = Math.max(1, Math.round(h * dpr));
+  }
+  function bind(prog, m) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, m.vb); gl.enableVertexAttribArray(prog.a.pos); gl.vertexAttribPointer(prog.a.pos, 3, gl.FLOAT, false, 0, 0);
+    if (prog.a.nrm >= 0) { gl.bindBuffer(gl.ARRAY_BUFFER, m.nb); gl.enableVertexAttribArray(prog.a.nrm); gl.vertexAttribPointer(prog.a.nrm, 3, gl.FLOAT, false, 0, 0); }
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.ib);
+  }
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (canvas.width !== Math.round(canvas.clientWidth * dpr) || canvas.height !== Math.round(canvas.clientHeight * dpr)) resize();
+    // camera motion: inertia + auto-rotate
+    if (!dragging) {
+      cam.yaw += cam.vyaw * dt; cam.pitch += cam.vpitch * dt;
+      cam.vyaw *= Math.pow(0.04, dt); cam.vpitch *= Math.pow(0.04, dt);
+      if (auto && now > resumeAt) cam.yaw += dt * 0.35;
+    }
+    cam.pitch = Math.max(0.08, Math.min(1.35, cam.pitch));
+    // finish transition
+    if (fromC && tC < 1) {
+      tC = Math.min(1, tC + dt / 0.4);
+      const k = tC * tC * (3 - 2 * tC), to = FINISHES[finish];
+      color = fromC.color.map((c, i) => c + (to.color[i] - c) * k);
+      rough = fromC.rough + (to.rough - fromC.rough) * k; metal = fromC.metal + (to.metal - fromC.metal) * k;
+    }
+    lamp += (lampTarget - lamp) * Math.min(1, dt * 6);
+
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0.9, 0.89, 0.86, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.disable(gl.DEPTH_TEST);
+    gl.useProgram(bg.p); bind(bg, meshes.quad); gl.uniform1f(bg.u.uLamp, lamp);
+    gl.drawElements(gl.TRIANGLES, meshes.quad.count, gl.UNSIGNED_INT, 0);
+    gl.enable(gl.DEPTH_TEST);
+
+    const eye = [center[0] + Math.cos(cam.pitch) * Math.sin(cam.yaw) * cam.dist, center[1] + Math.sin(cam.pitch) * cam.dist, center[2] + Math.cos(cam.pitch) * Math.cos(cam.yaw) * cam.dist];
+    const aspect = canvas.width / canvas.height;
+    const fov = aspect < 0.8 ? 0.85 : 0.62;
+    const vp = M.mul(M.persp(fov, aspect, 0.1, 60), M.lookAt(eye, center, [0, 1, 0]));
+
+    gl.useProgram(ground.p); bind(ground, meshes.ground);
+    gl.uniformMatrix4fv(ground.u.uModel, false, M.ident()); gl.uniformMatrix4fv(ground.u.uViewProj, false, vp);
+    gl.uniform3fv(ground.u.uLampPos, lampPos); gl.uniform3fv(ground.u.uLampDir, lampDir); gl.uniform1f(ground.u.uLamp, lamp);
+    gl.uniform2f(ground.u.uShadow, 0.05, 0.0);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+    gl.drawElements(gl.TRIANGLES, meshes.ground.count, gl.UNSIGNED_INT, 0);
+    gl.disable(gl.BLEND); gl.depthMask(true);
+
+    gl.useProgram(lit.p);
+    gl.uniformMatrix4fv(lit.u.uViewProj, false, vp); gl.uniform3fv(lit.u.uEye, eye);
+    gl.uniform3f(lit.u.uKeyDir, 0.55, 0.9, 0.45); gl.uniform3fv(lit.u.uLampPos, lampPos); gl.uniform3fv(lit.u.uLampDir, lampDir); gl.uniform1f(lit.u.uLamp, lamp);
+    for (const part of parts) {
+      bind(lit, part.m);
+      let c = color, r = rough, mt = metal, em = [0, 0, 0];
+      if (part.mat === 'accent') { c = metal > 0.5 ? [0.2, 0.2, 0.21] : ACCENT.color; r = ACCENT.rough; mt = ACCENT.metal; }
+      if (part.mat === 'bulb') { c = [0.95, 0.93, 0.88]; r = 0.2; mt = 0; em = [1.6 * lamp + 0.05, 1.15 * lamp + 0.05, 0.6 * lamp + 0.05]; }
+      gl.uniformMatrix4fv(lit.u.uModel, false, part.model);
+      gl.uniform3fv(lit.u.uColor, c); gl.uniform1f(lit.u.uRough, r); gl.uniform1f(lit.u.uMetal, mt);
+      gl.uniform3fv(lit.u.uEmissive, em); gl.uniform1f(lit.u.uTwoSided, part.twoSided ? 1 : 0);
+      gl.drawElements(gl.TRIANGLES, part.m.count, gl.UNSIGNED_INT, 0);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- controls ----------
+  const pointers = new Map();
+  let dragging = false, pinch0 = 0, dist0 = 0;
+  canvas.addEventListener('pointerdown', (e) => {
+    canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    dragging = true; resumeAt = Infinity;
+    if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); dist0 = cam.dist; }
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    const p = pointers.get(e.pointerId); if (!p) return;
+    if (pointers.size === 2) {
+      p.x = e.clientX; p.y = e.clientY;
+      const [a, b] = [...pointers.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinch0 > 0) cam.dist = Math.max(3.2, Math.min(10, dist0 * pinch0 / d));
+      return;
+    }
+    const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+    cam.yaw -= dx * 0.008; cam.pitch += dy * 0.006;
+    cam.vyaw = -dx * 0.5; cam.vpitch = dy * 0.35;
+  });
+  const end = (e) => { pointers.delete(e.pointerId); if (!pointers.size) { dragging = false; resumeAt = performance.now() + 3000; } };
+  canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
+  canvas.addEventListener('wheel', (e) => { e.preventDefault(); cam.dist = Math.max(3.2, Math.min(10, cam.dist * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
+  canvas.addEventListener('dblclick', () => { Object.assign(cam, HOME, { vyaw: 0, vpitch: 0 }); });
+  canvas.addEventListener('keydown', (e) => {
+    const k = { ArrowLeft: [0.15, 0], ArrowRight: [-0.15, 0], ArrowUp: [0, 0.08], ArrowDown: [0, -0.08] }[e.key];
+    if (k) { e.preventDefault(); cam.yaw += k[0]; cam.pitch += k[1]; resumeAt = performance.now() + 3000; }
+    if (e.key === '+' || e.key === '=') cam.dist = Math.max(3.2, cam.dist * 0.9);
+    if (e.key === '-') cam.dist = Math.min(10, cam.dist * 1.1);
+  });
+  document.querySelectorAll('.swatch').forEach((b) => b.addEventListener('click', () => {
+    const i = +b.dataset.finish; if (i === finish) return;
+    fromC = { color: color.slice(), rough, metal }; tC = 0; finish = i;
+    document.querySelectorAll('.swatch').forEach((s) => s.setAttribute('aria-pressed', String(s === b)));
+    document.getElementById('finish-name').textContent = FINISHES[i].name;
+  }));
+  document.getElementById('lamp-toggle').addEventListener('click', (e) => {
+    lampTarget = lampTarget ? 0 : 1; e.currentTarget.setAttribute('aria-pressed', String(!!lampTarget));
+  });
+  autoBtn.addEventListener('click', () => { auto = !auto; autoBtn.setAttribute('aria-pressed', String(auto)); resumeAt = 0; });
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

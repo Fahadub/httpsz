@@ -51,8 +51,8 @@ echo partial('admin/_head', [
             <td><label class="checkbox"><input type="checkbox" name="ids[]" value="<?= e($m['or_id']) ?>" data-sync-check aria-label="<?= e($m['name']) ?>"></label></td>
             <td><?= ui_model_chip(['name' => $m['name'], 'provider' => $m['provider'], 'provider_name' => $m['provider_name'] ?? $m['provider']], false) ?></td>
             <td class="t-mono t-xs" dir="ltr"><?= e($m['or_id']) ?></td>
-            <td class="num t-num"><?= e(fmt_price($m['price_in'])) ?></td>
-            <td class="num t-num"><?= e(fmt_price($m['price_out'])) ?></td>
+            <td class="num t-num"><bdi><?= e(fmt_price($m['price_in'])) ?></bdi></td>
+            <td class="num t-num"><bdi><?= e(fmt_price($m['price_out'])) ?></bdi></td>
             <td class="num t-num"><?= e(fmt_tokens($m['context_length'])) ?></td>
             <td><div class="admin-caps">
               <?= $m['open_weights'] ? ui_badge(__('common.open_weights'), 'green') : '' ?>

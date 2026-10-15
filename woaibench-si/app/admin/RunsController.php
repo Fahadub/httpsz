@@ -87,7 +87,7 @@ final class RunsController
         );
         $siblings = DB::all('SELECT id, attempt, status, final_score FROM runs WHERE campaign_id = ? AND model_id = ? AND task_id = ? ORDER BY attempt', [$run['campaign_id'], $run['model_id'], $run['task_id']]);
         Admin::render('run_show', [
-            'title' => \__('admin.runs.run_n', ['n' => $id]),
+            'title' => \__('admin.runs.run_n', ['n' => Admin::iso('#' . $id)]),
             'nav_active' => 'runs',
             'run' => $run,
             'judgments' => $judgments,

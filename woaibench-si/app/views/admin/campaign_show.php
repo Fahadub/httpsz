@@ -15,7 +15,7 @@ $p = $progress;
   <?= ui_stat(number_format($p['pct'], 1) . '%', __('admin.campaigns.progress'), 'gauge', __('admin.progress.done_of', ['d' => fmt_num($p['done']), 't' => fmt_num($p['total'])])) ?>
   <?= ui_stat(fmt_num($p['counts']['scored'] ?? 0), __('status.scored'), 'check-circle') ?>
   <?= ui_stat(fmt_num($p['failed']), __('status.failed'), 'x-circle') ?>
-  <?= ui_stat(fmt_money($p['spent']), __('admin.campaigns.spend'), 'coin', $p['est'] !== null ? __('admin.campaigns.est', ['s' => fmt_money($p['est'])]) : '') ?>
+  <?= ui_stat(fmt_money($p['spent']), __('admin.campaigns.spend'), 'coin', $p['est'] !== null ? __('admin.campaigns.est', ['s' => \WB\Admin\Admin::iso(fmt_money($p['est']))]) : '') ?>
 </div>
 <div class="card card-pad stack-sm">
   <div class="progress"><div class="progress-bar" style="width:<?= e(number_format($p['pct'], 2, '.', '')) ?>%"></div></div>

@@ -51,7 +51,7 @@ main#main { overflow-x: clip; }
 .pub-chip-n { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-faint); }
 
 /* Toolbar */
-.pub-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 14px; border-radius: var(--radius-lg); }
+.pub-toolbar { position: relative; z-index: 6; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 14px; border-radius: var(--radius-lg); }
 .pub-toolbar .input, .pub-toolbar .select { min-height: 40px; }
 .pub-search { position: relative; flex: 1 1 240px; min-width: 200px; }
 .pub-search > .icon { position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); color: var(--text-faint); pointer-events: none; }
@@ -285,7 +285,7 @@ body.has-comparebar .site-footer { padding-bottom: 72px; }
 .pub-shot-title { font-weight: 600; font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ------------------------------------------------------------------ compare */
-.pub-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 12px 14px; border-radius: var(--radius-lg); }
+.pub-picker { position: relative; z-index: 6; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 12px 14px; border-radius: var(--radius-lg); }
 .pub-picker-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .pub-pchip { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding-inline: 12px 4px; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--border-strong)); border-radius: 999px; background: color-mix(in srgb, var(--c) 12%, var(--surface)); font-size: 14px; font-weight: 600; }
 .pub-pchip > i { background: var(--c); }
@@ -596,3 +596,9 @@ tr.is-fail td:first-child { box-shadow: inset 2px 0 0 var(--red); }
   .pub-panel[hidden] { display: block !important; }
   .lb-table thead th { position: static; }
 }
+
+/* ------------------------------------------------------------------ small alignment fixes */
+.pub-answer .badge, .pub-holdout-cell .track-badge, .pub-sw-list .track-badge-link { align-self: flex-start; }
+.kpi-row.pub-metrics { display: inline-flex; flex-wrap: wrap; max-width: 100%; }
+.kpi-row.pub-metrics > * { flex: 1 1 170px; }
+.pub-sw-mini li, .pub-judge-summary-text, .pub-rubric p { unicode-bidi: plaintext; text-align: start; }

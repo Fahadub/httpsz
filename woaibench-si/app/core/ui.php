@@ -244,7 +244,7 @@ function ui_brand(int $size = 34, bool $wordmark = true, string $href = '/'): st
         ? '<img class="brand-mark" src="' . e((string) upload_url($custom)) . '" alt="" width="' . $size . '" height="' . $size . '">'
         : ui_logo_mark($size);
     $word = $wordmark ? '<span class="brand-word">WOAI<span class="brand-bench">Bench</span><span class="brand-tld">.si</span></span>' : '';
-    return '<a class="brand" href="' . e(url($href)) . '" aria-label="' . e(setting('site_name', 'WOAIBench') . '.si — ' . __('design.home')) . '">'
+    return '<a class="brand" href="' . e(url($href)) . '" aria-label="' . e('WOAIBench.si — ' . __('design.home')) . '">'
         . $mark . $word . '</a>';
 }
 

@@ -71,8 +71,8 @@ $vendorsJ = array_unique(array_column($judges, 'provider'));
       <?php foreach ($models as $m): $api = url('/admin/api/models/' . $m['id']); ?>
         <tr class="<?= (int) $m['is_active'] ? '' : 'is-muted' ?>">
           <td data-value="<?= e($m['name']) ?>"><a class="admin-model-cell" href="<?= e(url('/admin/models/' . $m['id'])) ?>"><?= ui_model_chip($m, false) ?></a><div class="t-mono t-xs t-muted admin-orid" dir="ltr"><?= e($m['or_id']) ?></div></td>
-          <td class="num t-num" data-value="<?= e((string) ($m['price_in'] ?? -1)) ?>"><?= e(fmt_price($m['price_in'])) ?></td>
-          <td class="num t-num" data-value="<?= e((string) ($m['price_out'] ?? -1)) ?>"><?= e(fmt_price($m['price_out'])) ?></td>
+          <td class="num t-num" data-value="<?= e((string) ($m['price_in'] ?? -1)) ?>"><bdi><?= e(fmt_price($m['price_in'])) ?></bdi></td>
+          <td class="num t-num" data-value="<?= e((string) ($m['price_out'] ?? -1)) ?>"><bdi><?= e(fmt_price($m['price_out'])) ?></bdi></td>
           <td class="num t-num" data-value="<?= e((string) ($m['context_length'] ?? 0)) ?>"><?= e(fmt_tokens($m['context_length'])) ?></td>
           <td><div class="admin-caps">
             <?= (int) $m['open_weights'] ? ui_badge(__('common.open_weights'), 'green') : '' ?>

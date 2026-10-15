@@ -15,7 +15,7 @@
 
   const WB = window.WB || {};
   const t = (key, repl) => (WB.t ? WB.t(key, repl) : key);
-  const money = (n) => (WB.fmt && WB.fmt.money ? WB.fmt.money(n) : '$' + Number(n || 0).toFixed(2));
+  const money = (n) => '\u2066' + (WB.fmt && WB.fmt.money ? WB.fmt.money(n) : '$' + Number(n || 0).toFixed(2)) + '\u2069';
   const num = (n) => Number(n || 0).toLocaleString('en-US');
   let cfg = {};
   try { cfg = JSON.parse(cfgEl.textContent) || {}; } catch (e) { cfg = {}; }
@@ -90,7 +90,7 @@
     setMeter('verified', num(state.verified));
     if (state.spent !== null) {
       setMeter('spent', money(state.spent));
-      setMeter('session', t('admin.console.session_js', { s: money(Math.max(0, state.spent - (state.spentStart || 0))) }));
+      setMeter('session', t('admin.js.c_session', { s: money(Math.max(0, state.spent - (state.spentStart || 0))) }));
     }
   }
 
@@ -178,7 +178,7 @@
     const name = el('a', 'admin-progress-name', p.name);
     name.href = (cfg.campaignUrl || '') + p.id;
     top.appendChild(name);
-    top.appendChild(el('span', 'badge badge-muted', p.status));
+    top.appendChild(el('span', 'badge ' + (p.status === 'running' ? 'badge-blue' : 'badge-gold'), statusLabel(p.status)));
     top.appendChild(el('span', 'admin-progress-pct t-num', '')).setAttribute('data-pct', '');
     wrap.appendChild(top);
     const bar = el('div', 'progress');
@@ -201,7 +201,7 @@
     return wrap;
   }
 
-  function renderCampaigns(list) {
+  function renderCampaigns(list, opts = {}) {
     if (!ui.campaigns || !Array.isArray(list)) return;
     const seen = {};
     list.filter((c) => c && c.id).forEach((raw) => {
@@ -236,9 +236,33 @@
         failed.textContent = t('admin.js.c_failed', { n: num(p.failed) });
       }
     });
-    Array.from(ui.campaigns.querySelectorAll('[data-campaign]')).forEach((b) => {
-      if (!seen[b.getAttribute('data-campaign')]) b.classList.add('is-finished');
+    const gone = Array.from(ui.campaigns.querySelectorAll('[data-campaign]'))
+      .filter((b) => !seen[b.getAttribute('data-campaign')] && !b.classList.contains('is-finished'));
+    if (gone.length && !opts.final) refreshFinished(gone.map((b) => Number(b.getAttribute('data-campaign'))));
+  }
+
+  /** Campaigns that left the active list (done / cancelled): fetch their final numbers once. */
+  async function refreshFinished(ids) {
+    if (!cfg.progressUrl) return;
+    let res = null;
+    try {
+      res = WB.fetchJSON ? await WB.fetchJSON(cfg.progressUrl, { method: 'POST', body: { ids } }) : null;
+    } catch (e) { res = null; }
+    const list = res && Array.isArray(res.campaigns) ? res.campaigns : [];
+    renderCampaigns(list, { final: true });
+    ids.forEach((id) => {
+      const b = $('[data-campaign="' + id + '"]', ui.campaigns);
+      if (!b) return;
+      b.classList.add('is-finished');
+      const badge = $('.admin-progress-top .badge', b);
+      const row = list.find((c) => Number(c.id) === id);
+      if (badge) { badge.className = 'badge badge-green'; badge.textContent = row && row.status && row.status !== 'running' ? statusLabel(row.status) : t('admin.js.c_finished'); }
     });
+  }
+  function statusLabel(s) {
+    const k = 'admin.js.st_' + s;
+    const v = t(k);
+    return v === k ? s : v;
   }
 
   /* ------------------------------------------------------------------ step loop */

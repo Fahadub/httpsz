@@ -21,7 +21,6 @@ return [
     'design.error_eyebrow_429' => 'Cooling down',
     'design.error_eyebrow_500' => 'Instrument fault',
     'design.error_eyebrow_generic' => 'Unexpected reading',
-    'design.error_back' => 'Go back',
     'design.error_details' => 'Debug details',
 
     'design.sg_title' => 'Design *system*',

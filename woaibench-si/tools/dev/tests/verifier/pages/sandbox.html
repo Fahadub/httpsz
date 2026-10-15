@@ -12,8 +12,8 @@
   t('parentDoc', () => window.parent.document.title);
   t('topLocationRead', () => window.top.location.href);
   t('openPopup', () => { const w = window.open('https://example.com/'); return w === null ? null : 'window'; });
-  try { window.top.location.href = 'https://example.com/escaped'; R.topNav = 'no-throw'; } catch (e) { R.topNav = 'blocked:' + e.name; }
-  const site = (document.currentScript && document.currentScript.dataset.site) || '';
+  // Only meaningful inside a frame: a top-level document may always navigate itself.
+  if (window.top !== window) { try { window.top.location.href = 'https://example.com/escaped'; R.topNav = 'no-throw'; } catch (e) { R.topNav = 'blocked:' + e.name; } } else { R.topNav = 'n/a (top-level)'; }
   fetch('/admin', { credentials: 'include' }).then(r => r.text()).then(x => { R.fetchAdmin = 'allowed:' + x.length; }, e => { R.fetchAdmin = 'blocked:' + e.name; }).finally(() => {
     const x = new XMLHttpRequest();
     try { x.open('GET', '/api/verifier/next'); x.onload = () => { R.xhr = 'allowed:' + x.status; fin(); }; x.onerror = () => { R.xhr = 'blocked:error'; fin(); }; x.send(); } catch (e) { R.xhr = 'blocked:' + e.name; fin(); }

@@ -241,7 +241,7 @@ foreach ($gpus as $g) {
             <li><strong><?= _e('tools.hw_overhead') ?></strong> = <code>1 GB + 8% × (<?= _e('tools.hw_weights') ?> + <?= _e('tools.hw_kvcache') ?>)</code> — <?= _e('tools.hw_f_oh_note') ?></li>
             <li><strong><?= _e('tools.hw_available') ?></strong>: <?= _e('tools.hw_f_avail') ?></li>
             <li><strong><?= _e('tools.hw_tps') ?></strong> ≈ <code><?= _e('tools.hw_f_tps') ?></code> — <?= _e('tools.hw_f_tps_note') ?></li>
-            <li><strong><?= _e('tools.hw_ttft') ?></strong> ≈ <code><?= _e('tools.hw_f_prefill') ?></code></li>
+            <li><strong><?= _e('tools.hw_ttft') ?></strong> ≈ <code><?= _e('tools.hw_f_prefill') ?></code> — <?= _e('tools.hw_f_prefill_note') ?></li>
           </ul>
           <p><?= _e('tools.hw_method_verdicts') ?></p>
           <p class="t-small t-muted"><?= _e('tools.hw_method_heuristic') ?></p>

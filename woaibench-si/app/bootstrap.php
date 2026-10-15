@@ -79,7 +79,7 @@ set_exception_handler(static function (\Throwable $e) use ($debug): void {
         return;
     }
     try {
-        View::render('errors/500', ['message' => $debug ? (string) $e : null], 'layout');
+        View::render('errors/500', ['code' => 500, 'message' => $debug ? (string) $e : null], 'layout');
     } catch (\Throwable $inner) {
         echo '<h1>500</h1><p>Server error.</p>';
         if ($debug) {
@@ -94,7 +94,11 @@ if (!WB_CLI && !defined('WB_INSTALLER')) {
         header('Location: ' . base_path() . '/install/');
         exit;
     }
-    Auth::startSession();
+    // Public, cacheable endpoints never need a session (no cookies on API/badge/embed/export responses).
+    $statelessPath = preg_match('#^/(api/v1(/|$)|badge/|embed/|export/|sitemap\.xml$|robots\.txt$|healthz$|site\.webmanifest$)#', current_path()) === 1;
+    if (!$statelessPath) {
+        Auth::startSession();
+    }
     I18n::boot();
 } elseif (WB_CLI) {
     I18n::boot('en');

@@ -33,7 +33,7 @@ echo partial('admin/_head', [
             <div class="progress" role="progressbar" aria-valuenow="<?= e((string) round($p['pct'])) ?>" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:<?= e(number_format($p['pct'], 2, '.', '')) ?>%"></div></div>
             <div class="t-xs t-muted t-num"><?= _e('admin.progress.done_of', ['d' => fmt_num($p['done']), 't' => fmt_num($p['total'])]) ?><?= $p['failed'] ? ' · <span class="t-red">' . _e('admin.progress.failed', ['n' => $p['failed']]) . '</span>' : '' ?></div>
           </td>
-          <td class="num t-num"><?= e(fmt_money($p['spent'])) ?><?= $p['est'] !== null ? '<div class="t-xs t-muted">' . _e('admin.campaigns.est', ['s' => fmt_money($p['est'])]) . '</div>' : '' ?></td>
+          <td class="num t-num"><?= e(fmt_money($p['spent'])) ?><?= $p['est'] !== null ? '<div class="t-xs t-muted">' . _e('admin.campaigns.est', ['s' => \WB\Admin\Admin::iso(fmt_money($p['est']))]) . '</div>' : '' ?></td>
           <td><?= (int) $c['include_in_scores'] ? ui_badge(__('common.yes'), 'green', 'check') : ui_badge(__('common.no'), 'muted') ?></td>
           <td class="t-xs t-muted"><?= e(fmt_date($c['created_at'], 'datetime')) ?></td>
           <td><?= partial('admin/_campaign_actions', ['c' => $c, 'compact' => true]) ?></td>

@@ -112,7 +112,7 @@ $groupIcon = ['static' => 'list', 'browser' => 'eye', 'tests' => 'check', 'answe
             <li>
               <div class="split"><span class="pub-rubric-label"><?= e($c['label']) ?></span><span class="t-num t-small t-muted" data-tip="<?= _e('pub.task.weight_tip', ['w' => fmt_num($c['weight'], 1)]) ?>"><?= e(fmt_num($c['pct'])) ?>%</span></div>
               <span class="progress"><span class="progress-bar" style="width:<?= e(number_format($c['pct'], 2, '.', '')) ?>%"></span></span>
-              <?php if ($c['guide'] !== ''): ?><p class="t-xs t-muted" dir="auto"><?= e($c['guide']) ?></p><?php endif; ?>
+              <?php if ($c['guide'] !== ''): ?><p class="t-xs t-muted"><?= e($c['guide']) ?></p><?php endif; ?>
             </li>
           <?php endforeach; ?>
         </ul>

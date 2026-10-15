@@ -204,6 +204,8 @@
   addO.call(W, 'load', function () { times.load = now(); setT(start, 0); });
   setT(start, LOAD_TIMEOUT);
   setT(function () { finalize('deadline'); }, DEADLINE);
+  // The page navigating itself away (location.href = …) ends the probe: report what we have.
+  addO.call(W, 'pagehide', function () { finalize('navigated'); });
 
   /* ------------------------------------------------------------ DOM helpers */
   function ownEl(el) { return !!(el && el.hasAttribute && el.hasAttribute('data-wb-probe')); }
@@ -861,12 +863,13 @@
       if (c.type === 'no_errors') { return noErrorsResult(c); }
       if (results[c.id]) { return results[c.id]; }
       if (!CHECKERS[c.type]) { return res(c, false, 0, 'unknown check type “' + c.type + '”'); }
+      if (reason === 'navigated') { return res(c, false, 0, 'the page navigated away before this check ran'); }
       return res(c, false, 0, reason === 'deadline' ? 'not evaluated before the probe deadline (' + Math.round(DEADLINE / 1000) + ' s)' : 'not evaluated');
     });
     var tests = testResults;
     if (!tests && TESTS && CFG.output_type === 'js' && !LIGHT) {
       tests = TESTS.cases.map(function (tc, i) {
-        return { name: String(tc.name || 'case ' + (i + 1)), pass: false, ms: 0, error: CFG.no_output ? 'no code' : 'not run before the probe deadline' };
+        return { name: String(tc.name || 'case ' + (i + 1)), pass: false, ms: 0, error: CFG.no_output ? 'no code' : (reason === 'navigated' ? 'page navigated away' : 'not run before the probe deadline') };
       });
     }
     var out = {

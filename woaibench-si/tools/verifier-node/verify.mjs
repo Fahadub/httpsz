@@ -6,9 +6,22 @@
 // Claims runs from the site's verifier API, opens each run's sandboxed render URL top-level per
 // viewport, waits for the in-page probe (assets/js/probe.js) to publish window.__WB_PROBE_RESULT_JSON,
 // takes a real page.screenshot() and submits everything back. See README.md for setup.
-import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
+
+// Playwright from ./node_modules (npm install), or from NODE_PATH / a global install as a fallback.
+let chromium;
+try {
+  ({ chromium } = await import('playwright'));
+} catch {
+  try {
+    ({ chromium } = createRequire(import.meta.url)('playwright'));
+  } catch {
+    console.error('Playwright is not installed. Run "npm install" in tools/verifier-node (see README.md).');
+    process.exit(4);
+  }
+}
 
 const VERSION = '1.0.0';
 const DEFAULT_VPS = [{ name: 'desktop', w: 1280, h: 800 }, { name: 'mobile', w: 390, h: 844 }];
@@ -195,14 +208,42 @@ function hungResult(run, vp, secs) {
   };
 }
 
+function awayResult(run, vp, url) {
+  let where = 'another page';
+  try { where = new URL(url).origin; } catch { /* keep */ }
+  const detail = `the page navigated away (${vp.name}) to ${where}`;
+  return {
+    checks: (run.checks || []).map((c) => ({ id: String(c.id || c.type), type: c.type, pass: false, score: 0, detail })),
+    tests: run.tests && Array.isArray(run.tests.cases) ? run.tests.cases.map((c, i) => ({ name: String(c.name || 'case ' + (i + 1)), pass: false, ms: 0, error: 'page navigated away' })) : [],
+    errors: [`Page navigated away to ${trunc(url, 200)}`],
+    metrics: { load_ms: null, fps: 0, js_errors: 0, console_errors: 0, navigated: true },
+  };
+}
+
 /* ------------------------------------------------------------------ one viewport */
 function frameUrl(renderUrl, params) {
   const u = new URL(renderUrl, SITE + '/');
   for (const [k, v] of Object.entries(params)) if (v != null) u.searchParams.set(k, String(v));
   return u.toString();
 }
-async function closeQuietly(ctx) {
-  await Promise.race([ctx.close().catch(() => {}), sleep(10_000)]);
+/**
+ * Playwright's own timeouts do not fire while a renderer is stuck in an infinite loop, so every page
+ * interaction is raced against a wall-clock timer: → {ok, value} | {ok:false, error} | {timeout:true}.
+ */
+function within(promise, ms) {
+  return Promise.race([
+    promise.then((value) => ({ ok: true, value }), (error) => ({ ok: false, error })),
+    sleep(ms).then(() => ({ timeout: true })),
+  ]);
+}
+/** Close a page whose renderer may be hung: the browser process tears the target down. */
+async function killPage(b, targetId) {
+  if (!targetId) return;
+  try {
+    const cdp = await b.newBrowserCDPSession();
+    await within(cdp.send('Target.closeTarget', { targetId }), 8000);
+    await cdp.detach().catch(() => {});
+  } catch { /* already gone */ }
 }
 async function screenshot(page) {
   let buf = await page.screenshot({ type: 'png', timeout: 15_000, animations: 'allow', caret: 'initial' });
@@ -214,47 +255,75 @@ async function screenshot(page) {
   return buf.length <= SHOT_LIMIT ? `data:${mime};base64,${buf.toString('base64')}` : null;
 }
 /** → {status:'ok', result, shot} | {status:'infra', error} */
-async function runViewport(browser, run, vp, light) {
-  const ctx = await browser.newContext({
+async function runViewport(b, run, vp, light) {
+  const ctx = await b.newContext({
     viewport: { width: vp.w, height: vp.h }, deviceScaleFactor: 1, serviceWorkers: 'block', acceptDownloads: false,
-    userAgent: undefined, locale: 'en-US', timezoneId: 'UTC', colorScheme: 'dark',
+    locale: 'en-US', timezoneId: 'UTC', colorScheme: 'dark',
   });
-  const page = await ctx.newPage();
-  let probeStatus = null;
-  page.on('response', (r) => { if (/\/assets\/js\/probe\.js/.test(r.url())) probeStatus = r.status(); });
-  page.on('dialog', (d) => d.dismiss().catch(() => {}));
+  let targetId = null;
+  let hung = false;
   try {
-    let resp;
+    const page = await ctx.newPage();
     try {
-      resp = await page.goto(frameUrl(run.render_url, { vp: vp.name, mode: 'playwright', light: light ? '1' : null }), { waitUntil: 'commit', timeout: 30_000 });
-    } catch (e) {
-      return { status: 'infra', error: 'navigation failed: ' + trunc(e.message.split('\n')[0], 200) };
-    }
-    if (!resp || resp.status() >= 400) return { status: 'infra', error: 'render responded HTTP ' + (resp ? resp.status() : '?') };
+      const session = await ctx.newCDPSession(page);
+      targetId = (await session.send('Target.getTargetInfo')).targetInfo.targetId;
+      await session.detach().catch(() => {});
+    } catch { targetId = null; }
+    let probeStatus = null;
+    let leftTo = null;
+    let onAway = () => {};
+    const away = new Promise((resolve) => { onAway = resolve; });
+    const renderPath = new URL(run.render_url, SITE + '/').pathname;
+    page.on('response', (r) => { if (/\/assets\/js\/probe\.js/.test(r.url())) probeStatus = r.status(); });
+    page.on('framenavigated', (f) => {
+      if (f !== page.mainFrame()) return;
+      let p = '';
+      try { p = new URL(f.url()).pathname; } catch { p = ''; }
+      if (p !== renderPath) { leftTo = f.url(); onAway(); }
+    });
+    page.on('dialog', (d) => d.dismiss().catch(() => {}));
+    const nav = await within(page.goto(frameUrl(run.render_url, { vp: vp.name, mode: 'playwright', light: light ? '1' : null }), { waitUntil: 'commit', timeout: 30_000 }), 35_000);
+    if (!nav.ok) return { status: 'infra', error: 'navigation failed: ' + (nav.timeout ? 'timeout' : trunc(String(nav.error?.message || nav.error).split('\n')[0], 200)) };
+    if (!nav.value || nav.value.status() >= 400) return { status: 'infra', error: 'render responded HTTP ' + (nav.value ? nav.value.status() : '?') };
+
     let deadline = num(run.timeout_ms, 15_000);
-    try {
-      await page.waitForFunction(() => window.__WB_PROBE_READY === true, null, { timeout: 20_000, polling: 100 });
-      deadline = num(await page.evaluate(() => window.__WB_PROBE_DEADLINE), deadline);
-    } catch {
-      if (probeStatus !== 200) return { status: 'infra', error: 'probe did not load (probe.js HTTP ' + (probeStatus ?? 'n/a') + ')' };
-      // probe.js loaded but the page never let us in: the page itself is blocking the main thread.
+    const ready = await within(page.waitForFunction(() => window.__WB_PROBE_READY === true, null, { timeout: 0, polling: 100 }), 20_000);
+    if (ready.ok) {
+      const d = await within(page.evaluate(() => window.__WB_PROBE_DEADLINE), 5000);
+      if (d.ok) deadline = num(d.value, deadline);
+    } else if (probeStatus !== 200) {
+      return { status: 'infra', error: 'probe did not load (probe.js HTTP ' + (probeStatus ?? 'n/a') + ')' };
     }
+    // probe.js loaded but the page may never let us in again: the page itself blocks the main thread.
     const secs = Math.round((Math.min(160_000, Math.max(5000, deadline)) + 6000) / 1000);
-    let json = null;
-    try {
-      await page.waitForFunction(() => typeof window.__WB_PROBE_RESULT_JSON === 'string', null, { timeout: secs * 1000, polling: 250 });
-      json = await page.evaluate(() => window.__WB_PROBE_RESULT_JSON);
-    } catch {
-      warn(`run #${run.id} (${vp.name}): page unresponsive after ${secs} s`);
-      return { status: 'ok', result: hungResult(run, vp, secs), shot: null };
+    const res = await within(Promise.race([
+      page.waitForFunction(() => typeof window.__WB_PROBE_RESULT_JSON === 'string', null, { timeout: 0, polling: 250 })
+        .then(() => page.evaluate(() => window.__WB_PROBE_RESULT_JSON)),
+      away.then(() => null),
+    ]), secs * 1000);
+    if (res.ok && res.value === null && leftTo !== null) {
+      warn(`run #${run.id} (${vp.name}): the page navigated away to ${trunc(leftTo, 120)}`);
+      return { status: 'ok', result: awayResult(run, vp, leftTo), shot: null };
+    }
+    if (!res.ok) {
+      if (res.timeout) {
+        hung = true;
+        warn(`run #${run.id} (${vp.name}): page unresponsive after ${secs} s`);
+        return { status: 'ok', result: hungResult(run, vp, secs), shot: null };
+      }
+      return { status: 'infra', error: 'probe result unavailable: ' + trunc(String(res.error?.message || res.error).split('\n')[0], 200) };
     }
     let result;
-    try { result = JSON.parse(json); } catch { return { status: 'infra', error: 'probe result is not valid JSON' }; }
-    let shot = null;
-    try { shot = await screenshot(page); } catch (e) { warn(`run #${run.id} (${vp.name}): screenshot failed: ${e.message.split('\n')[0]}`); }
-    return { status: 'ok', result, shot };
+    try { result = JSON.parse(res.value); } catch { return { status: 'infra', error: 'probe result is not valid JSON' }; }
+    const shot = await within(screenshot(page), 25_000);
+    if (!shot.ok) {
+      warn(`run #${run.id} (${vp.name}): screenshot failed: ${shot.timeout ? 'timeout' : String(shot.error?.message || shot.error).split('\n')[0]}`);
+      hung = hung || !!shot.timeout;
+    }
+    return { status: 'ok', result, shot: shot.ok ? shot.value : null };
   } finally {
-    await closeQuietly(ctx);
+    if (hung) await killPage(b, targetId);
+    await within(ctx.close(), 10_000);
   }
 }
 
@@ -381,4 +450,5 @@ try {
 await Promise.all(Array.from({ length: CONCURRENCY }, (_, i) => lane(i + 1)));
 info(`done · ${stats.processed} verified (${stats.passed}/${stats.checks} checks passed${stats.hung ? `, ${stats.hung} unresponsive` : ''}) · ${stats.released} released` +
   (stats.processed ? ` · avg ${(stats.ms / stats.processed / 1000).toFixed(1)} s/run` : ''));
+stopping = true;
 if (browser) await Promise.race([browser.close().catch(() => {}), sleep(10_000)]);

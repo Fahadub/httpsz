@@ -31,7 +31,15 @@ if ($r['auto_score'] !== null && $r['judge_score'] !== null && $a < 1) {
 } elseif ($r['auto_score'] !== null && ($a >= 1 || $r['judge_score'] === null)) {
     $expected = (float) $r['auto_score'];
 }
-$penalised = $expected !== null && $r['final_score'] !== null && (float) $r['final_score'] < $expected - 0.6;
+// Render-failure penalty (§5.3): html outputs whose browser 'loads' or 'nonblank' check failed.
+$penalised = false;
+if ($type === 'html') {
+    foreach ($checks['browser'] as $c) {
+        if (in_array($c['type'] ?: $c['id'], ['loads', 'nonblank'], true) && !$c['pass']) {
+            $penalised = true;
+        }
+    }
+}
 $attemptNo = 0;
 $sameCampaign = array_values(array_filter($attempts, static fn($x) => (int) $x['campaign_id'] === (int) $r['campaign_id']));
 foreach ($sameCampaign as $k => $x) {
@@ -59,7 +67,7 @@ $ext = $type === 'html' ? 'html' : ($type === 'js' ? 'js' : 'txt');
           <?= ui_badge(__('pub.type.' . $type), 'muted', pub_type_icon($type)) ?>
           <?= ui_badge(__('pub.run.attempt', ['n' => $attemptNo ?: (int) $r['attempt'], 'total' => $attemptTotal]), 'muted', 'dice') ?>
           <?php if ((int) $r['contested']): ?><?= ui_badge(__('pub.run.contested'), 'gold', 'alert', __('pub.run.contested_tip', ['n' => setting('judge_tiebreak_spread')])) ?><?php endif; ?>
-          <?php if ((int) $r['verified']): ?><?= ui_badge(__('pub.run.verified'), 'green', 'check-circle', __('pub.run.verified_tip', ['by' => $r['verified_by'] ?: '—'])) ?><?php elseif ($renderable): ?><?= ui_badge(__('pub.run.unverified'), 'muted', 'eye-off', __('pub.run.unverified_tip')) ?><?php endif; ?>
+          <?php if ($renderable && (int) $r['verified']): ?><?= ui_badge(__('pub.run.verified'), 'green', 'check-circle', __('pub.run.verified_tip', ['by' => $r['verified_by'] ?: '—'])) ?><?php elseif ($renderable): ?><?= ui_badge(__('pub.run.unverified'), 'muted', 'eye-off', __('pub.run.unverified_tip')) ?><?php endif; ?>
           <?php if (!(int) $r['include_in_scores']): ?><?= ui_badge(__('pub.run.excluded'), 'red', 'info', __('pub.run.excluded_tip')) ?><?php endif; ?>
         </div>
         <h1 class="t-h2 pub-run-title"><?= ui_provider_avatar((string) $r['provider'], $r['provider_name'], 40) ?><span><a href="<?= e(url('/model/' . $r['model_slug'])) ?>"><?= e($r['model_name']) ?></a> <span class="t-muted pub-run-on"><?= _e('pub.run.on') ?></span> <a href="<?= e(url('/task/' . $r['task_slug'])) ?>"><?= e(L($r, 'title')) ?></a></span></h1>

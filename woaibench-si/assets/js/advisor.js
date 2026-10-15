@@ -15,7 +15,7 @@
   }
   var $ = function (id) { return document.getElementById(id); };
   var tracks = D.tracks || [];
-  var trackName = {};
+  var trackName = Object.create(null);
   tracks.forEach(function (tr) { trackName[tr.slug] = tr.name; });
   var sliders = Array.prototype.slice.call(form.querySelectorAll('input[data-track]'));
   var presetBtns = Array.prototype.slice.call(document.querySelectorAll('[data-preset]'));
@@ -244,9 +244,10 @@
   }
 
   /* ------------------------------------------------------------------ presets + URL */
+  function hasPreset(key) { return !!key && Object.prototype.hasOwnProperty.call(D.presets || {}, key); }
   function applyPreset(key) {
-    var p = (D.presets || {})[key];
-    if (!p) return;
+    if (!hasPreset(key)) return;
+    var p = D.presets[key];
     sliders.forEach(function (s) {
       var slug = s.getAttribute('data-track');
       s.value = String(p.w && p.w[slug] !== undefined ? p.w[slug] : p.rest);
@@ -293,7 +294,7 @@
   }
   function readUrl() {
     var q = new URLSearchParams(location.search);
-    if (q.get('p') && D.presets[q.get('p')]) applyPreset(q.get('p'));
+    if (hasPreset(q.get('p'))) applyPreset(q.get('p'));
     (q.get('w') || '').split(',').forEach(function (pair) {
       var kv = pair.split(':');
       var s = form.querySelector('input[data-track="' + (kv[0] || '').replace(/[^a-z0-9_-]/gi, '') + '"]');

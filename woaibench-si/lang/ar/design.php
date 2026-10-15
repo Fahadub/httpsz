@@ -21,7 +21,6 @@ return [
     'design.error_eyebrow_429' => 'فترة تهدئة',
     'design.error_eyebrow_500' => 'عطلٌ في الأداة',
     'design.error_eyebrow_generic' => 'قراءة غير متوقعة',
-    'design.error_back' => 'رجوع',
     'design.error_details' => 'تفاصيل التصحيح',
 
     'design.sg_title' => 'نظام *التصميم*',

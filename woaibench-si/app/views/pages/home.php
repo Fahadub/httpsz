@@ -59,7 +59,7 @@ $num = static fn(int $n): string => fmt_num($n);
                   <span class="avatar" style="--size:40px" aria-hidden="true">·</span>
                   <span class="podium-name t-faint">—</span>
                 <?php endif; ?>
-                <div class="podium-step"><?= ui_rank($p, $m ? (int) $m['stat_rank'] : null) ?></div>
+                <div class="podium-step"><?= ui_rank($p, ($m && $m['stat_rank'] !== null) ? (int) $m['stat_rank'] : null) ?></div>
               </div>
             <?php endforeach; ?>
           </div>

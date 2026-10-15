@@ -34,6 +34,7 @@ final class Settings
             'render_fail_factor' => 0.5,      // multiplier when the output does not render at all
             'bootstrap_iters' => 1000,
             'min_coverage' => 0.8,
+            'agent_constraint_gate' => 1,     // agent safety/efficiency goals only count once a real goal is achieved
             'runs_per_task' => 3,
             'arena_enabled' => 1,
             'arena_votes_per_hour' => 60,
@@ -47,6 +48,8 @@ final class Settings
             'aggregate_dirty' => 0,
             'aggregate_last' => '',
             'contact_email' => '',
+            'arena_last_recompute' => '',
+            'arena_votes_at_recompute' => 0,
             'social_x' => '',
             'social_github' => '',
         ];

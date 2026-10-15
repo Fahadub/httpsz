@@ -38,29 +38,44 @@ $cfg = [
     <div class="admin-meter"><span class="admin-meter-label"><?= _e('admin.console.ok') ?></span><span class="admin-meter-value t-num t-green" data-m="ok">0</span></div>
     <div class="admin-meter"><span class="admin-meter-label"><?= _e('admin.console.errors') ?></span><span class="admin-meter-value t-num t-red" data-m="errors">0</span></div>
     <div class="admin-meter"><span class="admin-meter-label"><?= _e('admin.console.verified') ?></span><span class="admin-meter-value t-num" data-m="verified">0</span></div>
-    <div class="admin-meter admin-meter-spend"><span class="admin-meter-label"><?= _e('admin.console.spent') ?></span><span class="admin-meter-value t-num t-gold" data-m="spent"><?= e(fmt_money($spend_total)) ?></span><span class="t-xs t-muted" data-m="session"><?= _e('admin.console.session', ['s' => '$0']) ?></span></div>
+    <div class="admin-meter admin-meter-spend"><span class="admin-meter-label"><?= _e('admin.console.spent') ?></span><span class="admin-meter-value t-num t-gold" data-m="spent"><?= e(fmt_money($spend_total)) ?></span><span class="t-xs t-muted" data-m="session"><?= _e('admin.console.session', ['s' => \WB\Admin\Admin::iso('$0')]) ?></span></div>
   </div>
 </section>
 
 <div class="admin-grid admin-grid-main">
-  <section class="card card-pad stack">
-    <div class="card-head"><h2 class="card-title"><?= ui_icon('target', 18) ?> <?= _e('admin.dash.campaigns') ?></h2></div>
-    <div class="stack" data-console-campaigns>
-      <?php if (!$campaigns): ?>
-        <?= ui_empty(__('admin.dash.no_campaigns'), __('admin.console.no_campaigns_text'), 'target', '<a class="btn btn-primary btn-sm" href="' . e(url('/admin/campaigns/new')) . '">' . _e('admin.campaigns.new') . '</a>') ?>
+  <section class="card stack-sm admin-station-card">
+    <div class="card-head card-pad">
+      <h2 class="card-title"><?= ui_icon('shield', 18) ?> <?= _e('admin.nav.verify') ?></h2>
+      <span class="t-xs t-muted" data-station-stats></span>
+    </div>
+    <div class="admin-station" id="station">
+      <?php if ($verifier_js): ?>
+        <?= ui_empty(__('admin.console.station_title'), __('admin.console.station_idle'), 'shield') ?>
       <?php else: ?>
-        <?php foreach ($campaigns as $p): ?><?= partial('admin/_progress', ['p' => $p]) ?><?php endforeach; ?>
+        <div class="alert alert-info"><?= _e('admin.console.no_verifier') ?></div>
       <?php endif; ?>
     </div>
   </section>
-  <section class="card card-pad stack">
-    <div class="card-head"><h2 class="card-title"><?= ui_icon('layers', 18) ?> <?= _e('admin.dash.queue') ?></h2></div>
-    <ul class="admin-counts" data-console-counts>
-      <?php foreach ($statuses as $s): ?>
-        <li data-status="<?= e($s) ?>"><span class="admin-dot s-<?= e($s) ?>"></span><span><?= e(__('status.' . $s)) ?></span><span class="t-num" data-n><?= e(fmt_num($counts[$s] ?? 0)) ?></span></li>
-      <?php endforeach; ?>
-    </ul>
-  </section>
+  <div class="stack-lg">
+    <section class="card card-pad stack">
+      <div class="card-head"><h2 class="card-title"><?= ui_icon('target', 18) ?> <?= _e('admin.dash.campaigns') ?></h2></div>
+      <div class="stack" data-console-campaigns>
+        <?php if (!$campaigns): ?>
+          <?= ui_empty(__('admin.dash.no_campaigns'), __('admin.console.no_campaigns_text'), 'target', '<a class="btn btn-primary btn-sm" href="' . e(url('/admin/campaigns/new')) . '">' . _e('admin.campaigns.new') . '</a>') ?>
+        <?php else: ?>
+          <?php foreach ($campaigns as $p): ?><?= partial('admin/_progress', ['p' => $p]) ?><?php endforeach; ?>
+        <?php endif; ?>
+      </div>
+    </section>
+    <section class="card card-pad stack">
+      <div class="card-head"><h2 class="card-title"><?= ui_icon('layers', 18) ?> <?= _e('admin.dash.queue') ?></h2></div>
+      <ul class="admin-counts" data-console-counts>
+        <?php foreach ($statuses as $s): ?>
+          <li data-status="<?= e($s) ?>"><span class="admin-dot s-<?= e($s) ?>"></span><span><?= e(__('status.' . $s)) ?></span><span class="t-num" data-n><?= e(fmt_num($counts[$s] ?? 0)) ?></span></li>
+        <?php endforeach; ?>
+      </ul>
+    </section>
+  </div>
 </div>
 
 <div class="admin-grid admin-grid-2">
@@ -73,17 +88,10 @@ $cfg = [
       <li class="admin-log-empty t-muted t-small"><?= _e('admin.console.log_empty') ?></li>
     </ol>
   </section>
-  <section class="card stack-sm admin-station-card">
-    <div class="card-head card-pad">
-      <h2 class="card-title"><?= ui_icon('shield', 18) ?> <?= _e('admin.nav.verify') ?></h2>
-      <span class="t-xs t-muted" data-station-stats></span>
-    </div>
-    <?php if (!$verifier_js): ?>
-      <div class="card-pad"><div class="alert alert-info"><?= _e('admin.console.no_verifier') ?></div></div>
-    <?php endif; ?>
-    <div class="admin-station" id="station"></div>
-    <ol class="admin-log admin-log-sm" data-station-log aria-live="off">
-      <li class="admin-log-empty t-muted t-small"><?= $verifier_js ? _e('admin.console.station_idle') : '' ?></li>
+  <section class="card stack-sm admin-log-card">
+    <div class="card-head card-pad"><h2 class="card-title"><?= ui_icon('shield', 18) ?> <?= _e('admin.console.station_log') ?></h2></div>
+    <ol class="admin-log" data-station-log aria-live="off">
+      <li class="admin-log-empty t-muted t-small"><?= $verifier_js ? _e('admin.console.station_idle') : _e('admin.console.no_verifier') ?></li>
     </ol>
   </section>
 </div>

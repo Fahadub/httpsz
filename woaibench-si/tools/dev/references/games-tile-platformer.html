@@ -216,7 +216,7 @@
   function resize() {
     const wrap = canvas.parentElement;
     const availW = wrap.clientWidth - 8, availH = wrap.clientHeight - 8;
-    scale = Math.max(1, Math.min(4, Math.floor(availH / (H * T + 16))));
+    scale = Math.max(1, Math.min(4, Math.floor(availH / (H * T))));
     if (availW / scale < 160) scale = Math.max(1, Math.floor(availW / 160));
     viewH = Math.min(H * T, Math.floor(availH / scale));
     viewW = Math.min(W * T, Math.floor(availW / scale));

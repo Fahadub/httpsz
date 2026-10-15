@@ -79,7 +79,7 @@ $ctx = $m['context_length'] ? fmt_tokens($m['context_length']) : '—';
 <?php if (!$scored): ?>
 <section class="section pub-section-tight">
   <div class="container-wide">
-    <?= ui_empty(__('pub.model.unscored_title'), __('pub.model.unscored_text', ['name' => $m['name']]), 'flask', '<div class="cluster pub-center"><a class="btn btn-primary" href="' . e(url('/request')) . '">' . _e('nav.request') . '</a><a class="btn btn-ghost" href="' . e(url('/leaderboard')) . '">' . _e('nav.leaderboard') . '</a></div>') ?>
+    <?= $m['is_judge'] && !$m['is_active'] ? ui_empty(__('pub.model.judge_only_title'), __('pub.model.judge_only_text', ['name' => $m['name']]), 'scale', '<div class="cluster pub-center"><a class="btn btn-primary" href="' . e(url('/methodology') . '#judges') . '">' . _e('pub.model.judge_only_cta') . '</a></div>') : ui_empty(__('pub.model.unscored_title'), __('pub.model.unscored_text', ['name' => $m['name']]), 'flask', '<div class="cluster pub-center"><a class="btn btn-primary" href="' . e(url('/request')) . '">' . _e('nav.request') . '</a><a class="btn btn-ghost" href="' . e(url('/leaderboard')) . '">' . _e('nav.leaderboard') . '</a></div>') ?>
   </div>
 </section>
 <?php else: ?>

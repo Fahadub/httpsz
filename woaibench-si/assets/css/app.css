@@ -25,7 +25,7 @@
   --border-strong: rgba(236, 228, 210, .17);
   --text: #F3EEE4;
   --text-muted: #ABA597;
-  --text-faint: #8A857A;
+  --text-faint: #968F84;
   --gold: #D9B26A;
   --gold-2: #F0D9A6;
   --gold-3: #A9803B;
@@ -78,7 +78,7 @@
   --border-strong: rgba(40, 32, 18, .2);
   --text: #17140F;
   --text-muted: #57514A;
-  --text-faint: #6F685D;
+  --text-faint: #665F54;
   --gold: #8E6A2B;
   --gold-2: #B8904A;
   --gold-3: #6A4B18;
@@ -1864,7 +1864,8 @@ a.podium-name:hover { color: var(--gold); }
 [dir="rtl"] .closing-cta { background: radial-gradient(600px 300px at 0% 0%, var(--gold-soft), transparent 70%), var(--surface); }
 .closing-cta .cta-copy { display: flex; flex-direction: column; gap: 16px; max-width: 660px; position: relative; z-index: 1; }
 .closing-cta .cta-actions { display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 1; }
-.closing-cta .cta-dial { position: absolute; width: 520px; height: 520px; inset-inline-end: -260px; top: -260px; opacity: .3; pointer-events: none; color: var(--gold); }
+.closing-cta .cta-dial { position: absolute; width: 640px; height: 640px; inset-inline-end: -220px; top: 50%; transform: translateY(-50%); opacity: .14; pointer-events: none; color: var(--gold); }
+.home-cta { padding-bottom: clamp(32px, 5vw, 64px); }
 @media (max-width: 820px) { .closing-cta { grid-template-columns: minmax(0, 1fr); } .closing-cta .cta-actions { flex-direction: row; flex-wrap: wrap; } }
 .empty-kpi .stat-value { font-family: var(--font-display); font-weight: 400; letter-spacing: -.01em; }
 

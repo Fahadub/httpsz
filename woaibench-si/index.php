@@ -36,6 +36,11 @@ if (preg_match('#/(assets|uploads)/#', $__p)) {
     exit('Not found');
 }
 
+// php -S sets SCRIPT_NAME to the request path for URIs ending in an extension (/badge/x.svg) — normalise it.
+if (PHP_SAPI === 'cli-server') {
+    $_SERVER['SCRIPT_NAME'] = '/index.php';
+}
+
 define('WB', true);
 require __DIR__ . '/app/bootstrap.php';
 

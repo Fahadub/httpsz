@@ -1,0 +1,425 @@
+<!doctype html>
+<!-- WB-ORACLE -->
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>إتمام الطلب · سِدرة للعطور</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f1e8; --surface: #fffcf6; --surface-2: #f2e9db; --text: #23170f; --muted: #5e4d3f; --border: #e3d5c1;
+    --accent: #6d2a2a; --accent-ink: #fff7ef; --gold: #8a6420; --gold-soft: #f3e3c1; --danger: #a12318; --danger-soft: #fbe7e4;
+    --ok: #1d6a46; --focus: #1f4fd1;
+    --font: "IBM Plex Sans Arabic", "Noto Sans Arabic", "Noto Kufi Arabic", "Segoe UI", "Geeza Pro", Tahoma, "DejaVu Sans", sans-serif;
+    --display: "Noto Kufi Arabic", "IBM Plex Sans Arabic", "Segoe UI", "Geeza Pro", Tahoma, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #120d0a; --surface: #1b1410; --surface-2: #261c16; --text: #f6ece0; --muted: #c9b8a6; --border: #3a2c22;
+      --accent: #e9b25c; --accent-ink: #1f1407; --gold: #e9b25c; --gold-soft: #3a2a14; --danger: #ff9d92; --danger-soft: #3d1612;
+      --ok: #86dcae; --focus: #9cc1ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.75 var(--font); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .top { border-bottom: 1px solid var(--border); background: var(--surface); }
+  .top-inner { max-width: 1180px; margin-inline: auto; padding: 14px clamp(16px, 4vw, 40px); display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--text); }
+  .brand svg { width: 38px; height: 38px; color: var(--gold); }
+  .brand b { font-family: var(--display); font-size: 1.45rem; letter-spacing: 0; }
+  .brand small { display: block; color: var(--muted); font-size: .8rem; line-height: 1.2; }
+  .secure { margin-inline-start: auto; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .9rem; }
+  .secure svg { width: 18px; height: 18px; color: var(--ok); }
+
+  .steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; counter-reset: step; max-width: 1180px; margin-inline: auto; padding: 22px clamp(16px, 4vw, 40px) 0; }
+  .steps li { flex: 1; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .95rem; padding-block-end: 10px; border-block-end: 3px solid var(--border); }
+  .steps li::before { counter-increment: step; content: counter(step, arabic-indic); display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--border); font-weight: 700; flex: none; background: var(--surface); }
+  .steps li.done { color: var(--text); border-color: var(--gold); }
+  .steps li.done::before { background: var(--gold); border-color: var(--gold); color: var(--accent-ink); }
+  .steps li[aria-current="step"] { color: var(--text); font-weight: 700; border-color: var(--accent); }
+  .steps li[aria-current="step"]::before { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+  .page { max-width: 1180px; margin-inline: auto; padding: 28px clamp(16px, 4vw, 40px) 72px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); gap: 32px; align-items: start; }
+  h1 { font-family: var(--display); font-size: clamp(1.7rem, 3.4vw, 2.3rem); line-height: 1.3; margin: 0 0 6px; }
+  .lead { margin: 0 0 24px; color: var(--muted); }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: clamp(18px, 3vw, 28px); margin-block-end: 20px; }
+  .panel h2 { font-family: var(--display); font-size: 1.2rem; margin: 0 0 16px; display: flex; align-items: center; gap: 10px; }
+  .panel h2 .badge { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--gold-soft); color: var(--text); font-size: .9rem; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
+  .field { margin-block-end: 16px; }
+  .field.wide { grid-column: 1 / -1; }
+  label, legend { display: block; font-weight: 600; margin-block-end: 6px; }
+  .req { color: var(--muted); font-weight: 400; font-size: .85rem; }
+  input[type="text"], input[type="tel"], select, textarea {
+    width: 100%; min-height: 48px; padding-block: 10px; padding-inline: 14px; border-radius: 12px; border: 1.5px solid var(--muted);
+    background: var(--surface); color: var(--text); font: inherit; }
+  textarea { min-height: 84px; resize: vertical; }
+  input[dir="ltr"] { text-align: end; }
+  input[dir="ltr"]::placeholder { text-align: end; }
+  [aria-invalid="true"] { border-color: var(--danger) !important; box-shadow: 0 0 0 1px var(--danger); }
+  .hint { margin: 6px 0 0; color: var(--muted); font-size: .88rem; }
+  .err { margin: 6px 0 0; color: var(--danger); font-weight: 600; font-size: .92rem; }
+  .err[hidden] { display: none; }
+  fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .options { display: grid; gap: 10px; }
+  .option { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1.5px solid var(--border); border-radius: 14px; cursor: pointer; background: var(--surface); }
+  .option:has(input:checked) { border-color: var(--accent); background: var(--gold-soft); }
+  .option input { width: 22px; height: 22px; accent-color: var(--accent); margin: 0; flex: none; }
+  .option .opt-text { flex: 1; }
+  .option .opt-text small { display: block; color: var(--muted); font-size: .88rem; }
+  .option .price { font-weight: 700; }
+
+  .actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-block-start: 8px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding-inline: 26px; border-radius: 14px; border: 1.5px solid transparent; font: inherit; font-weight: 700; cursor: pointer; text-decoration: none; }
+  .btn svg { width: 20px; height: 20px; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.link { background: transparent; color: var(--text); border-color: var(--border); }
+
+  .summary { position: sticky; top: 20px; }
+  .items { list-style: none; margin: 0 0 8px; padding: 0; }
+  .item { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding-block: 14px; border-block-end: 1px solid var(--border); }
+  .thumb { width: 64px; height: 64px; border-radius: 14px; background: var(--surface-2); display: grid; place-items: center; }
+  .thumb svg { width: 44px; height: 44px; }
+  .item-name { font-weight: 600; line-height: 1.5; }
+  .unit { color: var(--muted); font-size: .88rem; }
+  .qty { display: inline-flex; align-items: center; gap: 2px; margin-block-start: 6px; border: 1px solid var(--border); border-radius: 999px; padding: 2px; }
+  .qty button { width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--surface-2); color: var(--text); font: inherit; font-weight: 700; cursor: pointer; display: grid; place-items: center; }
+  .qty button:disabled { opacity: .45; cursor: not-allowed; }
+  .qty output { min-width: 28px; text-align: center; font-weight: 700; }
+  .line-total { font-weight: 700; }
+  .coupon { display: flex; gap: 8px; margin-block: 16px 4px; }
+  .coupon input { flex: 1; min-width: 0; text-transform: uppercase; }
+  .coupon button { min-height: 48px; padding-inline: 18px; border-radius: 12px; border: 1.5px solid var(--accent); background: transparent; color: var(--text); font: inherit; font-weight: 700; cursor: pointer; }
+  .ok-msg { margin: 6px 0 0; color: var(--ok); font-weight: 600; font-size: .92rem; }
+  .totals { margin: 16px 0 0; display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; }
+  .totals dt { color: var(--muted); }
+  .totals dd { margin: 0; text-align: end; }
+  .totals .discount { color: var(--ok); }
+  .grand { margin-block-start: 8px; padding-block-start: 14px; border-block-start: 2px solid var(--border); display: flex; justify-content: space-between; align-items: baseline; }
+  .grand span { font-weight: 700; }
+  #order-total { font-family: var(--display); font-size: 1.6rem; font-weight: 700; color: var(--text); }
+  .note { color: var(--muted); font-size: .85rem; margin: 10px 0 0; }
+
+  .done-panel { text-align: center; padding: 40px 24px; }
+  .done-panel svg { width: 64px; height: 64px; color: var(--ok); }
+  .done-panel h2 { justify-content: center; font-size: 1.6rem; }
+  .done-panel:focus { outline: none; }
+
+  @media (max-width: 900px) {
+    .page { grid-template-columns: 1fr; }
+    .summary { position: static; order: -1; }
+    .steps li { gap: 8px; justify-content: center; }
+    .steps li:not([aria-current]) { font-size: 0; gap: 0; }
+    .steps li::before { font-size: .95rem; }
+  }
+  @media (max-width: 520px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .secure { display: none; }
+    .actions .btn { flex: 1 1 100%; }
+    .item { grid-template-columns: 52px minmax(0, 1fr) auto; }
+    .thumb { width: 52px; height: 52px; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    #order-total.bump { animation: bump .35s ease; }
+    @keyframes bump { 50% { color: var(--gold); } }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <a class="brand" href="#checkout-title">
+      <svg viewBox="0 0 40 40" aria-hidden="true" focusable="false"><path d="M20 3c6 6 9 12 9 18a9 9 0 0 1-18 0c0-6 3-12 9-18z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 12c3 4 4 7 4 10a4 4 0 0 1-8 0c0-3 1-6 4-10z" fill="currentColor"/><path d="M8 36h24" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span><b>سِدرة</b><small>للعطور والبخور</small></span>
+    </a>
+    <p class="secure"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 12l2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>دفع آمن ومشفّر</p>
+  </div>
+</header>
+
+<nav aria-label="مراحل الطلب">
+  <ol class="steps">
+    <li class="done">السلة</li>
+    <li aria-current="step">الشحن</li>
+    <li>الدفع</li>
+    <li>التأكيد</li>
+  </ol>
+</nav>
+
+<div class="page">
+  <main id="main">
+    <h1 id="checkout-title">إتمام الطلب</h1>
+    <p class="lead">أدخل عنوان التوصيل واختر طريقة الشحن والدفع، وسنُغلِّف طلبك بعناية كما يليق بهدية.</p>
+
+    <form id="checkout" novalidate>
+      <section class="panel" aria-labelledby="ship-title">
+        <h2 id="ship-title"><span class="badge" aria-hidden="true">١</span>عنوان التوصيل</h2>
+        <div class="grid-2">
+          <div class="field wide">
+            <label for="full-name">الاسم الكامل <span class="req">(مطلوب)</span></label>
+            <input type="text" id="full-name" name="name" autocomplete="name" required>
+            <p class="err" id="full-name-err" hidden></p>
+          </div>
+          <div class="field">
+            <label for="phone">رقم الجوال <span class="req">(مطلوب)</span></label>
+            <input type="tel" id="phone" name="phone" dir="ltr" inputmode="numeric" autocomplete="tel-national" placeholder="05XXXXXXXX" aria-describedby="phone-hint" required>
+            <p class="hint" id="phone-hint">عشرة أرقام تبدأ بـ ٠٥، ويمكنك الكتابة بالأرقام العربية أو اللاتينية.</p>
+            <p class="err" id="phone-err" hidden></p>
+          </div>
+          <div class="field">
+            <label for="city">المدينة <span class="req">(مطلوب)</span></label>
+            <select id="city" name="city" required>
+              <option value="">اختر المدينة</option>
+              <option>الرياض</option>
+              <option>جدة</option>
+              <option>مكة المكرمة</option>
+              <option>المدينة المنورة</option>
+              <option>الدمام</option>
+              <option>أبها</option>
+            </select>
+            <p class="err" id="city-err" hidden></p>
+          </div>
+          <div class="field wide">
+            <label for="district">الحي <span class="req">(مطلوب)</span></label>
+            <input type="text" id="district" name="district" autocomplete="address-level3" required>
+            <p class="err" id="district-err" hidden></p>
+          </div>
+          <div class="field wide">
+            <label for="address">العنوان التفصيلي <span class="req">(مطلوب)</span></label>
+            <textarea id="address" name="address" autocomplete="street-address" aria-describedby="address-hint" required></textarea>
+            <p class="hint" id="address-hint">اسم الشارع ورقم المبنى وأي علامة مميزة تساعد المندوب.</p>
+            <p class="err" id="address-err" hidden></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="delivery-title">
+        <h2 id="delivery-title"><span class="badge" aria-hidden="true">٢</span>طريقة التوصيل</h2>
+        <fieldset>
+          <legend class="sr-only">اختر طريقة التوصيل</legend>
+          <div class="options">
+            <label class="option" for="ship-standard">
+              <input type="radio" id="ship-standard" name="shipping" value="standard" checked>
+              <span class="opt-text">توصيل عادي (٣–٥ أيام عمل)<small>يصل بين الأحد والخميس</small></span>
+              <span class="price num">٢٥٫٠٠ ر.س</span>
+            </label>
+            <label class="option" for="ship-express">
+              <input type="radio" id="ship-express" name="shipping" value="express">
+              <span class="opt-text">توصيل سريع (خلال ٢٤ ساعة)<small>للطلبات المؤكَّدة قبل الساعة ٨ مساءً</small></span>
+              <span class="price num">٤٥٫٠٠ ر.س</span>
+            </label>
+          </div>
+        </fieldset>
+      </section>
+
+      <section class="panel" aria-labelledby="pay-title">
+        <h2 id="pay-title"><span class="badge" aria-hidden="true">٣</span>طريقة الدفع</h2>
+        <fieldset>
+          <legend class="sr-only">اختر طريقة الدفع</legend>
+          <div class="options">
+            <label class="option" for="pay-card"><input type="radio" id="pay-card" name="payment" value="card" checked><span class="opt-text">بطاقة ائتمانية<small>ستنتقل إلى صفحة الدفع الآمنة بعد التأكيد</small></span></label>
+            <label class="option" for="pay-cod"><input type="radio" id="pay-cod" name="payment" value="cod"><span class="opt-text">الدفع عند الاستلام<small>نقدًا أو بالبطاقة عند وصول المندوب</small></span></label>
+            <label class="option" for="pay-bank"><input type="radio" id="pay-bank" name="payment" value="bank"><span class="opt-text">تحويل بنكي<small>نرسل بيانات الحساب إلى جوالك</small></span></label>
+          </div>
+        </fieldset>
+      </section>
+
+      <div class="actions">
+        <a class="btn link" href="#checkout-title">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          العودة إلى السلة
+        </a>
+        <button type="submit" class="btn primary" id="place-order">
+          تأكيد الطلب
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </form>
+  </main>
+
+  <aside class="summary panel" aria-labelledby="summary-title">
+    <h2 id="summary-title">ملخص الطلب</h2>
+    <ul class="items">
+      <li class="item" data-id="burner" data-price="18500">
+        <span class="thumb" aria-hidden="true"><svg viewBox="0 0 44 44"><path d="M10 20h24l-3 12H13z" fill="#b8862e"/><path d="M16 32h12v5H16z" fill="#8a6420"/><path d="M14 20c0-6 4-10 8-12 4 2 8 6 8 12" fill="none" stroke="#8a6420" stroke-width="2"/><path d="M22 6c-2-2 0-4 2-5" fill="none" stroke="#9a8c7a" stroke-width="1.5"/></svg></span>
+        <div><div class="item-name">مبخرة نحاسية مزخرفة</div><div class="unit num">١٨٥٫٠٠ ر.س للقطعة</div>
+          <div class="qty"><button type="button" data-qty-dec="burner" aria-label="إنقاص كمية مبخرة نحاسية مزخرفة">−</button><output aria-live="polite" aria-label="الكمية">١</output><button type="button" data-qty-inc="burner" aria-label="زيادة كمية مبخرة نحاسية مزخرفة">+</button></div></div>
+        <div class="line-total num"></div>
+      </li>
+      <li class="item" data-id="oud" data-price="24000">
+        <span class="thumb" aria-hidden="true"><svg viewBox="0 0 44 44"><g fill="#5a3418"><path d="M8 28l9-6 5 4-9 7z"/><path d="M20 30l8-9 6 3-7 9z"/><path d="M14 18l7-7 5 3-7 8z"/></g><path d="M6 36h32" stroke="#8a6420" stroke-width="2" stroke-linecap="round"/></svg></span>
+        <div><div class="item-name">عود كمبودي فاخر ١٢ غرام</div><div class="unit num">٢٤٠٫٠٠ ر.س للقطعة</div>
+          <div class="qty"><button type="button" data-qty-dec="oud" aria-label="إنقاص كمية عود كمبودي فاخر">−</button><output aria-live="polite" aria-label="الكمية">٢</output><button type="button" data-qty-inc="oud" aria-label="زيادة كمية عود كمبودي فاخر">+</button></div></div>
+        <div class="line-total num"></div>
+      </li>
+      <li class="item" data-id="rose" data-price="9500">
+        <span class="thumb" aria-hidden="true"><svg viewBox="0 0 44 44"><path d="M18 6h8v6h-8z" fill="#8a6420"/><path d="M14 14h16l2 6v14a4 4 0 0 1-4 4H16a4 4 0 0 1-4-4V20z" fill="#d48aa0"/><circle cx="22" cy="27" r="5" fill="#a8445f"/></svg></span>
+        <div><div class="item-name">دهن ورد طائفي ٦ مل</div><div class="unit num">٩٥٫٠٠ ر.س للقطعة</div>
+          <div class="qty"><button type="button" data-qty-dec="rose" aria-label="إنقاص كمية دهن ورد طائفي">−</button><output aria-live="polite" aria-label="الكمية">١</output><button type="button" data-qty-inc="rose" aria-label="زيادة كمية دهن ورد طائفي">+</button></div></div>
+        <div class="line-total num"></div>
+      </li>
+    </ul>
+
+    <label for="coupon">قسيمة الخصم</label>
+    <div class="coupon">
+      <input type="text" id="coupon" dir="ltr" autocomplete="off" spellcheck="false" placeholder="SIDRA10" aria-describedby="coupon-msg">
+      <button type="button" id="apply-coupon">تطبيق</button>
+    </div>
+    <p id="coupon-msg" class="hint" aria-live="polite"></p>
+
+    <dl class="totals">
+      <dt>المجموع الفرعي</dt><dd class="num" id="subtotal"></dd>
+      <dt class="discount" id="discount-label" hidden>خصم القسيمة (١٠٪)</dt><dd class="num discount" id="discount" hidden></dd>
+      <dt>الشحن</dt><dd class="num" id="shipping"></dd>
+      <dt>ضريبة القيمة المضافة (١٥٪)</dt><dd class="num" id="vat"></dd>
+    </dl>
+    <div class="grand"><span>الإجمالي</span><output class="num" id="order-total" aria-live="polite"></output></div>
+    <p class="note">الأسعار لا تشمل ضريبة القيمة المضافة، وتُحسب الضريبة على المجموع بعد الخصم مع الشحن.</p>
+  </aside>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var DIGITS = '٠١٢٣٤٥٦٧٨٩';
+  var SHIPPING = { standard: 2500, express: 4500 };
+  var COUPONS = { SIDRA10: 10 };
+  var VAT_PERCENT = 15;
+  var cart = { burner: 1, oud: 2, rose: 1 };
+  var coupon = null;
+  var $ = function (id) { return document.getElementById(id); };
+
+  /** Western digits → Arabic-Indic; amounts are integers in halalas (1/100 SAR). */
+  function arDigits(s) { return String(s).replace(/[0-9]/g, function (d) { return DIGITS[+d]; }); }
+  function toWestern(s) { return String(s).replace(/[٠-٩]/g, function (d) { return String(DIGITS.indexOf(d)); }).replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x6F0); }); }
+  function money(h) {
+    var whole = String(Math.floor(h / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '٬');
+    var frac = String(h % 100).padStart(2, '0');
+    return arDigits(whole) + '٫' + arDigits(frac) + ' ر.س';
+  }
+
+  function totals() {
+    var subtotal = 0;
+    document.querySelectorAll('.item').forEach(function (li) { subtotal += Number(li.dataset.price) * cart[li.dataset.id]; });
+    var discount = coupon ? Math.round(subtotal * COUPONS[coupon] / 100) : 0;
+    var shipping = SHIPPING[document.querySelector('input[name="shipping"]:checked').value];
+    var taxable = subtotal - discount + shipping;
+    var vat = Math.round(taxable * VAT_PERCENT / 100);
+    return { subtotal: subtotal, discount: discount, shipping: shipping, vat: vat, total: taxable + vat };
+  }
+  function render() {
+    document.querySelectorAll('.item').forEach(function (li) {
+      var q = cart[li.dataset.id];
+      li.querySelector('output').textContent = arDigits(q);
+      li.querySelector('[data-qty-dec]').disabled = q <= 1;
+      li.querySelector('.line-total').textContent = money(Number(li.dataset.price) * q);
+    });
+    var t = totals();
+    $('subtotal').textContent = money(t.subtotal);
+    $('discount').textContent = '−' + money(t.discount);
+    $('discount').hidden = $('discount-label').hidden = !t.discount;
+    $('shipping').textContent = money(t.shipping);
+    $('vat').textContent = money(t.vat);
+    var out = $('order-total');
+    out.textContent = money(t.total);
+    out.classList.remove('bump');
+    void out.offsetWidth;
+    out.classList.add('bump');
+  }
+
+  document.querySelector('.items').addEventListener('click', function (ev) {
+    var btn = ev.target.closest('button');
+    if (!btn) { return; }
+    var inc = btn.getAttribute('data-qty-inc');
+    var dec = btn.getAttribute('data-qty-dec');
+    if (inc) { cart[inc] = Math.min(20, cart[inc] + 1); }
+    if (dec) { cart[dec] = Math.max(1, cart[dec] - 1); }
+    render();
+  });
+  document.querySelectorAll('input[name="shipping"]').forEach(function (r) { r.addEventListener('change', render); });
+
+  function applyCoupon() {
+    var input = $('coupon');
+    var code = toWestern(input.value).trim().toUpperCase();
+    var msg = $('coupon-msg');
+    if (!code) { coupon = null; input.removeAttribute('aria-invalid'); msg.className = 'hint'; msg.textContent = ''; render(); return; }
+    if (COUPONS[code]) {
+      coupon = code;
+      input.removeAttribute('aria-invalid');
+      msg.className = 'ok-msg';
+      msg.textContent = 'تم تطبيق القسيمة: خصم ' + arDigits(COUPONS[code]) + '٪ على المجموع الفرعي.';
+    } else {
+      coupon = null;
+      input.setAttribute('aria-invalid', 'true');
+      msg.className = 'err';
+      msg.textContent = 'رمز القسيمة غير صالح أو منتهي الصلاحية. تحقَّق منه وحاول مرة أخرى.';
+    }
+    render();
+  }
+  $('apply-coupon').addEventListener('click', applyCoupon);
+  $('coupon').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); applyCoupon(); } });
+
+  var RULES = [
+    ['full-name', function (v) { return v.trim().length >= 3 ? '' : 'أدخل اسمك الكامل كما سيظهر على الطلب.'; }],
+    ['phone', function (v) {
+      var d = toWestern(v).replace(/[\s-]/g, '');
+      if (!d) { return 'أدخل رقم الجوال لنتواصل معك عند التوصيل.'; }
+      return /^05\d{8}$/.test(d) ? '' : 'رقم الجوال غير صحيح: يجب أن يتكوّن من عشرة أرقام ويبدأ بـ ٠٥.';
+    }],
+    ['city', function (v) { return v ? '' : 'اختر المدينة من القائمة.'; }],
+    ['district', function (v) { return v.trim() ? '' : 'أدخل اسم الحي.'; }],
+    ['address', function (v) { return v.trim().length >= 8 ? '' : 'أدخل العنوان التفصيلي (الشارع ورقم المبنى).'; }],
+  ];
+  function setError(id, message) {
+    var el = $(id);
+    var err = $(id + '-err');
+    var ids = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(function (x) { return x && x !== id + '-err'; });
+    err.textContent = message;
+    err.hidden = !message;
+    if (message) { el.setAttribute('aria-invalid', 'true'); ids.push(id + '-err'); } else { el.removeAttribute('aria-invalid'); }
+    if (ids.length) { el.setAttribute('aria-describedby', ids.join(' ')); } else { el.removeAttribute('aria-describedby'); }
+  }
+  RULES.forEach(function (r) {
+    $(r[0]).addEventListener('change', function () { if ($(r[0]).getAttribute('aria-invalid') === 'true') { setError(r[0], r[1]($(r[0]).value)); } });
+  });
+
+  $('checkout').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var first = null;
+    RULES.forEach(function (r) {
+      var m = r[1]($(r[0]).value);
+      setError(r[0], m);
+      if (m && !first) { first = $(r[0]); }
+    });
+    if (first) { first.focus(); return; }
+    var ref = 'SDR-2026-' + String(48213 + Math.floor(Math.random() * 500));
+    var t = totals();
+    var main = $('main');
+    main.textContent = '';
+    var panel = document.createElement('section');
+    panel.className = 'panel done-panel';
+    panel.setAttribute('tabindex', '-1');
+    panel.setAttribute('aria-labelledby', 'done-title');
+    panel.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7.5 12.5l3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+      '<h2 id="done-title">تم استلام طلبك، شكرًا لك!</h2><p id="done-text"></p>';
+    main.appendChild(panel);
+    var p = $('done-text');
+    p.append('رقم الطلب ');
+    var bdi = document.createElement('bdi');
+    bdi.dir = 'ltr';
+    bdi.textContent = ref;
+    p.append(bdi, ' — الإجمالي ' + money(t.total) + '. سنرسل رسالة تأكيد إلى جوالك.');
+    document.querySelector('.steps [aria-current]').removeAttribute('aria-current');
+    document.querySelectorAll('.steps li').forEach(function (li, i) { li.classList.add('done'); if (i === 3) { li.setAttribute('aria-current', 'step'); } });
+    panel.focus();
+  });
+  render();
+})();
+</script>
+</body>
+</html>

@@ -316,6 +316,30 @@ function png_data_url(int $w, int $h, bool $noise = false, bool $flat = false): 
 ensure_schema();
 $t0 = microtime(true);
 
+// uploads/shots is shared with every local database: back it up and restore it when the tests end.
+$shotsDir = WB_UPLOADS . '/shots';
+$shotsBackup = sys_get_temp_dir() . '/wb-engine-test-shots-' . getmypid();
+@mkdir($shotsBackup, 0700, true);
+foreach (glob($shotsDir . '/*') ?: [] as $f) {
+    @copy($f, $shotsBackup . '/' . basename($f));
+}
+$mainPid = getmypid();
+register_shutdown_function(static function () use ($shotsDir, $shotsBackup, $mainPid): void {
+    if (getmypid() !== $mainPid) {
+        return; // forked lease racers exit too — only the main process restores
+    }
+    foreach (glob($shotsDir . '/*') ?: [] as $f) {
+        if (!is_file($shotsBackup . '/' . basename($f))) {
+            @unlink($f);
+        }
+    }
+    foreach (glob($shotsBackup . '/*') ?: [] as $f) {
+        @copy($f, $shotsDir . '/' . basename($f));
+        @unlink($f);
+    }
+    @rmdir($shotsBackup);
+});
+
 /* ================================================================== 1. leases */
 T::section('Leases');
 reset_db();

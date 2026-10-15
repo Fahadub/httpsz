@@ -38,7 +38,7 @@ echo partial('admin/_head', ['title' => __('admin.nav.runs'), 'sub' => __('admin
           <td class="num t-num"><?= e(fmt_score($r['auto_score'])) ?></td>
           <td class="num t-num"><?= e(fmt_score($r['judge_score'])) ?><?= $r['judge_spread'] !== null ? '<div class="t-xs t-muted">±' . e(fmt_score($r['judge_spread'])) . '</div>' : '' ?></td>
           <td class="num t-num"><?= e(fmt_money($r['cost_usd'])) ?></td>
-          <td class="num t-num"><?= e(fmt_ms($r['latency_ms'])) ?></td>
+          <td class="num t-num"><bdi><?= e(fmt_ms($r['latency_ms'])) ?></bdi></td>
           <td class="t-xs t-muted"><?= e(fmt_date($r['updated_at'], 'relative')) ?></td>
         </tr>
       <?php endforeach; ?>

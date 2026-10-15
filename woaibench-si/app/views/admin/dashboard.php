@@ -36,7 +36,7 @@ echo partial('admin/_head', [
   <?= ui_stat(fmt_num($queue), __('admin.dash.kpi_queue'), 'timer', __('admin.dash.kpi_queue_hint', ['n' => fmt_num($counts['awaiting_verify'] ?? 0)])) ?>
   <?= ui_stat(fmt_num($counts['scored'] ?? 0), __('admin.dash.kpi_scored'), 'check-circle') ?>
   <?= ui_stat(fmt_num($counts['failed'] ?? 0), __('admin.dash.kpi_failed'), 'x-circle') ?>
-  <?= ui_stat(fmt_money($spend_month), __('admin.dash.kpi_month'), 'coin', __('admin.dash.kpi_total', ['s' => fmt_money($spend_total)])) ?>
+  <?= ui_stat(fmt_money($spend_month), __('admin.dash.kpi_month'), 'coin', __('admin.dash.kpi_total', ['s' => \WB\Admin\Admin::iso(fmt_money($spend_total))])) ?>
   <?= ui_stat(fmt_num($totals['models']), __('admin.dash.kpi_models'), 'robot', __('admin.dash.kpi_judges', ['n' => $totals['judges']])) ?>
   <?= ui_stat(fmt_num($totals['tasks']), __('admin.dash.kpi_tasks'), 'list', __('admin.dash.kpi_holdout', ['n' => $totals['holdout']])) ?>
 </div>

@@ -477,10 +477,17 @@ function replay(task, steps) {
     log.push(`${s.tool} → ${r.ok ? 'ok' : 'ERROR ' + r.error}`);
     if (ws.finished) { break; }
   }
+  // Constraint goals (explicit "constraint": bool, else already met by the untouched workspace) earn
+  // credit only once some task goal made progress — AgentSim::constraintCredit (setting agent_constraint_gate).
+  const initial = new Workspace(spec.env, spec.tools);
   const goals = spec.goal_checks.map((g) => {
     const [pass, score] = goal(g, ws, n);
-    return { key: g.key, type: g.type, pass, score, weight: g.weight ?? 1, critical: !!g.critical };
+    const constraint = typeof g.constraint === 'boolean' ? g.constraint : goal(g, initial, 0)[0];
+    return { key: g.key, type: g.type, pass, score, weight: g.weight ?? 1, critical: !!g.critical, constraint };
   });
+  if (GATE && !goals.some((g) => !g.constraint && g.score > 0) && goals.some((g) => !g.constraint)) {
+    goals.forEach((g) => { if (g.constraint && g.pass) { g.pass = false; g.score = 0; } });
+  }
   const sw = goals.reduce((a, g) => a + g.weight, 0);
   const auto = Math.round(10000 * goals.reduce((a, g) => a + g.weight * g.score, 0) / sw) / 100;
   const critFail = goals.some((g) => g.critical && !g.pass);
@@ -556,6 +563,8 @@ const RECKLESS_MUST_FAIL = {
 };
 const LAZY_MAX = 40;
 const RECKLESS_MAX = 60;
+/** Mirrors the engine setting agent_constraint_gate (default on); --no-gate shows the raw contract score. */
+const GATE = !ARGS['no-gate'];
 
 function checkAgentTasks(tasks, php) {
   head('Agent tasks — JS mini-sim (port of AgentTools/AgentSim)');
@@ -1018,15 +1027,33 @@ async function audit(browser, t, html) {
   }
 }
 
+/** Interaction states worth a picture (the page as a user mid-task sees it). */
+const SHOT_STATES = {
+  'a11y-modal-dialog': async (p) => { await p.click('#open-invite'); await p.keyboard.type('not-an-email'); await p.click('[role=dialog] button[type=submit]'); },
+  'a11y-combobox-autocomplete': async (p) => { await p.keyboard.type('ma'); await p.waitForTimeout(500); await p.keyboard.press('ArrowDown'); await p.keyboard.press('ArrowDown'); },
+  'a11y-sortable-table': async (p) => { await p.click('#sort-aperture'); await p.click('#sort-aperture'); },
+  'a11y-form-validation': async (p) => { await p.check('#ticket-student'); await p.click('#register-submit'); },
+  'a11y-tabbed-carousel': async (p) => { await p.click('#tab-3'); },
+  'arabic-rtl-checkout': async (p) => { await p.fill('#coupon', 'SIDRA10'); await p.click('#apply-coupon'); await p.check('#ship-express'); await p.click('#place-order'); },
+  'arabic-gov-appointment': async (p) => {
+    await p.fill('#full-name', 'سالم بن راشد'); await p.fill('#national-id', '١٠٢٣٤٥٦٧٨٩'); await p.fill('#mobile', '+966 55 123 4567'); await p.fill('#plate', 'ABD 4821');
+    await p.click('#next-step'); await p.check('input[name=centre] >> nth=0'); await p.check('input[name=day] >> nth=2'); await p.check('input[name=slot]:not([disabled]) >> nth=3');
+  },
+};
+
 async function shots(browser, t, html, dir) {
   mkdirSync(dir, { recursive: true });
   for (const vp of ['desktop', 'mobile']) {
     for (const scheme of ['dark', 'light']) {
-      const { page, ctx } = await openPage(browser, html, vp, { scheme, reducedMotion: 'reduce' });
-      await page.waitForTimeout(300);
-      const file = path.join(dir, `${t.slug}-${vp}-${scheme}.png`);
-      await page.screenshot({ path: file, fullPage: true });
-      await ctx.close();
+      for (const state of ['initial', 'interaction']) {
+        if (state === 'interaction' && !SHOT_STATES[t.slug]) { continue; }
+        const { page, ctx } = await openPage(browser, html, vp, { scheme, reducedMotion: 'reduce' });
+        if (state === 'interaction') { await SHOT_STATES[t.slug](page); await page.evaluate(() => window.scrollTo(0, 0)); }
+        await page.waitForTimeout(350);
+        const file = path.join(dir, `${t.slug}-${vp}-${scheme}${state === 'interaction' ? '-interaction' : ''}.png`);
+        await page.screenshot({ path: file, fullPage: true });
+        await ctx.close();
+      }
     }
   }
   info(`screenshots → ${dir}/${t.slug}-*.png`);

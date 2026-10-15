@@ -14,7 +14,7 @@ $public = $r['visibility'] === 'public';
 echo partial('admin/_head', [
     'back' => url('/admin/runs', ['campaign' => $r['campaign_id']]),
     'eyebrow' => $r['campaign'] . ' · ' . __('admin.runs.attempt_n', ['n' => (int) $r['attempt']]),
-    'title' => __('admin.runs.run_n', ['n' => $r['id']]) . ' — ' . $r['model'],
+    'title' => __('admin.runs.run_n', ['n' => \WB\Admin\Admin::iso('#' . $r['id'])]) . ' — ' . $r['model'],
     'sub' => L($r, 'title'),
     'actions' => '<div class="cluster">'
         . ($public ? '<a class="btn btn-sm btn-ghost" href="' . e(url('/run/' . $r['id'])) . '" target="_blank" rel="noopener">' . ui_icon('external', 14) . '<span>' . _e('admin.runs.public') . '</span></a>' : '')
@@ -69,7 +69,7 @@ echo partial('admin/_head', [
           <?php foreach ($tests as $tc): if (!is_array($tc)) { continue; } $pass = !empty($tc['pass']); ?>
             <li class="<?= $pass ? 'is-pass' : 'is-fail' ?>"><?= ui_icon($pass ? 'check-circle' : 'x-circle', 16) ?><span class="t-mono t-xs" dir="ltr"><?= e((string) ($tc['name'] ?? '?')) ?></span>
               <span class="t-xs t-muted t-mono" dir="ltr"><?= e(isset($tc['error']) ? (string) $tc['error'] : (array_key_exists('got', $tc) ? 'got ' . mb_strimwidth(to_json($tc['got']), 0, 120, '…') : '')) ?></span>
-              <?php if (isset($tc['ms'])): ?><span class="t-num t-xs"><?= e(fmt_ms($tc['ms'])) ?></span><?php endif; ?></li>
+              <?php if (isset($tc['ms'])): ?><span class="t-num t-xs"><bdi><?= e(fmt_ms($tc['ms'])) ?></bdi></span><?php endif; ?></li>
           <?php endforeach; ?>
         </ul>
       <?php endif; ?>
@@ -108,7 +108,7 @@ echo partial('admin/_head', [
           <?php elseif ($j['rationale']): ?>
             <p class="t-small"><?= e((string) $j['rationale']) ?></p>
           <?php endif; ?>
-          <div class="t-xs t-muted"><?= e(fmt_money($j['cost_usd'])) ?> · <?= e(fmt_ms($j['latency_ms'])) ?><?= $j['error'] ? ' · <span class="t-red">' . e((string) $j['error']) . '</span>' : '' ?></div>
+          <div class="t-xs t-muted"><?= e(fmt_money($j['cost_usd'])) ?> · <bdi><?= e(fmt_ms($j['latency_ms'])) ?></bdi><?= $j['error'] ? ' · <span class="t-red">' . e((string) $j['error']) . '</span>' : '' ?></div>
         </article>
       <?php endforeach; ?>
     </section>

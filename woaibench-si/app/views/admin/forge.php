@@ -24,7 +24,7 @@ echo partial('admin/_head', ['title' => __('admin.nav.forge'), 'sub' => __('admi
         <input class="input" id="fg-theme" name="theme" maxlength="300" value="<?= e($o['theme']) ?>" placeholder="<?= _e('admin.forge.theme_ph') ?>"></div>
       <div class="form-actions">
         <button class="btn btn-primary" type="submit"<?= $model ? '' : ' disabled' ?>><?= ui_icon('sparkles', 16) ?><span><?= _e('admin.forge.generate') ?></span></button>
-        <span class="t-xs t-muted"><?= $model ? _e('admin.forge.using', ['m' => $model]) : _e('admin.forge.err_model') ?></span>
+        <span class="t-xs t-muted"><?= $model ? _e('admin.forge.using', ['m' => \WB\Admin\Admin::iso($model)]) : _e('admin.forge.err_model') ?></span>
       </div>
       <p class="help" data-busy-note hidden><?= ui_icon('clock', 14) ?> <?= _e('admin.forge.busy') ?></p>
     </form>
@@ -34,7 +34,7 @@ echo partial('admin/_head', ['title' => __('admin.nav.forge'), 'sub' => __('admi
     <?php else: ?>
       <div class="cluster admin-forge-bar">
         <h2 class="t-h3"><?= _e('admin.forge.drafts', ['n' => count($drafts)]) ?></h2>
-        <?php if (!empty($meta['model'])): ?><span class="t-xs t-muted"><?= _e('admin.forge.meta', ['m' => $meta['model'], 'c' => $meta['cost'] !== null ? fmt_money($meta['cost']) : '—']) ?></span><?php endif; ?>
+        <?php if (!empty($meta['model'])): ?><span class="t-xs t-muted"><?= _e('admin.forge.meta', ['m' => \WB\Admin\Admin::iso((string) $meta['model']), 'c' => $meta['cost'] !== null ? \WB\Admin\Admin::iso(fmt_money($meta['cost'])) : '—']) ?></span><?php endif; ?>
         <form method="post" action="<?= e(url('/admin/forge/clear')) ?>" data-confirm="<?= _e('admin.forge.discard_all_confirm') ?>"><?= csrf_field() ?><button class="btn btn-sm btn-ghost" type="submit"><?= ui_icon('trash', 14) ?><span><?= _e('admin.forge.discard_all') ?></span></button></form>
       </div>
       <?php foreach ($drafts as $i => $d): ?>
@@ -85,3 +85,4 @@ echo partial('admin/_head', ['title' => __('admin.nav.forge'), 'sub' => __('admi
     </section>
   </aside>
 </div>
+<script type="application/json" id="task-spec"><?= js_json(\WB\Admin\TaskValidator::spec()) ?></script>

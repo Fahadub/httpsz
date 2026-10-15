@@ -35,7 +35,7 @@ echo partial('admin/_head', [
             <input type="checkbox" name="model_ids[]" value="<?= (int) $m['id'] ?>"<?= in_array((int) $m['id'], $oldModels, true) ? ' checked' : '' ?>>
             <span class="admin-pick-body">
               <?= ui_model_chip($m, false) ?>
-              <span class="t-xs t-muted t-num"><?= e(fmt_price($m['price_in'])) ?> · <?= e(fmt_price($m['price_out'])) ?><?= (int) $m['is_judge'] ? ' · ' . _e('admin.models.judge') : '' ?></span>
+              <span class="t-xs t-muted t-num"><bdi><?= e(fmt_price($m['price_in'])) ?></bdi> · <bdi><?= e(fmt_price($m['price_out'])) ?></bdi><?= (int) $m['is_judge'] ? ' · ' . _e('admin.models.judge') : '' ?></span>
             </span>
           </label>
         <?php endforeach; ?>
