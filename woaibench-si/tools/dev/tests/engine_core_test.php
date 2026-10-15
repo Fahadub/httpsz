@@ -574,7 +574,10 @@ T::ok($n['ok'] && $n['content'] === 'Hello' && $n['reasoning'] === 'thinking…'
 T::ok($n['tool_calls'][0]['function']['arguments'] === '{"expression":"1+1"}' && $n['tool_calls'][1]['id'] === 'call_2' && $n['tool_calls'][1]['function']['arguments'] === '', 'tool calls normalized (string args, ids)', $n['tool_calls']);
 T::ok($n['message']['tool_calls'] === $n['tool_calls'] && isset($n['message']['reasoning_details']), 'assistant message ready for multi-turn');
 T::ok($n['usage'] === ['prompt_tokens' => 11, 'completion_tokens' => 7, 'reasoning_tokens' => 3, 'cost' => 0.0021] && $n['provider'] === 'Prov' && $n['id'] === 'gen-1', 'usage + provider + id', $n['usage']);
-T::eq(array_keys($n), ['ok', 'status', 'content', 'reasoning', 'tool_calls', 'message', 'finish_reason', 'usage', 'provider', 'id', 'ms', 'error', 'retryable'], 'normalized keys');
+T::eq(array_keys($n), ['ok', 'status', 'content', 'reasoning', 'tool_calls', 'message', 'finish_reason', 'usage', 'provider', 'id', 'ms', 'error', 'retryable', 'halt', 'retry_after'], 'normalized keys');
+foreach ([[401, 'No auth credentials found', 401], [402, 'Insufficient credits', 402], [403, 'Key limit exceeded', 403], [403, 'Input flagged by moderation', null], [400, 'max_tokens too large', null]] as [$code, $msg, $want]) {
+    T::eq(OpenRouter::normalize($code, ['error' => ['code' => $code, 'message' => $msg]], '', null, 1)['halt']['code'] ?? null, $want, "HTTP {$code} \"{$msg}\" → " . ($want ? 'provider halt' : 'no halt'));
+}
 T::ok(abs(OpenRouter::costFromUsage(['prompt_tokens' => 1_000_000, 'completion_tokens' => 500_000, 'cost' => null], ['price_in' => '3.00', 'price_out' => '15.00']) - 10.5) < 1e-9, 'costFromUsage: token prices per 1M');
 T::ok(OpenRouter::costFromUsage(['prompt_tokens' => 5, 'cost' => 0.25], ['price_in' => 100]) === 0.25, 'costFromUsage: reported cost wins');
 T::ok(OpenRouter::costFromUsage([], []) === 0.0, 'costFromUsage: no data → 0');
@@ -593,9 +596,11 @@ T::ok(count($failed) === 1 && $failed[0]['status'] === 503 && $failed[0]['retrya
 $r = $or->chat(['model' => 'mock/error200', 'messages' => $msgs('x', 'hi')], 30);
 T::ok(!$r['ok'] && $r['status'] === 200 && $r['retryable'] && str_contains((string) $r['error'], '502'), 'error200: 200-with-error-body → retryable', $r);
 $r = $or->chat(['model' => 'mock/ratelimit', 'messages' => $msgs('x', 'hi')], 30);
-T::ok(!$r['ok'] && $r['status'] === 429 && $r['retryable'], 'ratelimit: 429 retryable');
+T::ok(!$r['ok'] && $r['status'] === 429 && $r['retryable'] && $r['retry_after'] === 7 && $r['halt'] === null, 'ratelimit: 429 retryable, Retry-After read', [$r['retry_after']]);
 $r = (new OpenRouter('bad', $mockBase))->chat(['model' => 'mock/oracle', 'messages' => $msgs('x', 'hi')], 30);
-T::ok(!$r['ok'] && $r['status'] === 401 && !$r['retryable'], 'bad key: 401 not retryable');
+T::ok(!$r['ok'] && $r['status'] === 401 && !$r['retryable'] && ($r['halt']['code'] ?? 0) === 401, 'bad key: 401 not retryable, a provider halt');
+$r = $or->chat(['model' => 'mock/nocredits', 'messages' => $msgs('x', 'hi')], 30);
+T::ok(!$r['ok'] && $r['status'] === 402 && !$r['retryable'] && ($r['halt']['code'] ?? 0) === 402 && str_contains($r['halt']['message'], 'Insufficient credits'), 'no credits: 402 → provider halt with the message', $r['halt']);
 $r = $or->chat(['model' => 'mock/notools', 'messages' => $msgs('x', 'hi'), 'tools' => AgentTools::schemas(['finish'])], 30);
 T::ok(!$r['ok'] && $r['status'] === 404 && !$r['retryable'] && str_contains((string) $r['error'], 'tool'), 'notools + tools: 404 not retryable');
 $r = $or->chat(['model' => 'mock/parts', 'messages' => Prompts::messages($fixtureTasks['ec-fixture-train-minutes'])], 30);

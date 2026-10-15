@@ -25,7 +25,8 @@
  *   mock/weak      tiny trivial output          mock/broken   prose only (no code, no answer, no tools)
  *   mock/flaky     oracle, but every 2nd request (per model, counter in the temp dir) → HTTP 503
  *   mock/notools   oracle; catalogue has no "tools" and a request WITH tools → 404 (like OpenRouter)
- *   mock/error200  HTTP 200 whose body is {"error":{"code":502,…}}      mock/ratelimit  HTTP 429
+ *   mock/error200  HTTP 200 whose body is {"error":{"code":502,…}}      mock/ratelimit  HTTP 429 (Retry-After: 7)
+ *   mock/nocredits HTTP 402 "Insufficient credits" (a provider halt: the worker pauses the campaign)
  *   mock/empty     empty content, finish_reason "stop"                  mock/slow       oracle after 1.5 s
  *   mock/truncated oracle cut at 60 % without closing fence, finish_reason "length"
  *   mock/parts     oracle with message.content as an array of text parts
@@ -125,6 +126,9 @@ function mock_json(array $data, int $status = 200): never
 
 function mock_error(int $status, string $message, int $httpStatus = 0): never
 {
+    if (($httpStatus ?: $status) === 429) {
+        header('Retry-After: 7');
+    }
     mock_json(['error' => ['code' => $status, 'message' => $message]], $httpStatus ?: $status);
 }
 
@@ -238,7 +242,7 @@ function mock_profile(string $model): string
     $base = explode(':', $model)[0];
     $known = [
         'mock/oracle' => 'oracle', 'mock/average' => 'average', 'mock/weak' => 'weak', 'mock/broken' => 'broken',
-        'mock/flaky' => 'flaky', 'mock/notools' => 'notools', 'mock/error200' => 'error200', 'mock/ratelimit' => 'ratelimit',
+        'mock/flaky' => 'flaky', 'mock/notools' => 'notools', 'mock/error200' => 'error200', 'mock/ratelimit' => 'ratelimit', 'mock/nocredits' => 'nocredits',
         'mock/empty' => 'empty', 'mock/slow' => 'slow', 'mock/truncated' => 'truncated', 'mock/parts' => 'parts',
         'mock/painter' => 'painter', 'mock/painter-chat' => 'painter-chat', 'mock/painter-url' => 'painter-url',
     ];
@@ -282,6 +286,8 @@ function mock_chat(array $req): never
             mock_json(['error' => ['code' => 502, 'message' => 'Upstream provider returned an error (mock)', 'metadata' => ['provider_name' => 'MockProvider', 'raw' => 'upstream timeout']]]);
         case 'ratelimit':
             mock_error(429, 'Rate limit exceeded: retry shortly (mock)');
+        case 'nocredits':
+            mock_error(402, 'Insufficient credits. Add more using https://openrouter.ai/credits (mock)');
         case 'flaky':
             if (mock_counter($model) % 2 === 0) {
                 mock_error(503, 'Service temporarily unavailable (mock flaky provider)');

@@ -15,8 +15,8 @@
    * html outputs run in this same realm and may patch built-ins (Object.prototype.toJSON / then, Array.prototype.map,
    * Math.max, Promise.prototype.then …) to read the message nonce or rewrite results. Everything that decides,
    * serialises or posts the result uses the originals captured here; built-in methods the checks rely on are
-   * locked (non-writable) and internal records have no prototype. A page that adds index or accessor properties
-   * to Object/Array.prototype (the remaining way to intercept array writes) is reported as tampering. */
+   * locked (non-writable) and internal records have no prototype. A page that adds index properties to
+   * Object/Array.prototype (the remaining way to intercept plain array writes) is reported as tampering. */
   var OBJ = W.Object;
   var Object = OBJ;
   var Array = W.Array;
@@ -71,7 +71,7 @@
     for (i = 0; i < ks.length; i++) { o[ks[i]] = clean(v[ks[i]], depth + 1); }
     return o;
   }
-  /** Numeric keys or accessors added to Object/Array.prototype after start (they intercept plain array writes). */
+  /** Index keys added to Object/Array.prototype after start: an index accessor there intercepts plain array writes. */
   var PROTO_BASE = rec(null);
   (function () { var ps = [OBJ.prototype, W.Array.prototype]; for (var i = 0; i < ps.length; i++) { var n = ownNames(ps[i]); for (var j = 0; j < n.length; j++) { PROTO_BASE[i + ':' + n[j]] = 1; } } })();
   var tampered = null;
@@ -81,9 +81,7 @@
     for (var i = 0; i < ps.length; i++) {
       var n = ownNames(ps[i]);
       for (var j = 0; j < n.length; j++) {
-        if (PROTO_BASE[i + ':' + n[j]]) { continue; }
-        var d = ownDesc(ps[i], n[j]);
-        if (/^\d+$/.test(n[j]) || (d && (d.get || d.set))) { tampered = (i ? 'Array' : 'Object') + '.prototype[' + trunc(n[j], 40) + ']'; return tampered; }
+        if (!PROTO_BASE[i + ':' + n[j]] && /^\d+$/.test(n[j])) { tampered = (i ? 'Array' : 'Object') + '.prototype[' + trunc(n[j], 40) + ']'; return tampered; }
       }
     }
     return null;

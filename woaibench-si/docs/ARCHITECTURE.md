@@ -12,7 +12,7 @@ more transparent**:
 | Accuracy / trust feature | How |
 |---|---|
 | Repeated attempts | every model × task is run N times (default 3) → mean and variance |
-| 95% confidence intervals | stratified bootstrap over tasks and attempts (1000 resamples) |
+| 95% confidence intervals | stratified bootstrap over tasks and attempts (1000 resamples), small-sample corrected (§5.3) |
 | Statistical rank | rank = 1 + number of models whose CI lower bound is above this model's CI upper bound |
 | Multi-vendor judge panel | 3 judges from **different vendors**, median score, judges never grade their own vendor |
 | Adaptive tie-break | if judge spread > 25 points an extra judge is added automatically |
@@ -22,7 +22,7 @@ more transparent**:
 | Real browser checks | outputs are executed in a sandboxed browser (admin "Verification Station" or headless Playwright) — JS errors, rendering, FPS, responsiveness, interactivity, unit tests, screenshots |
 | Deterministic tracks | algorithms, reasoning and agentic tasks are graded by tests / exact answers / simulated-environment state, no LLM opinion |
 | Contamination control | public task set + private **hold-out** set + Task Forge for fresh tasks each season |
-| Infrastructure ≠ model failure | API/provider errors are retried and excluded; only real model failures score 0 |
+| Infrastructure ≠ model failure | API/provider errors are retried and excluded; only real model failures score 0; account problems (no credit, bad key) pause the campaign instead of failing runs; a run is never scored without the browser evidence it needs |
 | Full transparency | every output, screenshot, check result and judge rationale is public (public tasks) |
 | Cost & latency | tokens, $ and seconds per task; price-performance Pareto frontier |
 | Human Arena | blind pairwise votes → Bradley–Terry ratings with CIs |
@@ -67,7 +67,7 @@ assets/js/app.js          global behaviours (WB namespace)
 assets/js/<module>.js     page scripts (add via $page_js)
 assets/vendor/            chart.umd.min.js
 assets/img/               logo.svg logo-mark.svg icons.svg favicons og.png
-uploads/shots/            screenshots (run_<id>_desktop.png / _mobile.png)
+uploads/shots/            screenshots run_<id>_<viewport>_<32 hex>.png|webp (unguessable, unique per capture)
 uploads/brand/            generated brand images
 storage/logs, storage/cache, storage/sessions
 cron/worker.php           CLI worker:  php cron/worker.php --seconds=55
@@ -133,8 +133,14 @@ brand_assets, changelog, gpus`. Read the schema file for columns. Notes:
   is public, so **every seeded task is `public`**; hold-out tasks are created privately in the admin (Task Forge /
   task editor) and never committed (§11).
 * `tasks.output_type`: `html` | `js` | `answer` | `agent` | `text`.
-* `runs.status` state machine (§5.2). `runs.final_score` 0–100.
-* `model_scores.scope`: `overall` or `track:<slug>`; `season` = `setting('season')`.
+* `runs.status` state machine (§5.2). `runs.final_score` 0–100 (NULL = scored without a usable score, §5.3).
+* `runs.cost_usd` = cost of the stored generation (averages, Pareto); `runs.spent_usd` = every paid call of the run
+  (failed / discarded attempts, judge calls) and only grows — `campaigns.spent_cost` is its sum.
+* `model_scores.scope`: `overall` or `track:<slug>`; `season` = `setting('season')`; `n_failed` = the model's runs
+  excluded from that score (failed after their tries, or scored without a usable score).
+* Migrations (`sql/migrations/`): `001_scores_failed_runs.sql` (model_scores.n_failed), `002_runs_spent_usd.sql`
+  (runs.spent_usd, back-filled from cost_usd + judgment costs). Code reading these columns checks
+  `WB\Eval\Pipeline::hasColumn()` first, so a site works before its admin runs *Migrate database*.
 
 ## 5. Benchmark engine (module: engine, app/eval, namespace WB\Eval)
 
@@ -211,6 +217,8 @@ queued ──generate──▶ (needs browser?) ──yes──▶ awaiting_veri
                       │no                                                                   ▲
                       └──────────────────────────────▶ judging (if judges needed) ─────────┘──▶ scoring ──▶ scored
 any step: infrastructure error → tries++ → retry (back to previous waiting state) ; tries ≥ 3 → failed (excluded)
+any step: provider halt (401 / 402 / 403 key limit) → back to the waiting state, try given back, campaign paused (§5.7)
+verification failed 3× for infrastructure reasons (verify_mode required) → stays awaiting_verify (needs_verification)
 ```
 * "needs browser" = output_type `html` or `js` **and** the task has `browser` checks or `tests`
   **and** `setting('verify_mode') !== 'off'`. In `optional` mode runs older than
@@ -235,13 +243,28 @@ final        = a·auto_score + (1−a)·judge_score
 if output_type in (html) and there is no code, or the browser check 'loads' or 'nonblank' failed
              → final × render_fail_factor (0.5)
 ```
-As built (`WB\Eval\Scorer::compute`):
-* **Unverified runs** (verification skipped for infrastructure reasons: `verify_mode` off / optional timeout /
-  verifier failed 3×): browser checks and tests are *excluded*, not failed, and the automated part only carries
-  the share of evidence that was measured: `a ← a × measured_weight / (measured_weight + excluded_weight)`, so a
-  few static checks can never stand in for unit tests. A run with **no extractable code** is not "unverified":
-  its browser checks and tests count as failed.
+As built (`WB\Eval\Scorer::compute`) — **missing verification is never rewarded**:
+* **verify_mode `required`** (default): an html/js run with browser checks or tests is never scored without its
+  browser evidence.
+  * The *output* is at fault — the page hangs, navigates away, runs out of memory on the last try, or crashes the
+    browser renderer on every try (a verifier releases the last try with `"cause": "output"`): the run is stored as
+    **verified** with the failures (every unreported check and test = 0, `metrics.hung|oom|crashed`, note
+    `verify_output_failed` for crashes) and the render-fail factor applies.
+  * *Infrastructure* is at fault — the verifier released the run, or its lease expired, on all 3 tries: the run is
+    **not scored**. It waits in `awaiting_verify` with the note `needs_verification` (no tries left, so no
+    verifier claims it) until an admin re-verifies it (`Pipeline::reverify()` → fresh tries, note `reverified`;
+    `Pipeline::needsVerificationIds()` lists them). Its campaign stays `running` meanwhile.
+* **Unverified runs** (only `verify_mode` off, or `optional` after `verify_wait_minutes` / 3 verifier failures, notes
+  `unverified_off|unverified_timeout|unverified_failed`): browser checks and tests are *excluded*, not failed, and the
+  automated part only carries the share of evidence that was measured:
+  `a ← a × measured_weight / (measured_weight + excluded_weight)`, so a few static checks can never stand in for
+  unit tests. When such a run has **no judge verdict** (no rubric, auto weight 1, or no judge) nothing but static
+  checks was measured: `final = NULL` (note `unverified_unscorable`) — the run is excluded from aggregation and
+  counted in `n_failed` instead of scoring 100 for any code that parses.
+* A run with **no extractable code** is not "unverified": its browser checks and tests count as failed.
 * No judge verdict → `a = 1`; no automated evidence at all → `a = 0` (judges only).
+* **Unit tests** are matched to the task's cases by name when every case has a unique name, otherwise strictly by
+  position (verifiers report results in case order) — duplicate names can never let one result count twice.
 * **Contested** (`runs.contested`): with ≤ 3 verdicts, `spread > judge_tiebreak_spread`; after a tie-break (≥ 4
   verdicts) the single verdict farthest from the median is the one being arbitrated, so contested means the
   *remaining* verdicts still spread more than `judge_tiebreak_spread`. The tie-break judge is added once when the
@@ -252,13 +275,32 @@ with status `scored` from campaigns with `include_in_scores = 1` and active task
 task_score   = mean(final over attempts)
 track_score  = mean(task_score over tasks in track)
 overall      = mean(track_score over tracks)          ← equal weight per track
-coverage     = scored tasks / active tasks            ; provisional = coverage < min_coverage
+coverage     = scored tasks / active tasks            (per track: scored tasks of the track / its active tasks)
+provisional  = overall: coverage < min_coverage OR any active track missing or with track coverage < min_coverage
+               track:   overall coverage < min_coverage OR that track's coverage < min_coverage
 CI           = stratified bootstrap (resample tasks within each track, then attempts within each task),
-               bootstrap_iters iterations, 2.5/97.5 percentiles, deterministic seed (mt_srand(1337))
+               bootstrap_iters iterations, 2.5/97.5 percentiles, deterministic seed (mt_srand(1337)),
+               with a small-sample correction (below)
 consistency  = 100 − mean over tasks of stddev(attempts)   (higher = more consistent)
-rank_pos     = order by overall desc among non-provisional models
+rank_pos     = competition rank (ties share a rank) by score desc among the scope's non-provisional rows
 stat_rank    = 1 + #models whose ci_low > this ci_high
+n_failed     = runs of included campaigns excluded from the score (status failed, or final_score NULL)
 ```
+* Equal weight per track only means something when every track is there: excluded runs are not missing at random
+  (a slow model loses its hardest tasks to timeouts), so a model that skipped a whole track — or covers one below
+  `min_coverage` — is listed but **not ranked** (provisional), even when its overall coverage is ≥ `min_coverage`.
+* **Small-sample correction** (a track has ~5 tasks): resampling n task means shrinks their variance by (n−1)/n and a
+  percentile interval ignores that the spread itself is estimated from n values. Each resampled track mean is
+  moved away from the track's point estimate by `sqrt(n/(n−1))`; track samples additionally by `t(n−1)/z`, and
+  overall samples by `t(df)/z` with the Welch–Satterthwaite df of the tracks' variances (≈ Σ(n−1)). CIs are clamped
+  to 0–100. Measured by `tools/dev/tests/ci_coverage_sim.php` (2000 replicates, 12 tracks × 3–10 tasks × 2–3
+  attempts): overall 94.6–97.8 %, per track 95.2–99.0 % (before: ≈ 92 % overall, 81–84 % per track); a strongly
+  skewed task distribution still gives 95 % overall but 92 % per track (stress test, reported, not gated).
+* Track leaderboards (`?track=`, API `track.rank`) use the stored track `rank_pos` / `stat_rank`; a model that is
+  provisional in that track is listed after the ranked ones, without a rank. The price-performance frontier
+  (`Models::paretoIds`) ignores provisional models (they are still drawn).
+* Per-task tables (`WB\Data\Models::COUNTED`) use the aggregator's exact filter: scored with a usable score,
+  included campaign of the season, active task, track and model.
 Writes `model_scores` (scope `overall` and `track:<slug>`; track rows also get CI) and one
 `score_history` row per model per day (upsert). Sets `settings.aggregate_last`.
 
@@ -266,6 +308,15 @@ Writes `model_scores` (scope `overall` and `track:<slug>`; track rows also get C
 
 * Judge pool: `models WHERE is_judge = 1 ORDER BY judge_order`. Per run choose the first
   `judge_count` judges whose `provider` ≠ run model's provider. Extra tie-break judge = next eligible.
+  Because judges never grade their own vendor, a full panel **plus** a tie-break reserve for every model needs
+  judges from at least `judge_count + 2` distinct vendors (5 for the default 3); with fewer, models of the judges'
+  vendors get a smaller panel (a mean of 2) and no tie-break. `Judge::panelHealth($models)` →
+  `[model_id => {eligible, panel, want, tiebreak}]` for admin warnings. A run scored by fewer verdicts than
+  `judge_count` (failed judges, no replacement left) gets the note `judges_partial`.
+* Blind judging (`Judge::redact`): the model's name, slug and OpenRouter id are replaced by `[model]` anywhere; its
+  vendor key, vendor name and brand word ("Anthropic", "Claude", "Gemini" …) as whole words in prose only — not inside
+  identifiers, URLs, tags or package names (`fonts.googleapis.com`, `@anthropic-ai/sdk`), and never generic words
+  (`meta`, `command`, `nova` …).
 * Prompt: system prompt with calibration anchors (0–2 broken · 3–4 poor · 5–6 adequate · 7–8 strong ·
   9–10 exceptional/rare; "most competent outputs land at 5–7"), the task prompt, rubric (with guides),
   automated check summary, the code (truncated to ~60k chars, head+tail), and screenshots (desktop +
@@ -281,7 +332,14 @@ Writes `model_scores` (scope `overall` and `track:<slug>`; track rows also get C
 * `chat(array $payload, int $timeout): array` → normalized
   `{ok, content, reasoning, tool_calls, finish_reason, usage:{prompt_tokens, completion_tokens, reasoning_tokens, cost}, provider, id, ms, error, status, retryable}`.
   Request `usage: {include: true}` so cost comes back; fallback cost = tokens × model prices.
-  `retryable` = network error, 408, 429, 5xx, or provider error codes.
+  `retryable` = network error, 408, 429, 5xx, or provider error codes. `retry_after` = seconds from a 429 / 503
+  `Retry-After` header (the hold-off before the next try is at least that, ≤ 900 s).
+  `halt` = `{code, message}` for a **provider halt** — 401 (invalid / missing key), 402 (no credit), 403 with key /
+  credit / limit wording (key spend limit) — never retryable and never the model's failure (§5.7). A 403 for
+  moderation is not a halt.
+* Image URLs returned by an image model are fetched only when every A / AAAA address of the host is public; the
+  download is pinned to that vetted address (`CURLOPT_RESOLVE`, no redirects) so DNS rebinding cannot reach an
+  internal address.
 * `models(): array` (GET /models) for catalog sync; `images(prompt, model, size): array` — tries
   `POST /images/generations` (OpenAI style: `data[0].b64_json|url`), falls back to chat completions
   with `modalities: ["image","text"]` (`choices[0].message.images[0].image_url.url` data URL).
@@ -365,14 +423,28 @@ Route files: `app/routes/20_engine.php` (worker step, web tick, verifier API), `
   aggregation (when `aggregate_dirty` and either idle or ≥ 60 s since `aggregate_last`) and
   `WB\Arena\Arena::maybeRecompute()`; writes the heartbeat `worker_last_run`. `$client` / `$generate` replace the
   OpenRouter client / `Generator::run` (tests). Returns
-  `{"did":[…], "counts":{<status>:n, …, "judgments_open":n}, "idle":bool, "spent":usd, "ms":int}`.
+  `{"did":[…], "counts":{<status>:n, …, "judgments_open":n}, "idle":bool, "halted":bool, "spent":usd, "ms":int}`.
+* **Provider halts** (OpenRouter 401 / 402 / 403 key limit, `OpenRouter::haltOf`): the unit is not a model failure and
+  not an infrastructure retry — the run / judgment goes back to `queued` / `pending` with its try given back, the
+  lease is released, its campaign is **paused**, and the setting `provider_halt` =
+  `{"code":401|402|403,"message":"…","at":"Y-m-d H:i:s","campaign_id":n,"campaign_ids":[every campaign it paused]}`
+  is stored (`Campaign::halt`). While it is set, `Worker::step` claims no generation or judging unit and returns
+  `halted: true` (finalize / timeouts still run). `Campaign::resume($id)` clears it; `Campaign::clearHalt(true)` clears
+  it and resumes every campaign it paused (admin "Clear & resume"); `Campaign::providerHalt()` reads it from the
+  database. The admin dashboard and console show it (`admin.halt.*`), the cron worker prints it.
+* A step checks its budget between units only, so the last unit may run for a whole generation or judge
+  evaluation: the PHP time limit (web) is `budget + max(3 × gen_timeout_s + 180, 3 × judge_timeout_s + 60)`.
   `did` kinds: `generate` {run_id, model, task, attempt, ok, status, ms, cost, error} · `judge` {run_id,
   judgment_id, judge, task, role, ok, score, status, run_status, ms, cost, error} · `finalize` · `score` ·
   `judge_expired` · `generate_expired` · `verify_given_up` · `verify_skipped` {reason} · `aggregate` {models, runs,
   ms} · `arena`.
-* Retries: infrastructure errors re-queue with backoff 30 s, 60 s, 120 s … (max 600 s); `tries ≥ 3` → `failed`
-  (excluded from scores). Leases: generation `gen_timeout_s + 120` s (agent: `3 × gen_timeout_s + 180`), judging
-  `3 × judge_timeout_s + 60`, verification 300 s, scoring 60 s.
+* Retries: infrastructure errors re-queue with backoff 30 s, 60 s, 120 s … (max 600 s; at least the provider's
+  `Retry-After`); `tries ≥ 3` → `failed` (excluded from scores). Leases: generation `gen_timeout_s + 120` s (agent:
+  `max(3 × gen_timeout_s + 180, wall_s + 105)` with the episode's `checks.agent.wall_s` / `_wall_s`, so a lowered
+  `gen_timeout_s` never lets a second worker start a duplicate paid episode), judging `3 × judge_timeout_s + 60`,
+  verification 300 s, scoring 60 s.
+* Spend: every paid call adds to `runs.spent_usd` (failed and discarded generation attempts, agent turns before an
+  API error, judge calls); `Campaign::refreshSpent` sums it, so campaign and dashboard spend are exact.
 * `WB\Eval\Campaign` — `create(name, modelIds, taskIds, runsPerTask ≤ 10, genParams = []): int` (status `running`,
   current season, runs inserted attempt-major) · `estimate(modelIds, taskIds, runsPerTask)` →
   `{runs, gen_cost, judge_cost, total, per_model:[{model_id, name, runs, gen_cost, judge_cost, cost}], assumptions}` ·
@@ -399,13 +471,20 @@ Route files: `app/routes/20_engine.php` (worker step, web tick, verifier API), `
     dropped, missing ones = failed "not reported", test `got` strings kept as-is, metrics `load_ms fps js_errors
     console_errors resource_errors dom_nodes oom` (numbers) and `hung navigated starved hidden offscreen`
     (booleans)), screenshots validated (PNG/JPEG/WebP magic + GD re-encode, ≤ 4 MB, single-colour captures
-    rejected) and saved as `uploads/shots/run_<id>_<viewport>.png|webp`, `verified=1`, `verified_by`, then the
+    rejected) and saved as `uploads/shots/run_<id>_<viewport>_<32 hex>.png|webp` (`VerifierApi::saveShot`; static
+    files bypass every PHP visibility check, so hold-out screenshots rely on the unguessable name; each capture gets a
+    new name, so the 1-year immutable cache stays correct). The previous captures of the run are deleted once the
+    new ones are stored (`VerifierApi::pruneShots`; also after a regeneration, and by the admin reset / delete).
+    Legacy guessable names are renamed by the Migrator step `shots_unguessable`. `verified=1`, `verified_by`, then the
     state machine advances → `{"ok":true,"next_status":"judging|scored","warnings":[…]}`. Errors:
     `{"ok":false,"error":"bad_request|not_found|lease_lost|task_missing|payload_too_large"}` with HTTP
     400/404/409/404/413; 401 without credentials.
-  * `POST /api/verifier/release` `{"run_id","lock_token","error"}` → infrastructure problem: back to
-    `awaiting_verify` with a growing hold-back (20 s, then 60 s) → `{"ok":true,"next_status":"awaiting_verify"}`;
-    on the last try the run proceeds **unverified** (note `unverified_failed`, §5.3).
+  * `POST /api/verifier/release` `{"run_id","lock_token","error","cause"?}` → back to `awaiting_verify` with a growing
+    hold-back (20 s, then 60 s) → `{"ok":true,"next_status":"awaiting_verify"}`. On the last try: `"cause":"output"`
+    (the page crashed the renderer on every try) → verified as the output's failure (note `verify_output_failed`,
+    `metrics.crashed`); otherwise (infrastructure) → `verify_mode` required: waits for an admin re-verification
+    (note `needs_verification`), optional / off: proceeds **unverified** (note `unverified_failed`, §5.3). The same
+    applies when a verification lease expires on the last try (Worker finalize).
   * Verifier policy (both verifiers): a page that hangs or navigates away is the output's failure (submitted
     with `hung` / `navigated`); a page measured while hidden/off-screen is re-measured or released; an
     out-of-memory error ("Array buffer allocation failed", heap exhausted) is released and retried in a fresh
@@ -446,7 +525,19 @@ Route files: `app/routes/20_engine.php` (worker step, web tick, verifier API), `
   `{"type":"wb-shot"}` asks for a screenshot; the frame answers `{"type":"wb-shot","nonce","dataUrl"|"error"}`.
   Messages go to `parentOrigin` only, the nonce is removed from the DOM before page code runs. For Playwright the
   same result is exposed as `window.__WB_PROBE_READY`, `__WB_PROBE_DEADLINE`, `__WB_PROBE_RESULT` and
-  `__WB_PROBE_RESULT_JSON` (non-writable). Deadline = max(timeout_ms, load + settle + per-check budgets + tests).
+  `__WB_PROBE_RESULT_JSON` (non-writable) — **without the nonce**, which only ever appears in the posted messages.
+  Deadline = max(timeout_ms, load + settle + per-check budgets + tests).
+* **Probe hardening** (html outputs share the probe's realm): before any page script runs the probe captures the
+  built-ins it needs (`Reflect.apply`, `Object.keys`, Math, JSON, Promise.resolve, canvas / serializer / Image.src
+  primitives for Station screenshots), locks the built-in methods its checks rely on as non-writable
+  (Array.prototype iteration methods, String / RegExp search methods, Function.prototype.call/apply/bind,
+  Promise.prototype.then/catch/finally/constructor and `Promise[Symbol.species]`), keeps every internal record
+  prototype-less (results travel through promises, so `Object.prototype.then` / setters / for-in pollution cannot
+  reach them), serialises the result itself (never `toJSON`) and appends to arrays with `defineProperty`. A page that
+  adds index properties ("0", "1" …) to `Object.prototype` / `Array.prototype` (which would intercept plain array
+  writes) is reported as tampering: `metrics.tampered = true`, every check fails with "not trusted".
+  `tools/verifier-node/verify.mjs` polls the result with primitive-only `evaluate` calls (a page that breaks
+  Playwright's in-page helpers cannot hang or feed it).
 * **Station screenshots** are taken inside the frame: DOM → SVG `<foreignObject>` → `<img>` → canvas, then the
   page's own (readable) canvases are composited on top (WebGL keeps its buffer thanks to the pre-script).
   Fallback: page background + canvases. Single-colour captures are rejected by the API.
@@ -463,7 +554,8 @@ Route files: `app/routes/20_engine.php` (worker step, web tick, verifier API), `
   Chromium (software WebGL via `--enable-unsafe-swiftshader` only as a fallback; ANGLE is not forced to
   SwiftShader so 2D pages keep their real frame rate). Opens each viewport top-level in a **fresh browser
   context** (`mode=playwright`), waits for `__WB_PROBE_RESULT_JSON`, takes `page.screenshot()`, submits; lone
-  surrogates are replaced before sending.
+  surrogates are replaced before sending. A renderer crash is retried in a fresh context like out-of-memory and, on
+  the last try, released with `"cause":"output"` (the output's own failure).
 
 ## 7. Design system (module: design — assets/css/app.css, assets/js/app.js, layouts)
 
