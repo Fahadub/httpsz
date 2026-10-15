@@ -24,6 +24,7 @@
   .row { cursor: default; outline: none; }
   .row .label { font-size: 14px; fill: var(--ink); }
   .row .value { font-size: 13px; font-weight: 700; fill: var(--ink); font-variant-numeric: tabular-nums; }
+  .row .value, .row .delta, .avg text { paint-order: stroke; stroke: var(--bg); stroke-width: 5px; stroke-linejoin: round; }
   .row .delta { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .row .delta.up { fill: var(--up); } .row .delta.down { fill: var(--down); }
   .row .bar { fill: var(--lo); transition: fill .2s; }
@@ -92,6 +93,7 @@
       mk('line', { x1: x(v), x2: x(v), y1: top - 6, y2: H - 6 }, g);
       const t = mk('text', { x: x(v), y: top - 12, 'text-anchor': 'middle' }, g); t.textContent = v + '%';
     }
+    const avg = mk('g', { class: 'avg' }, svg);
     rows = new Map();
     const body = mk('g', {}, svg);
     for (const d of DATA) {
@@ -105,7 +107,6 @@
       g.addEventListener('mouseleave', hideTip); g.addEventListener('blur', hideTip);
       rows.set(d.name, { g, y: 0 });
     }
-    const avg = mk('g', { class: 'avg' }, svg);
     mk('line', { x1: x(mean), x2: x(mean), y1: top - 4, y2: H - 4 }, avg);
     const at = mk('text', { x: x(mean) + 6, y: H - 8 }, avg); at.textContent = `Average ${pct(mean)}`;
     place(false);

@@ -42,7 +42,7 @@
   #tooltip li span { color: var(--muted); font-variant-numeric: tabular-nums; }
   select { font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff; }
   :focus-visible { outline: 3px solid #f2b705; outline-offset: 2px; }
-  @media (max-width: 640px) { .station text { font-size: 18px; stroke-width: 5px; } .route { stroke-width: 12; } header { padding: 10px 12px; } h1 small { display: none; } .legend { margin-inline-start: 0; } #tooltip { top: auto; bottom: 14px; width: calc(100% - 84px); } }
+  @media (max-width: 640px) { .station text { font-size: 22px; stroke-width: 6px; } .route { stroke-width: 13; } header { padding: 10px 12px; } h1 small { display: none; } .legend { margin-inline-start: 0; } #tooltip { top: auto; bottom: 14px; width: calc(100% - 84px); } }
 </style>
 </head>
 <body>
@@ -133,7 +133,9 @@
     const inter = st.lines.length > 1;
     const g = el('g', { class: 'station' + (inter ? ' interchange' : ''), tabindex: '0', role: 'button', 'aria-label': `${st.name} station, ${st.lines.map((l) => l.L.name).join(' and ')}`, transform: `translate(${st.x} ${st.y})` }, gStations);
     if (inter) el('rect', { x: -13, y: -13, width: 26, height: 26, rx: 13 }, g); else el('circle', { r: 7 }, g);
-    const [dx, dy, anchor] = LABEL[st.name] || [0, 24, 'middle'];
+    // Narrow screens use bigger labels, so a few move to free space to avoid collisions.
+    const MOBILE = { Westmere: [0, -20, 'middle'], 'Foundry Lane': [0, 32, 'middle'], Lighthouse: [0, 32, 'middle'], 'Old Mill': [10, 32, 'start'], Westfield: [0, 32, 'middle'], 'Market Square': [0, 32, 'middle'], Opera: [0, 32, 'middle'], Southpark: [0, 32, 'middle'], Airport: [0, 32, 'middle'] };
+    const [dx, dy, anchor] = (innerWidth < 640 && MOBILE[st.name]) || LABEL[st.name] || [0, 24, 'middle'];
     const t = el('text', { x: dx, y: dy, 'text-anchor': anchor }, g); t.textContent = st.name;
     st.g = g;
     const show = () => showStation(st);

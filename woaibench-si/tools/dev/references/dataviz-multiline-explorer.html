@@ -108,7 +108,7 @@ Dec 2025,4.2,14.0,4.6,6.1`;
   let geom;
   function draw(yLo, yHi) {
     const W = svg.clientWidth || 800, narrow = W < 560;
-    const H = narrow ? 360 : 420, m = { l: 44, r: narrow ? 16 : 150, t: 16, b: 34 };
+    const H = narrow ? 360 : 420, m = { l: 44, r: narrow ? 16 : 196, t: 16, b: 34 };
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.innerHTML = '<desc id="chart-desc">Line chart of average daily visitors for four museums over 24 months.</desc>';
     const ticks = niceTicks(yLo, yHi, narrow ? 4 : 6);

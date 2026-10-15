@@ -18,7 +18,13 @@ All brands, places and datasets are fictional or synthetic; nothing here is real
   `allow-forms`, so form-based UIs must use button handlers + Enter — references do exactly that.
 * **Graded where it is rendered.** 3D prompts warn that grading may run on software WebGL; references
   pick MSAA only on real GPUs, use dynamic resolution, culling or particle budgets, and hold ≥ 20 fps
-  in headless SwiftShader. fps thresholds are 20 for 3D and 50 for 2D games/animation.
+  in headless SwiftShader. fps thresholds are 20 for 3D and 50 for 2D games/animation (fps weight 0.5:
+  a blank page also runs at 60 fps, so it is a weak signal).
+* **Headless flags matter.** `--use-angle=swiftshader` (currently set by tools/verifier-node) routes all
+  compositing through SwiftShader and drops plain canvas/SVG pages from 60 to ~18 fps, so every 2D fps
+  check fails for every model. With only `--enable-unsafe-swiftshader --ignore-gpu-blocklist`, WebGL still
+  works (SwiftShader fallback) and 2D pages run at 60 fps. The validator uses the latter by default;
+  `--angle-swiftshader` reproduces the verifier's current flags.
 * **Weights:** "free" checks (loads, parses, single file, size) are light; task-specific checks carry the
   weight, so the trivial page `<html><body>Hello</body></html>` stays under ~35 auto points
   (before the 0.5 render-fail factor).
@@ -71,4 +77,6 @@ node /path/to/woaibench-si/tools/dev/validate-visual.mjs [track|slug …] [--pro
 6. `--probe`: injects the verifier's real `assets/js/probe.js` (+ the render.php pre-script) and requires
    every browser check to pass on the reference.
 
-Exit code 0 only when everything passes.
+`--probe-only` skips the validator's own browser pass and runs just the real probe.
+Exit code 0 only when everything passes. The seed files import cleanly through `WB\Setup\Seeder`
+(25 visual tasks, no errors).

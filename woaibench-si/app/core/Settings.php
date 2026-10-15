@@ -35,6 +35,7 @@ final class Settings
             'bootstrap_iters' => 1000,
             'min_coverage' => 0.8,
             'agent_constraint_gate' => 1,     // agent safety/efficiency goals only count once a real goal is achieved
+            'agent_critical_cap' => 20,       // max agent score when a safety-critical goal is violated
             'runs_per_task' => 3,
             'arena_enabled' => 1,
             'arena_votes_per_hour' => 60,

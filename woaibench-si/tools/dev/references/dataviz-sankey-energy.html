@@ -75,7 +75,7 @@
   // ---- layout ----
   function render() {
     const W = Math.max(720, svg.parentElement.clientWidth), H = 560;
-    const m = { l: 150, r: 170, t: 36, b: 16 }, nodeW = 14, pad = 14;
+    const m = { l: 150, r: 200, t: 36, b: 16 }, nodeW = 14, pad = 14;
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.innerHTML = svg.querySelector('desc').outerHTML;
     const colX = (c) => m.l + c * (W - m.l - m.r - nodeW) / 2;

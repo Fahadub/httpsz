@@ -3,7 +3,7 @@
 // Never deployed (tools/ is blocked by .htaccess).
 //
 //   NODE_PATH=/path/to/node_modules node tools/dev/validate-visual.mjs [track|slug ...]
-//        [--no-browser] [--probe | --probe-only] [--shots=DIR] [--trivial-only] [--json[=FILE]] [--verbose]
+//        [--no-browser] [--probe | --probe-only] [--angle-swiftshader] [--shots=DIR] [--trivial-only] [--json[=FILE]] [--verbose]
 //
 // For every task in sql/seed/tasks/{ui,games,3d,motion,dataviz}.json:
 //   1. structural validation (required fields, unique slugs / check ids, known check types, weights > 0,
@@ -1239,9 +1239,12 @@ async function main() {
   let pw = null; let browser = null; let server = null; let base = '';
   if (!flags['no-browser']) {
     pw = loadPlaywright();
-    // Same flags as tools/verifier-node (software WebGL via SwiftShader, no background throttling).
+    // Like tools/verifier-node, but WITHOUT --use-angle=swiftshader: that flag routes all compositing through
+    // SwiftShader and drops plain canvas/SVG pages from 60 to ~18 fps. WebGL still falls back to SwiftShader
+    // via --enable-unsafe-swiftshader. Pass --angle-swiftshader to reproduce the current verifier-node flags.
+    const gpuFlags = flags['angle-swiftshader'] ? ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] : ['--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
     browser = await pw.chromium.launch({ args: ['--disable-dev-shm-usage', '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
-      '--disable-backgrounding-occluded-windows', '--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
+      '--disable-backgrounding-occluded-windows', ...gpuFlags] });
     const hctx = await browser.newContext();
     helperPage = await hctx.newPage();
     await helperPage.goto('about:blank');
